@@ -1,0 +1,53 @@
+{
+ "app": "waba_suite",
+ "charts": [],
+ "content": "[{\"id\":\"Pizdqph9oo\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h3\\\">WhatsApp</span>\",\"col\":12}},{\"id\":\"vzxIL-Tj6e\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"aHs3hHLMxi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Settings\",\"col\":4}},{\"id\":\"SFKOqzRPCa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Account\",\"col\":4}},{\"id\":\"4w0PcgF1sV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Message\",\"col\":4}}]",
+ "creation": "2026-04-02 22:57:03.231182",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "WhatsApp",
+ "link_type": "DocType",
+ "links": [],
+ "modified": "2026-04-02 22:59:35.749781",
+ "modified_by": "Administrator",
+ "module": "WABA Suite",
+ "name": "WhatsApp",
+ "number_cards": [],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 0.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Whatsapp Settings",
+   "link_to": "WhatsApp Settings",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Whatsapp Account",
+   "link_to": "WhatsApp Account",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Whatsapp Message",
+   "link_to": "WhatsApp Message",
+   "stats_filter": "[]",
+   "type": "DocType"
+  }
+ ],
+ "title": "WhatsApp",
+ "type": "Workspace"
+}

@@ -26,7 +26,7 @@ app_license = "agpl-3.0"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/waba_suite/css/waba_suite.css"
-# app_include_js = "/assets/waba_suite/js/waba_suite.js"
+app_include_js = "/assets/waba_suite/js/waba_suite.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/waba_suite/css/waba_suite.css"
@@ -143,23 +143,31 @@ app_license = "agpl-3.0"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"waba_suite.tasks.all"
-# 	],
-# 	"daily": [
-# 		"waba_suite.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"waba_suite.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"waba_suite.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"waba_suite.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+    "all": ["waba_suite.utils.trigger_whatsapp_notifications_all"],
+    "hourly": ["waba_suite.utils.trigger_whatsapp_notifications_hourly"],
+    "hourly_long": ["waba_suite.utils.trigger_whatsapp_notifications_hourly_long"],
+    "daily": [
+        "waba_suite.utils.trigger_whatsapp_notifications_daily",
+        "waba_suite.waba_suite.doctype.whatsapp_notification.whatsapp_notification.trigger_notifications",
+    ],
+    "daily_long": [
+        "waba_suite.utils.trigger_whatsapp_notifications_daily_long",
+    ],
+    "weekly": [
+        "waba_suite.utils.trigger_whatsapp_notifications_weekly",
+    ],
+    "weekly_long": [
+        "waba_suite.utils.trigger_whatsapp_notifications_weekly_long",
+    ],
+    "monthly": [
+        "waba_suite.utils.trigger_whatsapp_notifications_monthly",
+    ],
+    "monthly_long": [
+        "waba_suite.utils.trigger_whatsapp_notifications_monthly_long",
+    ],
+}
+
 
 # Testing
 # -------
@@ -250,3 +258,21 @@ app_license = "agpl-3.0"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+doc_events = {
+    "*": {
+        "before_insert": "waba_suite.utils.run_server_script_for_doc_event",
+        "after_insert": "waba_suite.utils.run_server_script_for_doc_event",
+        "before_validate": "waba_suite.utils.run_server_script_for_doc_event",
+        "validate": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_update": "waba_suite.utils.run_server_script_for_doc_event",
+        "before_submit": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_submit": "waba_suite.utils.run_server_script_for_doc_event",
+        "before_cancel": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_cancel": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_trash": "waba_suite.utils.run_server_script_for_doc_event",
+        "after_delete": "waba_suite.utils.run_server_script_for_doc_event",
+        "before_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
+    }
+}

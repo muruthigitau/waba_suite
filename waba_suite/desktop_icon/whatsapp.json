@@ -1,0 +1,22 @@
+{
+ "app": "waba_suite",
+ "bg_color": "blue",
+ "creation": "2026-04-02 22:57:03.264297",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon_image": "",
+ "icon_type": "Link",
+ "idx": 0,
+ "label": "WhatsApp",
+ "link_to": "WhatsApp",
+ "link_type": "Workspace Sidebar",
+ "logo_url": "/assets/waba_suite/whatsapp.png",
+ "modified": "2026-04-02 23:04:14.231187",
+ "modified_by": "Administrator",
+ "name": "WhatsApp",
+ "owner": "Administrator",
+ "restrict_removal": 0,
+ "roles": [],
+ "standard": 1
+}
