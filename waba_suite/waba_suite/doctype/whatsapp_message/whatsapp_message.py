@@ -1,6 +1,8 @@
 # Copyright (c) 2022, Shridhar Patil and contributors
 # For license information, please see license.txt
+import re
 import json
+import html
 import frappe
 from frappe import _, throw
 from frappe.model.document import Document
@@ -12,6 +14,7 @@ from waba_suite.utils import get_whatsapp_account, format_number
 class WhatsAppMessage(Document):
     def validate(self):
         self.set_whatsapp_account()
+        self.restyle_message_content()
 
     def on_update(self):
         self.update_profile_name()
@@ -48,7 +51,6 @@ class WhatsAppMessage(Document):
             ).insert(ignore_permissions=True)
 
     def set_whatsapp_account(self):
-        """Set whatsapp account to default if missing"""
         if not self.whatsapp_account:
             account_type = "outgoing" if self.type == "Outgoing" else "incoming"
             default_whatsapp_account = get_whatsapp_account(account_type=account_type)
@@ -61,10 +63,7 @@ class WhatsAppMessage(Document):
             else:
                 self.whatsapp_account = default_whatsapp_account.name
 
-    """Send whats app messages."""
-
     def before_insert(self):
-        """Send message."""
         self.set_whatsapp_account()
         if self.type == "Outgoing" and self.message_type != "Template":
             if self.attach and not self.attach.startswith("http"):
@@ -82,21 +81,23 @@ class WhatsAppMessage(Document):
             if self.content_type in ["document", "image", "video"]:
                 data[self.content_type.lower()] = {
                     "link": link,
-                    "caption": self.message,
+                    "caption": self.styled_message or self.message,
                 }
             elif self.content_type == "reaction":
                 data["reaction"] = {
                     "message_id": self.reply_to_message_id,
-                    "emoji": self.message,
+                    "emoji": self.styled_message or self.message,
                 }
             elif self.content_type == "text":
-                data["text"] = {"preview_url": True, "body": self.message}
+                data["text"] = {
+                    "preview_url": True,
+                    "body": self.styled_message or self.message,
+                }
 
             elif self.content_type == "audio":
                 data["audio"] = {"link": link}
 
             elif self.content_type == "interactive":
-                # Interactive message (buttons or list)
                 data["type"] = "interactive"
                 buttons_data = (
                     json.loads(self.buttons)
@@ -105,7 +106,6 @@ class WhatsAppMessage(Document):
                 )
 
                 if isinstance(buttons_data, list) and len(buttons_data) > 3:
-                    # Use list message for more than 3 options (max 10)
                     data["interactive"] = {
                         "type": "list",
                         "body": {"text": self.message},
@@ -127,10 +127,9 @@ class WhatsAppMessage(Document):
                         },
                     }
                 else:
-                    # Use button message for 3 or fewer options
                     data["interactive"] = {
                         "type": "button",
-                        "body": {"text": self.message},
+                        "body": {"text": self.styled_message or self.message},
                         "action": {
                             "buttons": [
                                 {
@@ -143,7 +142,6 @@ class WhatsAppMessage(Document):
                     }
 
             elif self.content_type == "flow":
-                # WhatsApp Flow message
                 if not self.flow:
                     frappe.throw(_("WhatsApp Flow is required for flow content type"))
 
@@ -152,7 +150,6 @@ class WhatsAppMessage(Document):
                 if not flow_doc.flow_id:
                     frappe.throw(_("Flow must be created on WhatsApp before sending"))
 
-                # Determine flow mode - draft flows can be tested with mode: "draft"
                 flow_mode = None
                 if flow_doc.status != "Published":
                     flow_mode = "draft"
@@ -161,7 +158,6 @@ class WhatsAppMessage(Document):
                         indicator="orange",
                     )
 
-                # Get first screen if not specified
                 flow_screen = self.flow_screen
                 if not flow_screen and flow_doc.screens:
                     flow_screen = flow_doc.screens[0].screen_id
@@ -169,7 +165,11 @@ class WhatsAppMessage(Document):
                 data["type"] = "interactive"
                 data["interactive"] = {
                     "type": "flow",
-                    "body": {"text": self.message or "Please fill out the form"},
+                    "body": {
+                        "text": self.styled_message
+                        or self.message
+                        or "Please fill out the form"
+                    },
                     "action": {
                         "name": "flow",
                         "parameters": {
@@ -182,11 +182,9 @@ class WhatsAppMessage(Document):
                     },
                 }
 
-                # Add draft mode for testing unpublished flows
                 if flow_mode:
                     data["interactive"]["action"]["parameters"]["mode"] = flow_mode
 
-                # Add flow token - generate one if not provided (required by WhatsApp)
                 flow_token = self.flow_token or frappe.generate_hash(length=16)
                 data["interactive"]["action"]["parameters"]["flow_token"] = flow_token
 
@@ -206,7 +204,6 @@ class WhatsAppMessage(Document):
         self.create_whatsapp_profile()
 
     def send_template(self):
-        """Send template."""
         template = frappe.get_doc("WhatsApp Templates", self.template)
         data = {
             "messaging_product": "whatsapp",
@@ -328,7 +325,6 @@ class WhatsAppMessage(Document):
         self.notify(data)
 
     def notify(self, data):
-        """Notify."""
         whatsapp_account = frappe.get_doc(
             "WhatsApp Account",
             self.whatsapp_account,
@@ -361,7 +357,6 @@ class WhatsAppMessage(Document):
             frappe.throw(msg=error_message, title=res.get("error_user_title", "Error"))
 
     def format_number(self, number):
-        """Format number."""
         if number.startswith("+"):
             number = number[1 : len(number)]
 
@@ -402,6 +397,124 @@ class WhatsAppMessage(Document):
             res = frappe.flags.integration_request.json().get("error", {})
             error_message = res.get("Error", res.get("message"))
             frappe.log_error("WhatsApp API Error", f"{error_message}\n{res}")
+
+    def restyle_message_content(self):
+        if self.message:
+            self.styled_message = self.advanced_whatsapp_formatter(self.message)
+
+        if self.content_type == "interactive" and self.buttons:
+            try:
+                btns = (
+                    json.loads(self.buttons)
+                    if isinstance(self.buttons, str)
+                    else self.buttons
+                )
+                for btn in btns:
+                    if "title" in btn:
+                        btn["title"] = self.advanced_whatsapp_formatter(
+                            btn["title"], strip_newlines=True
+                        )
+                self.buttons = json.dumps(btns)
+            except Exception:
+                pass
+
+    def advanced_whatsapp_formatter(self, text, strip_newlines=False):
+        if not text:
+            return ""
+
+        text = html.unescape(text)
+
+        text = re.sub(
+            r'<a[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
+            lambda m: (
+                f"{re.sub('<[^>]+>', '', m.group(2)).strip()} - {m.group(1)}"
+                if m.group(2).strip()
+                else m.group(1)
+            ),
+            text,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        text = re.sub(r"<a[^>]*>(https?://[^<]+)</a>", r"\1", text, flags=re.IGNORECASE)
+
+        text = re.sub(r"<(br|p|div|li|tr)[^>]*\/?>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<\/(h[1-6])>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<(h[1-6])[^>]*>", lambda m: "", text, flags=re.IGNORECASE)
+        text = re.sub(r"<(strong|b)[^>]*>", "*", text, flags=re.IGNORECASE)
+        text = re.sub(r"<\/(strong|b)>", "*", text, flags=re.IGNORECASE)
+        text = re.sub(r"<(em|i)[^>]*>", "_", text, flags=re.IGNORECASE)
+        text = re.sub(r"<\/(em|i)>", "_", text, flags=re.IGNORECASE)
+        text = re.sub(r"<(strike|s|del)[^>]*>", "~", text, flags=re.IGNORECASE)
+        text = re.sub(r"<\/(strike|s|del)>", "~", text, flags=re.IGNORECASE)
+        text = re.sub(r"<code[^>]*>", "```", text, flags=re.IGNORECASE)
+        text = re.sub(r"<\/code>", "```", text, flags=re.IGNORECASE)
+        text = re.sub(r"<pre[^>]*>", "```\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<\/pre>", "\n```", text, flags=re.IGNORECASE)
+
+        text = re.sub(r"<ul[^>]*>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<\/ul>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<ol[^>]*>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<\/ol>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<li[^>]*>", "• ", text, flags=re.IGNORECASE)
+        text = re.sub(r"<\/li>", "\n", text, flags=re.IGNORECASE)
+
+        text = re.sub(r"<[^>]+>", "", text)
+
+        lines = text.split("\n")
+        processed_lines = []
+
+        for line in lines:
+            original_line = line
+            line = line.strip()
+
+            if not line:
+                processed_lines.append("")
+                continue
+
+            if re.match(r"^#{1,6}\s", line):
+                hash_count = len(re.match(r"^#{1,6}", line).group())
+                header_text = re.sub(r"^#{1,6}\s+", "", line)
+                processed_lines.append(f"*{header_text}*")
+            elif re.match(r"^#{1,6}[^#]", line):
+                header_text = re.sub(r"^#{1,6}", "", line).strip()
+                processed_lines.append(f"*{header_text}*")
+            elif re.match(r"^[-*+]\s", line):
+                content = re.sub(r"^[-*+]\s+", "", line)
+                processed_lines.append(f"• {content}")
+            elif re.match(r"^\d+\.\s", line):
+                processed_lines.append(line)
+            elif re.match(r"^>\s", line):
+                content = re.sub(r"^>\s+", "", line)
+                processed_lines.append(f"_{content}_")
+            elif re.match(r"^`{3}", line):
+                processed_lines.append(line)
+            elif re.match(r"^_{3,}$|^-{3,}$|^\*{3,}$", line):
+                processed_lines.append("---")
+            else:
+                if (
+                    processed_lines
+                    and processed_lines[-1]
+                    and not processed_lines[-1].startswith(("•", "```", "---"))
+                    and not re.match(r"^\d+\.", processed_lines[-1])
+                ):
+                    processed_lines[-1] = processed_lines[-1] + " " + line
+                else:
+                    processed_lines.append(line)
+
+        text = "\n".join(processed_lines)
+
+        text = re.sub(r"\*\*([^*]+)\*\*", r"*\1*", text)
+        text = re.sub(r"\*([^*]+)\*", r"*\1*", text)
+        text = re.sub(r"__([^_]+)__", r"_\1_", text)
+        text = re.sub(r"_([^_]+)_", r"_\1_", text)
+        text = re.sub(r"~~([^~]+)~~", r"~\1~", text)
+        text = re.sub(r"`([^`]+)`", r"```\1```", text)
+
+        text = re.sub(r"\n{3,}", "\n\n", text)
+
+        if strip_newlines:
+            text = text.replace("\n", " ").strip()
+
+        return text.strip()
 
 
 def on_doctype_update():
