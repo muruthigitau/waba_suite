@@ -8,7 +8,10 @@ requires-python = ">=3.14"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
-    "python-magic~=0.4.24",
+    "openai>=1.0.0",
+    "anthropic>=0.18.0",
+    "google-generativeai>=0.5.0",
+    "python-magic~=0.4.24"
 ]
 
 [tool.bench.frappe-dependencies]
