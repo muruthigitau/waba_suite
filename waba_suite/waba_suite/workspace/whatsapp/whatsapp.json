@@ -1,7 +1,7 @@
 {
  "app": "waba_suite",
  "charts": [],
- "content": "[{\"id\":\"Pizdqph9oo\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h3\\\">WhatsApp</span>\",\"col\":12}},{\"id\":\"vzxIL-Tj6e\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"aHs3hHLMxi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Settings\",\"col\":4}},{\"id\":\"SFKOqzRPCa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Account\",\"col\":4}},{\"id\":\"4w0PcgF1sV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Message\",\"col\":4}}]",
+ "content": "[{\"id\":\"Pizdqph9oo\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h3\\\">WhatsApp</span>\",\"col\":12}},{\"id\":\"vzxIL-Tj6e\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"aHs3hHLMxi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Settings\",\"col\":4}},{\"id\":\"SFKOqzRPCa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Account\",\"col\":4}},{\"id\":\"4w0PcgF1sV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Message\",\"col\":4}},{\"id\":\"6OmNDRS7Cp\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}},{\"id\":\"rh0o6HZrVm\",\"type\":\"card\",\"data\":{\"card_name\":\"Messaging\",\"col\":4}},{\"id\":\"uDv3s-sZyh\",\"type\":\"card\",\"data\":{\"card_name\":\"Chatbot\",\"col\":4}}]",
  "creation": "2026-04-02 22:57:03.231182",
  "custom_blocks": [],
  "docstatus": 0,
@@ -12,8 +12,206 @@
  "is_hidden": 0,
  "label": "WhatsApp",
  "link_type": "DocType",
- "links": [],
- "modified": "2026-04-02 22:59:35.749781",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Messaging",
+   "link_count": 6,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Message",
+   "link_count": 0,
+   "link_to": "WhatsApp Message",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Bulk WhatsApp Message",
+   "link_count": 0,
+   "link_to": "Bulk WhatsApp Message",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Flow",
+   "link_count": 0,
+   "link_to": "WhatsApp Flow",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Templates",
+   "link_count": 0,
+   "link_to": "WhatsApp Templates",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Notification",
+   "link_count": 0,
+   "link_to": "WhatsApp Notification",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Notification Log",
+   "link_count": 0,
+   "link_to": "WhatsApp Notification Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Setup",
+   "link_count": 5,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Account",
+   "link_count": 0,
+   "link_to": "WhatsApp Account",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Settings",
+   "link_count": 0,
+   "link_to": "WhatsApp Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Contact",
+   "link_count": 0,
+   "link_to": "WhatsApp Contact",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Profiles",
+   "link_count": 0,
+   "link_to": "WhatsApp Profiles",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Recipient List",
+   "link_count": 0,
+   "link_to": "WhatsApp Recipient List",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Chatbot",
+   "link_count": 6,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Chatbot",
+   "link_count": 0,
+   "link_to": "WhatsApp Chatbot",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp AI Context",
+   "link_count": 0,
+   "link_to": "WhatsApp AI Context",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Chatbot Flow",
+   "link_count": 0,
+   "link_to": "WhatsApp Chatbot Flow",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Chatbot Session",
+   "link_count": 0,
+   "link_to": "WhatsApp Chatbot Session",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Keyword Reply",
+   "link_count": 0,
+   "link_to": "WhatsApp Keyword Reply",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "WhatsApp Agent Transfer",
+   "link_count": 0,
+   "link_to": "WhatsApp Agent Transfer",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-04-04 09:40:49.847387",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp",

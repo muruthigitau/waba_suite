@@ -1,1 +1,3 @@
 WABA Suite
+Frappe WhatsApp Chatbot
+Whatsapp Chat
