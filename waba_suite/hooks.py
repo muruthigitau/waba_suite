@@ -25,8 +25,8 @@ app_license = "agpl-3.0"
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/waba_suite/css/waba_suite.css"
-app_include_js = "/assets/waba_suite/js/waba_suite.js"
+app_include_css = ["whatsapp_chat.bundle.css"]
+app_include_js = ["whatsapp_chat.bundle.js", "/assets/waba_suite/js/waba_suite.js"]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/waba_suite/css/waba_suite.css"
@@ -276,6 +276,24 @@ doc_events = {
         "on_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
     },
     "WhatsApp Message": {
-        "after_insert": "frappe_whatsapp_chatbot.chatbot.processor.process_incoming_message"
+        "after_insert": "waba_suite.api.message.last_message",
     },
 }
+
+sounds = [
+    {
+        "name": "chat-notification",
+        "src": "/assets/frappe/sounds/email.mp3",
+        "volume": 0.2,
+    },
+    {
+        "name": "chat-message-send",
+        "src": "/assets/frappe/sounds/submit.mp3",
+        "volume": 0.2,
+    },
+    {
+        "name": "chat-message-receive",
+        "src": "/assets/frappe/sounds/alert.mp3",
+        "volume": 0.5,
+    },
+]
