@@ -48,7 +48,6 @@ class WhatsAppMessage(Document):
             ).insert(ignore_permissions=True)
 
     def set_whatsapp_account(self):
-        """Set whatsapp account to default if missing"""
         if not self.whatsapp_account:
             account_type = "outgoing" if self.type == "Outgoing" else "incoming"
             default_whatsapp_account = get_whatsapp_account(account_type=account_type)
@@ -61,10 +60,7 @@ class WhatsAppMessage(Document):
             else:
                 self.whatsapp_account = default_whatsapp_account.name
 
-    """Send whats app messages."""
-
     def before_insert(self):
-        """Send message."""
         self.set_whatsapp_account()
         if self.type == "Outgoing" and self.message_type != "Template":
             if self.attach and not self.attach.startswith("http"):
@@ -105,7 +101,6 @@ class WhatsAppMessage(Document):
                 )
 
                 if isinstance(buttons_data, list) and len(buttons_data) > 3:
-                    # Use list message for more than 3 options (max 10)
                     data["interactive"] = {
                         "type": "list",
                         "body": {"text": self.message},
@@ -143,7 +138,6 @@ class WhatsAppMessage(Document):
                     }
 
             elif self.content_type == "flow":
-                # WhatsApp Flow message
                 if not self.flow:
                     frappe.throw(_("WhatsApp Flow is required for flow content type"))
 
@@ -152,7 +146,6 @@ class WhatsAppMessage(Document):
                 if not flow_doc.flow_id:
                     frappe.throw(_("Flow must be created on WhatsApp before sending"))
 
-                # Determine flow mode - draft flows can be tested with mode: "draft"
                 flow_mode = None
                 if flow_doc.status != "Published":
                     flow_mode = "draft"
@@ -161,7 +154,6 @@ class WhatsAppMessage(Document):
                         indicator="orange",
                     )
 
-                # Get first screen if not specified
                 flow_screen = self.flow_screen
                 if not flow_screen and flow_doc.screens:
                     flow_screen = flow_doc.screens[0].screen_id
@@ -182,11 +174,9 @@ class WhatsAppMessage(Document):
                     },
                 }
 
-                # Add draft mode for testing unpublished flows
                 if flow_mode:
                     data["interactive"]["action"]["parameters"]["mode"] = flow_mode
 
-                # Add flow token - generate one if not provided (required by WhatsApp)
                 flow_token = self.flow_token or frappe.generate_hash(length=16)
                 data["interactive"]["action"]["parameters"]["flow_token"] = flow_token
 
@@ -206,7 +196,6 @@ class WhatsAppMessage(Document):
         self.create_whatsapp_profile()
 
     def send_template(self):
-        """Send template."""
         template = frappe.get_doc("WhatsApp Templates", self.template)
         data = {
             "messaging_product": "whatsapp",
@@ -328,7 +317,6 @@ class WhatsAppMessage(Document):
         self.notify(data)
 
     def notify(self, data):
-        """Notify."""
         whatsapp_account = frappe.get_doc(
             "WhatsApp Account",
             self.whatsapp_account,
@@ -361,7 +349,6 @@ class WhatsAppMessage(Document):
             frappe.throw(msg=error_message, title=res.get("error_user_title", "Error"))
 
     def format_number(self, number):
-        """Format number."""
         if number.startswith("+"):
             number = number[1 : len(number)]
 
