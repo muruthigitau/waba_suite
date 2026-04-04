@@ -276,8 +276,7 @@ doc_events = {
         "on_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
     },
     "WhatsApp Message": {
-        "after_insert": "frappe_whatsapp_chatbot.chatbot.processor.process_incoming_message",
-        "after_insert": "whatsapp_chat.api.message.last_message",
+        "after_insert": "waba_suite.api.message.last_message",
     },
 }
 
