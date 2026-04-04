@@ -276,7 +276,7 @@ doc_events = {
         "on_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
     },
     "WhatsApp Message": {
-        "after_insert": "waba_suite.api.message.last_message",
+        "after_insert": "waba_suite.api.message.handle_whatsapp_insertion",
     },
 }
 
