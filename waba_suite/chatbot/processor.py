@@ -116,9 +116,9 @@ class ChatbotProcessor:
                     self.send_response(settings.out_of_hours_message)
                 return
 
-        from frappe_whatsapp_chatbot.chatbot.session_manager import SessionManager
-        from frappe_whatsapp_chatbot.chatbot.keyword_matcher import KeywordMatcher
-        from frappe_whatsapp_chatbot.chatbot.flow_engine import FlowEngine
+        from waba_suite.chatbot.session_manager import SessionManager
+        from waba_suite.chatbot.keyword_matcher import KeywordMatcher
+        from waba_suite.chatbot.flow_engine import FlowEngine
 
         # Initialize managers
         session_mgr = SessionManager(self.phone_number, self.account)
@@ -170,11 +170,11 @@ class ChatbotProcessor:
         # 4. AI Fallback (if enabled)
         if settings.enable_ai:
             try:
-                from frappe_whatsapp_chatbot.chatbot.ai_responder import AIResponder
+                from waba_suite.chatbot.ai_responder import AIResponder
+
                 ai_responder = AIResponder(settings, phone_number=self.phone_number)
                 response = ai_responder.generate_response(
-                    self.message_text,
-                    session_mgr.get_conversation_history()
+                    self.message_text, session_mgr.get_conversation_history()
                 )
                 if response:
                     self.send_response(response)
