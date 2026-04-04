@@ -1,0 +1,142 @@
+{
+ "actions": [],
+ "autoname": "format:AGT-{phone_number}-{####}",
+ "creation": "2024-01-01 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "phone_number",
+  "whatsapp_account",
+  "column_break_1",
+  "status",
+  "transferred_at",
+  "section_break_agent",
+  "agent",
+  "agent_name",
+  "column_break_agent",
+  "notes",
+  "section_break_resume",
+  "resumed_at",
+  "column_break_bjes",
+  "resumed_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Phone Number",
+   "reqd": 1
+  },
+  {
+   "fieldname": "whatsapp_account",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "WhatsApp Account",
+   "options": "WhatsApp Account"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nResumed"
+  },
+  {
+   "default": "now",
+   "fieldname": "transferred_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Transferred At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_agent",
+   "fieldtype": "Section Break",
+   "label": "Agent Details"
+  },
+  {
+   "description": "User handling this conversation",
+   "fieldname": "agent",
+   "fieldtype": "Link",
+   "label": "Agent",
+   "options": "User"
+  },
+  {
+   "fetch_from": "agent.full_name",
+   "fieldname": "agent_name",
+   "fieldtype": "Data",
+   "label": "Agent Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_agent",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Reason for transfer or additional context",
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.status=='Resumed'",
+   "fieldname": "section_break_resume",
+   "fieldtype": "Section Break",
+   "label": "Resume Info"
+  },
+  {
+   "fieldname": "resumed_at",
+   "fieldtype": "Datetime",
+   "label": "Resumed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resumed_by",
+   "fieldtype": "Link",
+   "label": "Resumed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_bjes",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-12-12 13:34:06.040260",
+ "modified_by": "Administrator",
+ "module": "Frappe WhatsApp Chatbot",
+ "name": "WhatsApp Agent Transfer",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "phone_number",
+ "track_changes": 1
+}
