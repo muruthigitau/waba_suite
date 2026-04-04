@@ -1,0 +1,186 @@
+{
+ "actions": [],
+ "creation": "2024-01-01 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "step_name",
+  "message",
+  "input_type",
+  "whatsapp_flow",
+  "flow_cta",
+  "flow_screen",
+  "store_as",
+  "buttons",
+  "message_type",
+  "template",
+  "response_script",
+  "options",
+  "flow_field_mapping",
+  "validation_regex",
+  "validation_error",
+  "next_step",
+  "conditional_next",
+  "skip_condition",
+  "retry_on_invalid",
+  "max_retries"
+ ],
+ "fields": [
+  {
+   "description": "Unique identifier for this step (e.g., step_welcome, step_email)",
+   "fieldname": "step_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Step Name",
+   "reqd": 1
+  },
+  {
+   "description": "Message to send. Use {variable_name} for substitution.",
+   "fieldname": "message",
+   "fieldtype": "Text",
+   "in_list_view": 1,
+   "label": "Message",
+   "reqd": 1
+  },
+  {
+   "default": "Text",
+   "fieldname": "message_type",
+   "fieldtype": "Select",
+   "label": "Message Type",
+   "options": "Text\nTemplate\nScript"
+  },
+  {
+   "depends_on": "eval:doc.message_type=='Template'",
+   "fieldname": "template",
+   "fieldtype": "Link",
+   "label": "Template",
+   "options": "WhatsApp Templates"
+  },
+  {
+   "depends_on": "eval:doc.message_type=='Script'",
+   "description": "Python script to generate response. Use 'data' dict for session data, 'frappe' module available. Set 'response' variable with the message to send.",
+   "fieldname": "response_script",
+   "fieldtype": "Small Text",
+   "label": "Response Script (for Message Type: Script)"
+  },
+  {
+   "default": "Text",
+   "description": "Type of input expected from user",
+   "fieldname": "input_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Input Type",
+   "options": "None\nText\nNumber\nEmail\nPhone\nDate\nSelect\nButton\nWhatsApp Flow"
+  },
+  {
+   "depends_on": "eval:doc.input_type=='Select'",
+   "description": "Pipe-separated options (e.g., Option 1|Option 2|Option 3)",
+   "fieldname": "options",
+   "fieldtype": "Small Text",
+   "label": "Options"
+  },
+  {
+   "depends_on": "eval:doc.input_type=='Button'",
+   "description": "JSON array of buttons (max 3): [{\"id\": \"yes\", \"title\": \"Yes\"}, {\"id\": \"no\", \"title\": \"No\"}]",
+   "fieldname": "buttons",
+   "fieldtype": "Code",
+   "label": "Buttons",
+   "options": "JSON"
+  },
+  {
+   "depends_on": "eval:doc.input_type=='WhatsApp Flow'",
+   "description": "Select the WhatsApp Flow to send",
+   "fieldname": "whatsapp_flow",
+   "fieldtype": "Link",
+   "label": "WhatsApp Flow",
+   "options": "WhatsApp Flow"
+  },
+  {
+   "depends_on": "eval:doc.input_type=='WhatsApp Flow'",
+   "description": "Button text to open the flow (e.g., 'Fill Form')",
+   "fieldname": "flow_cta",
+   "fieldtype": "Data",
+   "label": "Flow Button Text"
+  },
+  {
+   "depends_on": "eval:doc.input_type=='WhatsApp Flow'",
+   "description": "Screen ID to start from (optional, defaults to first screen)",
+   "fieldname": "flow_screen",
+   "fieldtype": "Data",
+   "label": "Starting Screen"
+  },
+  {
+   "depends_on": "eval:doc.input_type=='WhatsApp Flow'",
+   "description": "Map flow fields to session variables: {\"flow_field\": \"session_variable\"}",
+   "fieldname": "flow_field_mapping",
+   "fieldtype": "Code",
+   "label": "Flow Field Mapping",
+   "options": "JSON"
+  },
+  {
+   "depends_on": "eval:doc.message_type=='Text'",
+   "description": "Regex pattern to validate input",
+   "fieldname": "validation_regex",
+   "fieldtype": "Data",
+   "label": "Validation Regex"
+  },
+  {
+   "description": "Error message shown when validation fails",
+   "fieldname": "validation_error",
+   "fieldtype": "Small Text",
+   "label": "Validation Error Message"
+  },
+  {
+   "description": "Variable name to store user's input (e.g., user_email)",
+   "fieldname": "store_as",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Store As"
+  },
+  {
+   "description": "Name of the next step. Leave empty for next in order.",
+   "fieldname": "next_step",
+   "fieldtype": "Data",
+   "label": "Next Step"
+  },
+  {
+   "description": "JSON mapping input to next step: {\"option1\": \"step_a\", \"option2\": \"step_b\", \"default\": \"step_c\"}",
+   "fieldname": "conditional_next",
+   "fieldtype": "JSON",
+   "label": "Conditional Next Step"
+  },
+  {
+   "description": "Python expression to skip this step. Use 'data' dict for session data.",
+   "fieldname": "skip_condition",
+   "fieldtype": "Code",
+   "label": "Skip Condition",
+   "options": "Python"
+  },
+  {
+   "default": "1",
+   "fieldname": "retry_on_invalid",
+   "fieldtype": "Check",
+   "label": "Retry on Invalid Input"
+  },
+  {
+   "default": "3",
+   "depends_on": "eval:doc.retry_on_invalid",
+   "fieldname": "max_retries",
+   "fieldtype": "Int",
+   "label": "Max Retries"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2025-12-10 21:46:29.139280",
+ "modified_by": "Administrator",
+ "module": "Frappe WhatsApp Chatbot",
+ "name": "WhatsApp Flow Step",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "idx",
+ "sort_order": "ASC",
+ "states": []
+}

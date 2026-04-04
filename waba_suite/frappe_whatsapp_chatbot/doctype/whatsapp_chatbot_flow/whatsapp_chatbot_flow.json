@@ -1,0 +1,220 @@
+{
+    "actions": [],
+    "autoname": "field:flow_name",
+    "creation": "2024-01-01 00:00:00.000000",
+    "doctype": "DocType",
+    "editable_grid": 1,
+    "engine": "InnoDB",
+    "field_order": [
+        "flow_name",
+        "enabled",
+        "description",
+        "column_break_basic",
+        "whatsapp_account",
+        "section_break_trigger",
+        "trigger_keywords",
+        "trigger_on_button",
+        "section_break_initial",
+        "initial_message",
+        "initial_message_type",
+        "initial_template",
+        "section_break_steps",
+        "steps",
+        "section_break_completion",
+        "completion_message",
+        "on_complete_action",
+        "column_break_completion",
+        "create_doctype",
+        "field_mapping",
+        "api_endpoint",
+        "custom_script",
+        "section_break_timeout",
+        "timeout_message",
+        "cancel_keywords"
+    ],
+    "fields": [
+        {
+            "fieldname": "flow_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Flow Name",
+            "reqd": 1,
+            "unique": 1
+        },
+        {
+            "default": "1",
+            "fieldname": "enabled",
+            "fieldtype": "Check",
+            "in_list_view": 1,
+            "label": "Enabled"
+        },
+        {
+            "fieldname": "description",
+            "fieldtype": "Small Text",
+            "label": "Description"
+        },
+        {
+            "fieldname": "column_break_basic",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "whatsapp_account",
+            "fieldtype": "Link",
+            "label": "WhatsApp Account",
+            "options": "WhatsApp Account",
+            "description": "Leave empty to apply to all accounts"
+        },
+        {
+            "fieldname": "section_break_trigger",
+            "fieldtype": "Section Break",
+            "label": "Flow Triggers"
+        },
+        {
+            "fieldname": "trigger_keywords",
+            "fieldtype": "Small Text",
+            "label": "Trigger Keywords",
+            "description": "Comma-separated keywords that trigger this flow"
+        },
+        {
+            "fieldname": "trigger_on_button",
+            "fieldtype": "Data",
+            "label": "Trigger on Button Payload",
+            "hidden": 1,
+            "description": "Button ID that triggers this flow"
+        },
+        {
+            "fieldname": "section_break_initial",
+            "fieldtype": "Section Break",
+            "label": "Initial Message"
+        },
+        {
+            "fieldname": "initial_message",
+            "fieldtype": "Text",
+            "label": "Initial Message",
+            "description": "First message sent when flow starts"
+        },
+        {
+            "fieldname": "initial_message_type",
+            "fieldtype": "Select",
+            "label": "Initial Message Type",
+            "options": "Text\nTemplate",
+            "default": "Text"
+        },
+        {
+            "fieldname": "initial_template",
+            "fieldtype": "Link",
+            "label": "Initial Template",
+            "options": "WhatsApp Templates",
+            "depends_on": "eval:doc.initial_message_type=='Template'"
+        },
+        {
+            "fieldname": "section_break_steps",
+            "fieldtype": "Section Break",
+            "label": "Flow Steps"
+        },
+        {
+            "fieldname": "steps",
+            "fieldtype": "Table",
+            "label": "Steps",
+            "options": "WhatsApp Flow Step",
+            "reqd": 1
+        },
+        {
+            "fieldname": "section_break_completion",
+            "fieldtype": "Section Break",
+            "label": "On Completion"
+        },
+        {
+            "fieldname": "completion_message",
+            "fieldtype": "Text",
+            "label": "Completion Message",
+            "description": "Message sent when flow completes. Use {variable} for substitution."
+        },
+        {
+            "fieldname": "on_complete_action",
+            "fieldtype": "Select",
+            "label": "On Complete Action",
+            "options": "None\nCreate Document\nCall API\nRun Script",
+            "default": "None"
+        },
+        {
+            "fieldname": "column_break_completion",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "create_doctype",
+            "fieldtype": "Link",
+            "label": "Create DocType",
+            "options": "DocType",
+            "depends_on": "eval:doc.on_complete_action=='Create Document'"
+        },
+        {
+            "fieldname": "field_mapping",
+            "fieldtype": "JSON",
+            "label": "Field Mapping",
+            "depends_on": "eval:doc.on_complete_action=='Create Document'",
+            "description": "Map flow variables to DocType fields: {\"doctype_field\": \"flow_variable\"}"
+        },
+        {
+            "fieldname": "api_endpoint",
+            "fieldtype": "Data",
+            "label": "API Endpoint",
+            "depends_on": "eval:doc.on_complete_action=='Call API'",
+            "description": "URL to POST collected data to"
+        },
+        {
+            "fieldname": "custom_script",
+            "fieldtype": "Code",
+            "label": "Custom Script",
+            "options": "Python",
+            "depends_on": "eval:doc.on_complete_action=='Run Script'",
+            "description": "Python script to run. Use 'data' dict for collected data, 'frappe' module available."
+        },
+        {
+            "fieldname": "section_break_timeout",
+            "fieldtype": "Section Break",
+            "label": "Timeout & Cancellation",
+            "collapsible": 1
+        },
+        {
+            "fieldname": "timeout_message",
+            "fieldtype": "Small Text",
+            "label": "Timeout Message",
+            "default": "Your session has timed out. Please start again."
+        },
+        {
+            "fieldname": "cancel_keywords",
+            "fieldtype": "Data",
+            "label": "Cancel Keywords",
+            "default": "cancel, stop, quit, exit",
+            "description": "Comma-separated words that cancel the flow"
+        }
+    ],
+    "index_web_pages_for_search": 1,
+    "links": [],
+    "modified": "2024-01-01 00:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "Frappe WhatsApp Chatbot",
+    "name": "WhatsApp Chatbot Flow",
+    "naming_rule": "By fieldname",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1
+}
