@@ -34,6 +34,7 @@ class ChatbotProcessor:
             flow_response_data = message_data.get("flow_response")
             if flow_response_data:
                 import json
+
                 if isinstance(flow_response_data, str):
                     try:
                         self.flow_response = json.loads(flow_response_data)
@@ -91,10 +92,10 @@ class ChatbotProcessor:
     def is_transferred_to_agent(self):
         """Check if this conversation has been transferred to a human agent."""
         try:
-            return frappe.db.exists("WhatsApp Agent Transfer", {
-                "phone_number": self.phone_number,
-                "status": "Active"
-            })
+            return frappe.db.exists(
+                "WhatsApp Agent Transfer",
+                {"phone_number": self.phone_number, "status": "Active"},
+            )
         except Exception:
             # If doctype doesn't exist yet, don't block processing
             return False
@@ -116,9 +117,9 @@ class ChatbotProcessor:
                     self.send_response(settings.out_of_hours_message)
                 return
 
-        from frappe_whatsapp_chatbot.chatbot.session_manager import SessionManager
-        from frappe_whatsapp_chatbot.chatbot.keyword_matcher import KeywordMatcher
-        from frappe_whatsapp_chatbot.chatbot.flow_engine import FlowEngine
+        from waba_suite.chatbot.session_manager import SessionManager
+        from waba_suite.chatbot.keyword_matcher import KeywordMatcher
+        from waba_suite.chatbot.flow_engine import FlowEngine
 
         # Initialize managers
         session_mgr = SessionManager(self.phone_number, self.account)
@@ -133,14 +134,11 @@ class ChatbotProcessor:
             # If this is a flow response, process the flow data
             if self.content_type == "flow" and self.flow_response:
                 response = self.process_flow_response_in_session(
-                    active_session,
-                    flow_engine
+                    active_session, flow_engine
                 )
             else:
                 response = flow_engine.process_input(
-                    active_session,
-                    self.message_text,
-                    self.button_payload
+                    active_session, self.message_text, self.button_payload
                 )
             if response:
                 self.send_response(response)
@@ -160,7 +158,9 @@ class ChatbotProcessor:
                 return
 
         # 3. Check if message triggers a flow directly
-        flow_trigger = flow_engine.check_flow_trigger(self.message_text, self.button_payload)
+        flow_trigger = flow_engine.check_flow_trigger(
+            self.message_text, self.button_payload
+        )
         if flow_trigger:
             response = flow_engine.start_flow(flow_trigger)
             if response:
@@ -170,11 +170,11 @@ class ChatbotProcessor:
         # 4. AI Fallback (if enabled)
         if settings.enable_ai:
             try:
-                from frappe_whatsapp_chatbot.chatbot.ai_responder import AIResponder
+                from waba_suite.chatbot.ai_responder import AIResponder
+
                 ai_responder = AIResponder(settings, phone_number=self.phone_number)
                 response = ai_responder.generate_response(
-                    self.message_text,
-                    session_mgr.get_conversation_history()
+                    self.message_text, session_mgr.get_conversation_history()
                 )
                 if response:
                     self.send_response(response)
@@ -196,14 +196,16 @@ class ChatbotProcessor:
 
             if isinstance(response, str):
                 # Simple text response
-                msg = frappe.get_doc({
-                    "doctype": "WhatsApp Message",
-                    "type": "Outgoing",
-                    "to": self.phone_number,
-                    "message": response,
-                    "content_type": "text",
-                    "whatsapp_account": self.account
-                })
+                msg = frappe.get_doc(
+                    {
+                        "doctype": "WhatsApp Message",
+                        "type": "Outgoing",
+                        "to": self.phone_number,
+                        "message": response,
+                        "content_type": "text",
+                        "whatsapp_account": self.account,
+                    }
+                )
                 msg.flags.ignore_chatbot = True
                 msg.insert(ignore_permissions=True)
 
@@ -213,7 +215,7 @@ class ChatbotProcessor:
                     "doctype": "WhatsApp Message",
                     "type": "Outgoing",
                     "to": self.phone_number,
-                    "whatsapp_account": self.account
+                    "whatsapp_account": self.account,
                 }
                 msg_data.update(response)
 
@@ -223,8 +225,7 @@ class ChatbotProcessor:
 
         except Exception as e:
             frappe.log_error(
-                f"Chatbot send_response error: {str(e)}",
-                "WhatsApp Chatbot Error"
+                f"Chatbot send_response error: {str(e)}", "WhatsApp Chatbot Error"
             )
 
     def process_flow_response_in_session(self, session, flow_engine):
@@ -256,27 +257,25 @@ class ChatbotProcessor:
             if current_step.input_type != "WhatsApp Flow":
                 # Unexpected flow response, treat as regular text input
                 return flow_engine.process_input(
-                    session,
-                    self.message_text,
-                    self.button_payload
+                    session, self.message_text, self.button_payload
                 )
 
             # Process the flow response and map fields to session data
             session_data = flow_engine.process_flow_response(
-                current_step,
-                session,
-                self.flow_response
+                current_step, session, self.flow_response
             )
             session.session_data = json.dumps(session_data)
 
             # Log the flow response
-            session.add_message("Incoming", f"Flow completed: {self.message_text}", current_step.step_name)
+            session.add_message(
+                "Incoming",
+                f"Flow completed: {self.message_text}",
+                current_step.step_name,
+            )
 
             # Continue to next step (same logic as process_input)
             return flow_engine.process_input(
-                session,
-                self.message_text,  # Use summary as input
-                None
+                session, self.message_text, None  # Use summary as input
             )
 
         except Exception as e:
@@ -292,7 +291,7 @@ class ChatbotProcessor:
             response = {
                 "use_template": 1,
                 "template": keyword_doc.response_template,
-                "message_type": "Template"
+                "message_type": "Template",
             }
             if keyword_doc.template_parameters:
                 response["body_param"] = keyword_doc.template_parameters
@@ -300,12 +299,26 @@ class ChatbotProcessor:
 
         elif keyword_doc.response_type == "Media":
             return {
-                "content_type": keyword_doc.media_type.lower() if keyword_doc.media_type else "image",
-                "media_image": keyword_doc.media_url if keyword_doc.media_type == "Image" else None,
-                "media_video": keyword_doc.media_url if keyword_doc.media_type == "Video" else None,
-                "media_audio": keyword_doc.media_url if keyword_doc.media_type == "Audio" else None,
-                "media_document": keyword_doc.media_url if keyword_doc.media_type == "Document" else None,
-                "message": keyword_doc.media_caption or ""
+                "content_type": (
+                    keyword_doc.media_type.lower()
+                    if keyword_doc.media_type
+                    else "image"
+                ),
+                "media_image": (
+                    keyword_doc.media_url if keyword_doc.media_type == "Image" else None
+                ),
+                "media_video": (
+                    keyword_doc.media_url if keyword_doc.media_type == "Video" else None
+                ),
+                "media_audio": (
+                    keyword_doc.media_url if keyword_doc.media_type == "Audio" else None
+                ),
+                "media_document": (
+                    keyword_doc.media_url
+                    if keyword_doc.media_type == "Document"
+                    else None
+                ),
+                "message": keyword_doc.media_caption or "",
             }
 
         elif keyword_doc.response_type == "Script":
@@ -330,22 +343,25 @@ class ChatbotProcessor:
             message_doc = frappe.get_doc("WhatsApp Message", self.message_name)
 
             # Check if it's a Server Script (API type)
-            if frappe.db.exists("Server Script", {"name": script, "script_type": "API"}):
+            if frappe.db.exists(
+                "Server Script", {"name": script, "script_type": "API"}
+            ):
                 server_script = frappe.get_doc("Server Script", script)
                 # Use Frappe's safe_exec to execute the Server Script
                 # Provide context variables that the script can use
                 from frappe.utils.safe_exec import safe_exec
+
                 _locals = {
                     "doc": message_doc,
                     "phone_number": self.phone_number,
                     "message": self.message_text,
                     "account": self.account,
-                    "response": None  # Script can set this directly
+                    "response": None,  # Script can set this directly
                 }
                 safe_exec(
                     server_script.script,
                     _locals=_locals,
-                    script_filename=server_script.name
+                    script_filename=server_script.name,
                 )
                 # Check for response in multiple places:
                 # 1. _locals["response"] - direct variable assignment
@@ -362,7 +378,7 @@ class ChatbotProcessor:
         except Exception as e:
             frappe.log_error(
                 f"Script execution error for '{script}': {str(e)}",
-                "WhatsApp Chatbot Script Error"
+                "WhatsApp Chatbot Script Error",
             )
             return None
 
@@ -409,9 +425,12 @@ class ChatbotProcessor:
 
         if isinstance(time_value, str):
             from datetime import time
+
             try:
                 parts = time_value.split(":")
-                return time(int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0)
+                return time(
+                    int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0
+                )
             except (ValueError, IndexError):
                 return None
 
@@ -463,7 +482,7 @@ def process_incoming_message(doc, method=None):
             "content_type": content_type or "text",
             "whatsapp_account": getattr(doc, "whatsapp_account", None),
             "type": "Incoming",
-            "flow_response": getattr(doc, "flow_response", None)
+            "flow_response": getattr(doc, "flow_response", None),
         }
 
         # Mark as being processed to prevent loops
@@ -481,8 +500,7 @@ def process_incoming_message(doc, method=None):
         # Log error but NEVER re-raise - we must not break the incoming message save
         try:
             frappe.log_error(
-                f"process_incoming_message error: {str(e)}",
-                "WhatsApp Chatbot Error"
+                f"process_incoming_message error: {str(e)}", "WhatsApp Chatbot Error"
             )
         except Exception:
             pass  # Even logging failed, just continue
@@ -500,7 +518,7 @@ def run_processor(message_data):
     except Exception as e:
         frappe.log_error(
             f"run_processor error for {message_name}: {str(e)}",
-            "WhatsApp Chatbot Error"
+            "WhatsApp Chatbot Error",
         )
     finally:
         # Clean up processing flag

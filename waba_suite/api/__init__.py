@@ -23,7 +23,7 @@ def transfer_to_agent(phone_number, whatsapp_account=None, agent=None, notes=Non
     if not phone_number:
         frappe.throw(_("Phone number is required"))
 
-    from frappe_whatsapp_chatbot.frappe_whatsapp_chatbot.doctype.whatsapp_agent_transfer.whatsapp_agent_transfer import (
+    from waba_suite.frappe_whatsapp_chatbot.doctype.whatsapp_agent_transfer.whatsapp_agent_transfer import (
         WhatsAppAgentTransfer,
     )
 
@@ -56,7 +56,7 @@ def resume_chatbot(phone_number, whatsapp_account=None):
     if not phone_number:
         frappe.throw(_("Phone number is required"))
 
-    from frappe_whatsapp_chatbot.frappe_whatsapp_chatbot.doctype.whatsapp_agent_transfer.whatsapp_agent_transfer import (
+    from waba_suite.frappe_whatsapp_chatbot.doctype.whatsapp_agent_transfer.whatsapp_agent_transfer import (
         WhatsAppAgentTransfer,
     )
 
@@ -92,7 +92,7 @@ def is_transferred(phone_number, whatsapp_account=None):
     if not phone_number:
         frappe.throw(_("Phone number is required"))
 
-    from frappe_whatsapp_chatbot.frappe_whatsapp_chatbot.doctype.whatsapp_agent_transfer.whatsapp_agent_transfer import (
+    from waba_suite.frappe_whatsapp_chatbot.doctype.whatsapp_agent_transfer.whatsapp_agent_transfer import (
         WhatsAppAgentTransfer,
     )
 
