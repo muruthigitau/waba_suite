@@ -274,10 +274,7 @@ doc_events = {
         "after_delete": "waba_suite.utils.run_server_script_for_doc_event",
         "before_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
         "on_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
-    },
-    "WhatsApp Message": {
-        "after_insert": "waba_suite.api.message.handle_whatsapp_insertion",
-    },
+    }
 }
 
 sounds = [
