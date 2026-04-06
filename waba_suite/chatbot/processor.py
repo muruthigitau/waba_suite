@@ -46,20 +46,34 @@ class ChatbotProcessor:
         self.settings = None
 
     def get_chatbot_settings(self):
-        """Get chatbot configuration."""
+        """Get the applicable chatbot configuration based on account or global setting."""
         if self.settings is not None:
             return self.settings
 
         try:
-            if frappe.db.exists("WhatsApp Chatbot"):
-                settings = frappe.get_single("WhatsApp Chatbot")
-                if settings.enabled:
-                    self.settings = settings
-                    return settings
+            settings_name = frappe.db.get_value(
+                "WhatsApp Chatbot Settings",
+                {"enabled": 1, "process_all_accounts": 1},
+                "name",
+            )
+
+            if not settings_name and self.account:
+                settings_name = frappe.db.get_value(
+                    "WhatsApp Chatbot Settings",
+                    {"enabled": 1, "whatsapp_account": self.account},
+                    "name",
+                )
+
+            if settings_name:
+                self.settings = frappe.get_doc(
+                    "WhatsApp Chatbot Settings", settings_name
+                )
+                return self.settings
+
         except Exception as e:
             frappe.log_error(f"get_chatbot_settings error: {str(e)}")
 
-        self.settings = False  # Mark as checked but not found/enabled
+        self.settings = False
         return None
 
     def should_process(self):
@@ -438,7 +452,7 @@ class ChatbotProcessor:
         return time_value
 
 
-def process_incoming_message(doc, method=None):
+def process_incoming_message(doc):
     """
     Hook function called when WhatsApp Message is created.
     Process synchronously but safely - never raise exceptions.
@@ -446,64 +460,64 @@ def process_incoming_message(doc, method=None):
     global _processing_messages
 
     try:
-        # Skip if this is an outgoing message
         if getattr(doc, "type", None) != "Incoming":
             return
 
-        # Skip if flag is set (message created by chatbot)
         if getattr(doc.flags, "ignore_chatbot", False):
             return
 
-        # Skip if already being processed (prevent infinite loops)
         doc_name = getattr(doc, "name", None)
         if not doc_name or doc_name in _processing_messages:
             return
 
-        # Only process text, button, and flow content types
         content_type = getattr(doc, "content_type", None)
         if content_type not in ["text", "button", "flow"]:
             return
 
-        # Quick check if chatbot is enabled (without full initialization)
         try:
-            if not frappe.db.exists("WhatsApp Chatbot"):
-                return
-            enabled = frappe.db.get_single_value("WhatsApp Chatbot", "enabled")
-            if not enabled:
+            whatsapp_account = getattr(doc, "whatsapp_account", None)
+
+            filters = [["enabled", "=", 1], ["process_all_accounts", "=", 1]]
+
+            if whatsapp_account:
+                filters = [
+                    "or",
+                    filters,
+                    [["enabled", "=", 1], ["whatsapp_account", "=", whatsapp_account]],
+                ]
+
+            has_active_settings = frappe.db.exists("WhatsApp Chatbot Settings", filters)
+
+            if not has_active_settings:
                 return
         except Exception:
             return
 
-        # Extract message data
         message_data = {
             "name": doc_name,
             "from": getattr(doc, "from", None) or getattr(doc, "from_", None),
             "message": getattr(doc, "message", "") or "",
             "content_type": content_type or "text",
-            "whatsapp_account": getattr(doc, "whatsapp_account", None),
+            "whatsapp_account": whatsapp_account,
             "type": "Incoming",
             "flow_response": getattr(doc, "flow_response", None),
         }
 
-        # Mark as being processed to prevent loops
         _processing_messages.add(doc_name)
 
         try:
-            # Process synchronously - this is fast enough and more reliable
             processor = ChatbotProcessor(message_data)
             processor.process()
         finally:
-            # Clean up processing flag
             _processing_messages.discard(doc_name)
 
     except Exception as e:
-        # Log error but NEVER re-raise - we must not break the incoming message save
         try:
             frappe.log_error(
                 f"process_incoming_message error: {str(e)}", "WhatsApp Chatbot Error"
             )
         except Exception:
-            pass  # Even logging failed, just continue
+            pass
 
 
 def run_processor(message_data):

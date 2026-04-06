@@ -159,7 +159,7 @@ def send(content, user, room, user_no, attachment=None):
     return "ok"
 
 
-def last_message(doc, method):
+def last_message(doc):
     if doc.type == "Outgoing":
         mobile_no = doc.to
     else:
@@ -202,11 +202,3 @@ def last_message(doc, method):
         frappe.publish_realtime(chat_doc.name, message_data, user=chat_doc.email)
 
     return "ok"
-
-
-def handle_whatsapp_insertion(doc, method):
-    """Handle WhatsApp Message insertion."""
-    from ..chatbot.processor import process_incoming_message
-
-    last_message(doc, method)
-    process_incoming_message(doc, method)

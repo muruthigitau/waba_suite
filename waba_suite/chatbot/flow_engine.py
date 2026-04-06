@@ -423,7 +423,7 @@ class FlowEngine:
             if not flow.create_doctype or not flow.field_mapping:
                 frappe.log_error(
                     f"create_document: Missing doctype ({flow.create_doctype}) or field_mapping ({flow.field_mapping})",
-                    "WhatsApp Chatbot"
+                    "WhatsApp Chatbot Settings"
                 )
                 return
 
@@ -433,7 +433,7 @@ class FlowEngine:
             if not mapping:
                 frappe.log_error(
                     f"create_document: Empty field mapping for flow {flow.name}",
-                    "WhatsApp Chatbot"
+                    "WhatsApp Chatbot Settings"
                 )
                 return
 
@@ -445,14 +445,14 @@ class FlowEngine:
                 else:
                     frappe.log_error(
                         f"create_document: Variable '{variable}' not found in session data. Available: {list(data.keys())}",
-                        "WhatsApp Chatbot"
+                        "WhatsApp Chatbot Settings"
                     )
 
             # Check if we have any data besides doctype
             if len(doc_data) <= 1:
                 frappe.log_error(
                     f"create_document: No data mapped. Session data: {data}, Mapping: {mapping}",
-                    "WhatsApp Chatbot"
+                    "WhatsApp Chatbot Settings"
                 )
                 return
 

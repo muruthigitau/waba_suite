@@ -16,6 +16,9 @@ class WhatsAppMessage(Document):
         self.set_whatsapp_account()
         self.restyle_message_content()
 
+    def after_insert(self):
+        self.handle_whatsapp_insertion()
+
     def on_update(self):
         self.update_profile_name()
 
@@ -63,145 +66,145 @@ class WhatsAppMessage(Document):
             else:
                 self.whatsapp_account = default_whatsapp_account.name
 
-    def before_insert(self):
-        self.set_whatsapp_account()
-        if self.type == "Outgoing" and self.message_type != "Template":
-            if self.attach and not self.attach.startswith("http"):
-                link = frappe.utils.get_url() + "/" + self.attach
-            else:
-                link = self.attach
+    # def before_insert(self):
+    #     self.set_whatsapp_account()
+    #     if self.type == "Outgoing" and self.message_type != "Template":
+    #         if self.attach and not self.attach.startswith("http"):
+    #             link = frappe.utils.get_url() + "/" + self.attach
+    #         else:
+    #             link = self.attach
 
-            data = {
-                "messaging_product": "whatsapp",
-                "to": format_number(self.to),
-                "type": self.content_type,
-            }
-            if self.is_reply and self.reply_to_message_id:
-                data["context"] = {"message_id": self.reply_to_message_id}
-            if self.content_type in ["document", "image", "video"]:
-                data[self.content_type.lower()] = {
-                    "link": link,
-                    "caption": self.styled_message or self.message,
-                }
-            elif self.content_type == "reaction":
-                data["reaction"] = {
-                    "message_id": self.reply_to_message_id,
-                    "emoji": self.styled_message or self.message,
-                }
-            elif self.content_type == "text":
-                data["text"] = {
-                    "preview_url": True,
-                    "body": self.styled_message or self.message,
-                }
+    #         data = {
+    #             "messaging_product": "whatsapp",
+    #             "to": format_number(self.to),
+    #             "type": self.content_type,
+    #         }
+    #         if self.is_reply and self.reply_to_message_id:
+    #             data["context"] = {"message_id": self.reply_to_message_id}
+    #         if self.content_type in ["document", "image", "video"]:
+    #             data[self.content_type.lower()] = {
+    #                 "link": link,
+    #                 "caption": self.styled_message or self.message,
+    #             }
+    #         elif self.content_type == "reaction":
+    #             data["reaction"] = {
+    #                 "message_id": self.reply_to_message_id,
+    #                 "emoji": self.styled_message or self.message,
+    #             }
+    #         elif self.content_type == "text":
+    #             data["text"] = {
+    #                 "preview_url": True,
+    #                 "body": self.styled_message or self.message,
+    #             }
 
-            elif self.content_type == "audio":
-                data["audio"] = {"link": link}
+    #         elif self.content_type == "audio":
+    #             data["audio"] = {"link": link}
 
-            elif self.content_type == "interactive":
-                data["type"] = "interactive"
-                buttons_data = (
-                    json.loads(self.buttons)
-                    if isinstance(self.buttons, str)
-                    else self.buttons
-                )
+    #         elif self.content_type == "interactive":
+    #             data["type"] = "interactive"
+    #             buttons_data = (
+    #                 json.loads(self.buttons)
+    #                 if isinstance(self.buttons, str)
+    #                 else self.buttons
+    #             )
 
-                if isinstance(buttons_data, list) and len(buttons_data) > 3:
-                    data["interactive"] = {
-                        "type": "list",
-                        "body": {"text": self.message},
-                        "action": {
-                            "button": "Select Option",
-                            "sections": [
-                                {
-                                    "title": "Options",
-                                    "rows": [
-                                        {
-                                            "id": btn["id"],
-                                            "title": btn["title"],
-                                            "description": btn.get("description", ""),
-                                        }
-                                        for btn in buttons_data[:10]
-                                    ],
-                                }
-                            ],
-                        },
-                    }
-                else:
-                    data["interactive"] = {
-                        "type": "button",
-                        "body": {"text": self.styled_message or self.message},
-                        "action": {
-                            "buttons": [
-                                {
-                                    "type": "reply",
-                                    "reply": {"id": btn["id"], "title": btn["title"]},
-                                }
-                                for btn in buttons_data[:3]
-                            ]
-                        },
-                    }
+    #             if isinstance(buttons_data, list) and len(buttons_data) > 3:
+    #                 data["interactive"] = {
+    #                     "type": "list",
+    #                     "body": {"text": self.message},
+    #                     "action": {
+    #                         "button": "Select Option",
+    #                         "sections": [
+    #                             {
+    #                                 "title": "Options",
+    #                                 "rows": [
+    #                                     {
+    #                                         "id": btn["id"],
+    #                                         "title": btn["title"],
+    #                                         "description": btn.get("description", ""),
+    #                                     }
+    #                                     for btn in buttons_data[:10]
+    #                                 ],
+    #                             }
+    #                         ],
+    #                     },
+    #                 }
+    #             else:
+    #                 data["interactive"] = {
+    #                     "type": "button",
+    #                     "body": {"text": self.styled_message or self.message},
+    #                     "action": {
+    #                         "buttons": [
+    #                             {
+    #                                 "type": "reply",
+    #                                 "reply": {"id": btn["id"], "title": btn["title"]},
+    #                             }
+    #                             for btn in buttons_data[:3]
+    #                         ]
+    #                     },
+    #                 }
 
-            elif self.content_type == "flow":
-                if not self.flow:
-                    frappe.throw(_("WhatsApp Flow is required for flow content type"))
+    #         elif self.content_type == "flow":
+    #             if not self.flow:
+    #                 frappe.throw(_("WhatsApp Flow is required for flow content type"))
 
-                flow_doc = frappe.get_doc("WhatsApp Flow", self.flow)
+    #             flow_doc = frappe.get_doc("WhatsApp Flow", self.flow)
 
-                if not flow_doc.flow_id:
-                    frappe.throw(_("Flow must be created on WhatsApp before sending"))
+    #             if not flow_doc.flow_id:
+    #                 frappe.throw(_("Flow must be created on WhatsApp before sending"))
 
-                flow_mode = None
-                if flow_doc.status != "Published":
-                    flow_mode = "draft"
-                    frappe.msgprint(
-                        _("Sending flow in draft mode (for testing only)"),
-                        indicator="orange",
-                    )
+    #             flow_mode = None
+    #             if flow_doc.status != "Published":
+    #                 flow_mode = "draft"
+    #                 frappe.msgprint(
+    #                     _("Sending flow in draft mode (for testing only)"),
+    #                     indicator="orange",
+    #                 )
 
-                flow_screen = self.flow_screen
-                if not flow_screen and flow_doc.screens:
-                    flow_screen = flow_doc.screens[0].screen_id
+    #             flow_screen = self.flow_screen
+    #             if not flow_screen and flow_doc.screens:
+    #                 flow_screen = flow_doc.screens[0].screen_id
 
-                data["type"] = "interactive"
-                data["interactive"] = {
-                    "type": "flow",
-                    "body": {
-                        "text": self.styled_message
-                        or self.message
-                        or "Please fill out the form"
-                    },
-                    "action": {
-                        "name": "flow",
-                        "parameters": {
-                            "flow_message_version": "3",
-                            "flow_id": flow_doc.flow_id,
-                            "flow_cta": self.flow_cta or flow_doc.flow_cta or "Open",
-                            "flow_action": "navigate",
-                            "flow_action_payload": {"screen": flow_screen},
-                        },
-                    },
-                }
+    #             data["type"] = "interactive"
+    #             data["interactive"] = {
+    #                 "type": "flow",
+    #                 "body": {
+    #                     "text": self.styled_message
+    #                     or self.message
+    #                     or "Please fill out the form"
+    #                 },
+    #                 "action": {
+    #                     "name": "flow",
+    #                     "parameters": {
+    #                         "flow_message_version": "3",
+    #                         "flow_id": flow_doc.flow_id,
+    #                         "flow_cta": self.flow_cta or flow_doc.flow_cta or "Open",
+    #                         "flow_action": "navigate",
+    #                         "flow_action_payload": {"screen": flow_screen},
+    #                     },
+    #                 },
+    #             }
 
-                if flow_mode:
-                    data["interactive"]["action"]["parameters"]["mode"] = flow_mode
+    #             if flow_mode:
+    #                 data["interactive"]["action"]["parameters"]["mode"] = flow_mode
 
-                flow_token = self.flow_token or frappe.generate_hash(length=16)
-                data["interactive"]["action"]["parameters"]["flow_token"] = flow_token
+    #             flow_token = self.flow_token or frappe.generate_hash(length=16)
+    #             data["interactive"]["action"]["parameters"]["flow_token"] = flow_token
 
-            try:
-                self.notify(data)
-                self.status = "Success"
-            except Exception as e:
-                self.status = "Failed"
-                frappe.throw(f"Failed to send message {str(e)}")
-        elif (
-            self.type == "Outgoing"
-            and self.message_type == "Template"
-            and not self.message_id
-        ):
-            self.send_template()
+    #         try:
+    #             self.notify(data)
+    #             self.status = "Success"
+    #         except Exception as e:
+    #             self.status = "Failed"
+    #             frappe.throw(f"Failed to send message {str(e)}")
+    #     elif (
+    #         self.type == "Outgoing"
+    #         and self.message_type == "Template"
+    #         and not self.message_id
+    #     ):
+    #         self.send_template()
 
-        self.create_whatsapp_profile()
+    #     self.create_whatsapp_profile()
 
     def send_template(self):
         template = frappe.get_doc("WhatsApp Templates", self.template)
@@ -515,6 +518,32 @@ class WhatsAppMessage(Document):
             text = text.replace("\n", " ").strip()
 
         return text.strip()
+
+    def handle_whatsapp_insertion(self):
+        """Handle WhatsApp Message insertion."""
+
+        from ....api.message import last_message
+        from ....api.room import (
+            get_or_create_session,
+            route_incoming_message,
+            send_main_menu,
+        )
+
+        last_message(self)
+
+        if self.type != "Incoming":
+            return
+
+        session, is_new = get_or_create_session(self)
+
+        self.whatsapp_session = session.name
+        self.save(ignore_permissions=True)
+
+        if is_new:
+            send_main_menu(self.get("from"), session)
+            return
+
+        route_incoming_message(self, session)
 
 
 def on_doctype_update():

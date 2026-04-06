@@ -1,7 +1,7 @@
 // Copyright (c) 2024, Shridhar Patil and contributors
 // For license information, please see license.txt
 
-frappe.ui.form.on('WhatsApp Chatbot', {
+frappe.ui.form.on('WhatsApp Chatbot Settings', {
     populate_hours_btn: function(frm) {
         frappe.call({
             method: 'populate_default_business_hours',
