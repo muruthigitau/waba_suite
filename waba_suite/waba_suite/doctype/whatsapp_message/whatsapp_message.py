@@ -434,136 +434,111 @@ class WhatsAppMessage(Document):
                             btn["title"], strip_newlines=True
                         )
                 self.buttons = json.dumps(btns)
-            except Exception:
-                pass
+        except Exception:
+            frappe.log_error(
+                title="Restyle Message Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
 
     def advanced_whatsapp_formatter(self, text, strip_newlines=False):
-        if not text:
-            return ""
+        try:
+            if not text:
+                return ""
+            text = html.unescape(text)
+            text = re.sub(
+                r'<a[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
+                lambda m: (
+                    f"{re.sub('<[^>]+>', '', m.group(2)).strip()} - {m.group(1)}"
+                    if m.group(2).strip()
+                    else m.group(1)
+                ),
+                text,
+                flags=re.I | re.S,
+            )
+            text = re.sub(r"<a[^>]*>(https?://[^<]+)</a>", r"\1", text, flags=re.I)
+            text = re.sub(r"<(br|p|div|li|tr)[^>]*\/?>", "\n", text, flags=re.I)
+            text = re.sub(r"<\/(h[1-6])>", "\n", text, flags=re.I)
+            text = re.sub(r"<(h[1-6])[^>]*>", "", text, flags=re.I)
+            text = re.sub(r"<(strong|b)[^>]*>", "*", text, flags=re.I)
+            text = re.sub(r"<\/(strong|b)>", "*", text, flags=re.I)
+            text = re.sub(r"<(em|i)[^>]*>", "_", text, flags=re.I)
+            text = re.sub(r"<\/(em|i)>", "_", text, flags=re.I)
+            text = re.sub(r"<(strike|s|del)[^>]*>", "~", text, flags=re.I)
+            text = re.sub(r"<\/(strike|s|del)>", "~", text, flags=re.I)
+            text = re.sub(r"<code[^>]*>", "```", text, flags=re.I)
+            text = re.sub(r"<\/code>", "```", text, flags=re.I)
+            text = re.sub(r"<pre[^>]*>", "```\n", text, flags=re.I)
+            text = re.sub(r"<\/pre>", "\n```", text, flags=re.I)
+            text = re.sub(r"<ul[^>]*>", "\n", text, flags=re.I)
+            text = re.sub(r"<\/ul>", "\n", text, flags=re.I)
+            text = re.sub(r"<li[^>]*>", "• ", text, flags=re.I)
+            text = re.sub(r"<\/li>", "\n", text, flags=re.I)
+            text = re.sub(r"<[^>]+>", "", text)
 
-        text = html.unescape(text)
-
-        text = re.sub(
-            r'<a[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
-            lambda m: (
-                f"{re.sub('<[^>]+>', '', m.group(2)).strip()} - {m.group(1)}"
-                if m.group(2).strip()
-                else m.group(1)
-            ),
-            text,
-            flags=re.IGNORECASE | re.DOTALL,
-        )
-        text = re.sub(r"<a[^>]*>(https?://[^<]+)</a>", r"\1", text, flags=re.IGNORECASE)
-
-        text = re.sub(r"<(br|p|div|li|tr)[^>]*\/?>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/(h[1-6])>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<(h[1-6])[^>]*>", lambda m: "", text, flags=re.IGNORECASE)
-        text = re.sub(r"<(strong|b)[^>]*>", "*", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/(strong|b)>", "*", text, flags=re.IGNORECASE)
-        text = re.sub(r"<(em|i)[^>]*>", "_", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/(em|i)>", "_", text, flags=re.IGNORECASE)
-        text = re.sub(r"<(strike|s|del)[^>]*>", "~", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/(strike|s|del)>", "~", text, flags=re.IGNORECASE)
-        text = re.sub(r"<code[^>]*>", "```", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/code>", "```", text, flags=re.IGNORECASE)
-        text = re.sub(r"<pre[^>]*>", "```\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/pre>", "\n```", text, flags=re.IGNORECASE)
-
-        text = re.sub(r"<ul[^>]*>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/ul>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<ol[^>]*>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/ol>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<li[^>]*>", "• ", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/li>", "\n", text, flags=re.IGNORECASE)
-
-        text = re.sub(r"<[^>]+>", "", text)
-
-        lines = text.split("\n")
-        processed_lines = []
-
-        for line in lines:
-            original_line = line
-            line = line.strip()
-
-            if not line:
-                processed_lines.append("")
-                continue
-
-            if re.match(r"^#{1,6}\s", line):
-                hash_count = len(re.match(r"^#{1,6}", line).group())
-                header_text = re.sub(r"^#{1,6}\s+", "", line)
-                processed_lines.append(f"*{header_text}*")
-            elif re.match(r"^#{1,6}[^#]", line):
-                header_text = re.sub(r"^#{1,6}", "", line).strip()
-                processed_lines.append(f"*{header_text}*")
-            elif re.match(r"^[-*+]\s", line):
-                content = re.sub(r"^[-*+]\s+", "", line)
-                processed_lines.append(f"• {content}")
-            elif re.match(r"^\d+\.\s", line):
-                processed_lines.append(line)
-            elif re.match(r"^>\s", line):
-                content = re.sub(r"^>\s+", "", line)
-                processed_lines.append(f"_{content}_")
-            elif re.match(r"^`{3}", line):
-                processed_lines.append(line)
-            elif re.match(r"^_{3,}$|^-{3,}$|^\*{3,}$", line):
-                processed_lines.append("---")
-            else:
-                if (
-                    processed_lines
-                    and processed_lines[-1]
-                    and not processed_lines[-1].startswith(("•", "```", "---"))
-                    and not re.match(r"^\d+\.", processed_lines[-1])
-                ):
-                    processed_lines[-1] = processed_lines[-1] + " " + line
+            lines = text.split("\n")
+            processed_lines = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    processed_lines.append("")
+                    continue
+                if re.match(r"^#{1,6}\s", line):
+                    processed_lines.append(f"*{re.sub(r'^#{1,6}\s+', '', line)}*")
+                elif re.match(r"^[-*+]\s", line):
+                    processed_lines.append(f"• {re.sub(r'^[-*+]\s+', '', line)}")
+                elif re.match(r"^>\s", line):
+                    processed_lines.append(f"_{re.sub(r'^>\s+', '', line)}_")
                 else:
                     processed_lines.append(line)
 
-        text = "\n".join(processed_lines)
-
-        text = re.sub(r"\*\*([^*]+)\*\*", r"*\1*", text)
-        text = re.sub(r"\*([^*]+)\*", r"*\1*", text)
-        text = re.sub(r"__([^_]+)__", r"_\1_", text)
-        text = re.sub(r"_([^_]+)_", r"_\1_", text)
-        text = re.sub(r"~~([^~]+)~~", r"~\1~", text)
-        text = re.sub(r"`([^`]+)`", r"```\1```", text)
-
-        text = re.sub(r"\n{3,}", "\n\n", text)
-
-        if strip_newlines:
-            text = text.replace("\n", " ").strip()
-
-        return text.strip()
+            text = "\n".join(processed_lines)
+            text = re.sub(r"\*\*([^*]+)\*\*", r"*\1*", text)
+            text = re.sub(r"__([^_]+)__", r"_\1_", text)
+            text = re.sub(r"~~([^~]+)~~", r"~\1~", text)
+            text = re.sub(r"\n{3,}", "\n\n", text)
+            if strip_newlines:
+                text = text.replace("\n", " ").strip()
+            return text.strip()
+        except Exception:
+            return text
 
     def handle_whatsapp_insertion(self):
-        """Handle WhatsApp Message insertion."""
+        try:
+            from ....api.message import last_message
+            from ....api.room import (
+                get_or_create_session,
+                route_incoming_message,
+                send_main_menu,
+            )
 
-        from ....api.message import last_message
-        from ....api.room import (
-            get_or_create_session,
-            route_incoming_message,
-            send_main_menu,
-        )
+            last_message(self)
+            if self.type != "Incoming":
+                return
 
-        last_message(self)
+            session, is_new = get_or_create_session(self)
+            self.whatsapp_session = session.name
+            self.save(ignore_permissions=True)
 
-        if self.type != "Incoming":
-            return
-
-        session, is_new = get_or_create_session(self)
-
-        self.whatsapp_session = session.name
-        self.save(ignore_permissions=True)
-
-        if is_new:
-            send_main_menu(self.get("from"), session)
-            return
-
-        route_incoming_message(self, session)
+            if is_new:
+                send_main_menu(self.get("from"), session)
+            else:
+                route_incoming_message(self, session)
+        except Exception:
+            frappe.log_error(
+                title=f"WhatsApp Insertion Logic Error: {self.name}",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
 
 
 def on_doctype_update():
-    frappe.db.add_index("WhatsApp Message", ["reference_doctype", "reference_name"])
+    try:
+        frappe.db.add_index("WhatsApp Message", ["reference_doctype", "reference_name"])
+    except Exception:
+        frappe.log_error(title="Index Creation Error", message=frappe.get_traceback())
 
 
 @frappe.whitelist()
