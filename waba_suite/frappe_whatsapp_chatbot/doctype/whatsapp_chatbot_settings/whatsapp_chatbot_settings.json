@@ -1,6 +1,7 @@
 {
  "actions": [],
- "creation": "2024-01-01 00:00:00",
+ "creation": "2026-04-06 15:55:36.912178",
+ "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -51,10 +52,11 @@
    "fieldname": "whatsapp_account",
    "fieldtype": "Link",
    "label": "WhatsApp Account",
+   "mandatory_depends_on": "eval: !doc.process_all_accounts",
    "options": "WhatsApp Account"
   },
   {
-   "default": "1",
+   "default": "0",
    "description": "Process messages from all WhatsApp accounts",
    "fieldname": "process_all_accounts",
    "fieldtype": "Check",
@@ -220,12 +222,11 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "issingle": 1,
  "links": [],
- "modified": "2025-12-15 22:03:55.836065",
+ "modified": "2026-04-06 16:03:47.189947",
  "modified_by": "Administrator",
  "module": "Frappe WhatsApp Chatbot",
- "name": "WhatsApp Chatbot",
+ "name": "WhatsApp Chatbot Settings",
  "owner": "Administrator",
  "permissions": [
   {

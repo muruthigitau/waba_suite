@@ -13,8 +13,8 @@ class SessionManager:
     def get_timeout(self):
         """Get session timeout from settings."""
         try:
-            if frappe.db.exists("WhatsApp Chatbot"):
-                settings = frappe.get_single("WhatsApp Chatbot")
+            if frappe.db.exists("WhatsApp Chatbot Settings"):
+                settings = frappe.get_single("WhatsApp Chatbot Settings")
                 return settings.session_timeout_minutes or 30
         except Exception:
             pass
@@ -126,10 +126,10 @@ def cleanup_expired_sessions():
     """Scheduled job to clean up expired sessions."""
     try:
         # Get settings
-        if not frappe.db.exists("WhatsApp Chatbot"):
+        if not frappe.db.exists("WhatsApp Chatbot Settings"):
             return
 
-        settings = frappe.get_single("WhatsApp Chatbot")
+        settings = frappe.get_single("WhatsApp Chatbot Settings")
         if not settings.enabled:
             return
 
