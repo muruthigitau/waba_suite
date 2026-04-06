@@ -1,52 +1,51 @@
+import re
+import json
+import html
 import frappe
 from frappe import _
 from datetime import datetime
 
-# Flag to prevent recursive processing
 _processing_messages = set()
 
 
 class ChatbotProcessor:
-    """Main processor for incoming WhatsApp messages."""
-
     def __init__(self, message_data):
-        """
-        Initialize with message data dict (not document).
+        try:
+            self.message_data = message_data
+            self.message_name = message_data.get("name")
+            self.phone_number = message_data.get("from") or message_data.get("from_")
+            self.message_text = message_data.get("message") or ""
+            self.content_type = message_data.get("content_type") or "text"
+            self.account = message_data.get("whatsapp_account")
+            self.button_payload = None
+            self.flow_response = None
 
-        Args:
-            message_data: dict with keys: name, from, message, content_type, whatsapp_account, type, flow_response
-        """
-        self.message_data = message_data
-        self.message_name = message_data.get("name")
-        self.phone_number = message_data.get("from") or message_data.get("from_")
-        self.message_text = message_data.get("message") or ""
-        self.content_type = message_data.get("content_type") or "text"
-        self.account = message_data.get("whatsapp_account")
-        self.button_payload = None
-        self.flow_response = None
+            if self.content_type == "button":
+                self.button_payload = self.message_text
 
-        # Extract button payload if this is a button response
-        if self.content_type == "button":
-            self.button_payload = self.message_text
+            if self.content_type == "flow":
+                flow_response_data = message_data.get("flow_response")
+                if flow_response_data:
+                    import json
 
-        # Extract flow response if this is a flow response
-        if self.content_type == "flow":
-            flow_response_data = message_data.get("flow_response")
-            if flow_response_data:
-                import json
+                    if isinstance(flow_response_data, str):
+                        try:
+                            self.flow_response = json.loads(flow_response_data)
+                        except json.JSONDecodeError:
+                            self.flow_response = {}
+                    else:
+                        self.flow_response = flow_response_data
 
-                if isinstance(flow_response_data, str):
-                    try:
-                        self.flow_response = json.loads(flow_response_data)
-                    except json.JSONDecodeError:
-                        self.flow_response = {}
-                else:
-                    self.flow_response = flow_response_data
-
-        self.settings = None
+            self.settings = None
+        except Exception:
+            frappe.log_error(
+                title="ChatbotProcessor Init Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=message_data.get("name"),
+            )
 
     def get_chatbot_settings(self):
-        """Get the applicable chatbot configuration based on account or global setting."""
         if self.settings is not None:
             return self.settings
 
@@ -70,146 +69,147 @@ class ChatbotProcessor:
                 )
                 return self.settings
 
-        except Exception as e:
-            frappe.log_error(f"get_chatbot_settings error: {str(e)}")
+        except Exception:
+            frappe.log_error(
+                title="Get Chatbot Settings Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.message_name,
+            )
 
         self.settings = False
         return None
 
     def should_process(self):
-        """Check if message should be processed by chatbot."""
-        settings = self.get_chatbot_settings()
+        try:
+            settings = self.get_chatbot_settings()
 
-        if not settings:
-            return False
-
-        # Only process text, button, and flow messages
-        if self.content_type not in ["text", "button", "flow"]:
-            return False
-
-        # Check if this account is configured for chatbot
-        if not settings.process_all_accounts:
-            if self.account != settings.whatsapp_account:
+            if not settings:
                 return False
 
-        # Check excluded numbers
-        excluded = [row.phone_number for row in settings.excluded_numbers]
-        if self.phone_number in excluded:
-            return False
+            if self.content_type not in ["text", "button", "flow"]:
+                return False
 
-        # Check if transferred to agent
-        if self.is_transferred_to_agent():
-            return False
+            if not settings.process_all_accounts:
+                if self.account != settings.whatsapp_account:
+                    return False
 
-        return True
+            excluded = [row.phone_number for row in settings.excluded_numbers]
+            if self.phone_number in excluded:
+                return False
+
+            if self.is_transferred_to_agent():
+                return False
+
+            return True
+        except Exception:
+            frappe.log_error(
+                title="Chatbot Should Process Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.message_name,
+            )
+            return False
 
     def is_transferred_to_agent(self):
-        """Check if this conversation has been transferred to a human agent."""
         try:
             return frappe.db.exists(
                 "WhatsApp Agent Transfer",
                 {"phone_number": self.phone_number, "status": "Active"},
             )
         except Exception:
-            # If doctype doesn't exist yet, don't block processing
             return False
 
     def process(self):
-        """Process the incoming message."""
-        settings = self.get_chatbot_settings()
+        try:
+            settings = self.get_chatbot_settings()
 
-        if not settings:
-            return
-
-        if not self.should_process():
-            return
-
-        # Check business hours (send out of hours message if needed)
-        if settings.business_hours_only:
-            if not self.is_business_hours():
-                if settings.out_of_hours_message:
-                    self.send_response(settings.out_of_hours_message)
+            if not settings or not self.should_process():
                 return
 
-        from waba_suite.chatbot.session_manager import SessionManager
-        from waba_suite.chatbot.keyword_matcher import KeywordMatcher
-        from waba_suite.chatbot.flow_engine import FlowEngine
+            if settings.business_hours_only:
+                if not self.is_business_hours():
+                    if settings.out_of_hours_message:
+                        self.send_response(settings.out_of_hours_message)
+                    return
 
-        # Initialize managers
-        session_mgr = SessionManager(self.phone_number, self.account)
-        keyword_matcher = KeywordMatcher(self.account)
-        flow_engine = FlowEngine(self.phone_number, self.account)
+            from waba_suite.chatbot.session_manager import SessionManager
+            from waba_suite.chatbot.keyword_matcher import KeywordMatcher
+            from waba_suite.chatbot.flow_engine import FlowEngine
 
-        response = None
+            session_mgr = SessionManager(self.phone_number, self.account)
+            keyword_matcher = KeywordMatcher(self.account)
+            flow_engine = FlowEngine(self.phone_number, self.account)
 
-        # 1. Check for active flow session
-        active_session = session_mgr.get_active_session()
-        if active_session:
-            # If this is a flow response, process the flow data
-            if self.content_type == "flow" and self.flow_response:
-                response = self.process_flow_response_in_session(
-                    active_session, flow_engine
-                )
-            else:
-                response = flow_engine.process_input(
-                    active_session, self.message_text, self.button_payload
-                )
-            if response:
-                self.send_response(response)
-                return
+            response = None
 
-        # 2. Check keyword matches
-        keyword_match = keyword_matcher.match(self.message_text)
-        if keyword_match:
-            if keyword_match.response_type == "Flow":
-                # Trigger a new flow
-                response = flow_engine.start_flow(keyword_match.trigger_flow)
-            else:
-                response = self.build_keyword_response(keyword_match)
-
-            if response:
-                self.send_response(response)
-                return
-
-        # 3. Check if message triggers a flow directly
-        flow_trigger = flow_engine.check_flow_trigger(
-            self.message_text, self.button_payload
-        )
-        if flow_trigger:
-            response = flow_engine.start_flow(flow_trigger)
-            if response:
-                self.send_response(response)
-                return
-
-        # 4. AI Fallback (if enabled)
-        if settings.enable_ai:
-            try:
-                from waba_suite.chatbot.ai_responder import AIResponder
-
-                ai_responder = AIResponder(settings, phone_number=self.phone_number)
-                response = ai_responder.generate_response(
-                    self.message_text, session_mgr.get_conversation_history()
-                )
+            active_session = session_mgr.get_active_session()
+            if active_session:
+                if self.content_type == "flow" and self.flow_response:
+                    response = self.process_flow_response_in_session(
+                        active_session, flow_engine
+                    )
+                else:
+                    response = flow_engine.process_input(
+                        active_session, self.message_text, self.button_payload
+                    )
                 if response:
                     self.send_response(response)
                     return
-            except Exception as e:
-                frappe.log_error(f"AI Fallback error: {str(e)}")
-                # Rollback any failed transaction
-                frappe.db.rollback()
 
-        # 5. Default response
-        if settings.default_response:
-            self.send_response(settings.default_response)
+            keyword_match = keyword_matcher.match(self.message_text)
+            if keyword_match:
+                if keyword_match.response_type == "Flow":
+                    response = flow_engine.start_flow(keyword_match.trigger_flow)
+                else:
+                    response = self.build_keyword_response(keyword_match)
+
+                if response:
+                    self.send_response(response)
+                    return
+
+            flow_trigger = flow_engine.check_flow_trigger(
+                self.message_text, self.button_payload
+            )
+            if flow_trigger:
+                response = flow_engine.start_flow(flow_trigger)
+                if response:
+                    self.send_response(response)
+                    return
+
+            if settings.enable_ai:
+                try:
+                    from waba_suite.chatbot.ai_responder import AIResponder
+
+                    ai_responder = AIResponder(settings, phone_number=self.phone_number)
+                    response = ai_responder.generate_response(
+                        self.message_text, session_mgr.get_conversation_history()
+                    )
+                    if response:
+                        self.send_response(response)
+                        return
+                except Exception:
+                    frappe.log_error(
+                        title="AI Responder Error",
+                        message=frappe.get_traceback(),
+                        reference_doctype="WhatsApp Message",
+                        reference_name=self.message_name,
+                    )
+                    frappe.db.rollback()
+
+            if settings.default_response:
+                self.send_response(settings.default_response)
+        except Exception:
+            frappe.log_error(
+                title="Chatbot Main Process Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.message_name,
+            )
 
     def send_response(self, response):
-        """Send response message."""
         try:
-            # Use flags to prevent the after_insert hook from processing our outgoing message
-            flags = frappe._dict(ignore_chatbot=True)
-
             if isinstance(response, str):
-                # Simple text response
                 msg = frappe.get_doc(
                     {
                         "doctype": "WhatsApp Message",
@@ -232,32 +232,24 @@ class ChatbotProcessor:
                     "whatsapp_account": self.account,
                 }
                 msg_data.update(response)
-
                 msg = frappe.get_doc(msg_data)
                 msg.flags.ignore_chatbot = True
                 msg.insert(ignore_permissions=True)
 
-        except Exception as e:
+        except Exception:
             frappe.log_error(
-                f"Chatbot send_response error: {str(e)}", "WhatsApp Chatbot Error"
+                title="Chatbot send_response error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.message_name,
             )
 
     def process_flow_response_in_session(self, session, flow_engine):
-        """Process a WhatsApp Flow response within an active chatbot session.
-
-        Args:
-            session: Active WhatsApp Chatbot Session
-            flow_engine: FlowEngine instance
-
-        Returns:
-            Response message to send
-        """
-        import json
-
         try:
+            import json
+
             flow = frappe.get_doc("WhatsApp Chatbot Flow", session.current_flow)
 
-            # Find current step
             current_step = None
             for step in flow.steps:
                 if step.step_name == session.current_step:
@@ -267,102 +259,102 @@ class ChatbotProcessor:
             if not current_step:
                 return flow_engine.complete_flow(session, flow)
 
-            # Verify this step expects a WhatsApp Flow response
             if current_step.input_type != "WhatsApp Flow":
-                # Unexpected flow response, treat as regular text input
                 return flow_engine.process_input(
                     session, self.message_text, self.button_payload
                 )
 
-            # Process the flow response and map fields to session data
             session_data = flow_engine.process_flow_response(
                 current_step, session, self.flow_response
             )
             session.session_data = json.dumps(session_data)
 
-            # Log the flow response
             session.add_message(
                 "Incoming",
                 f"Flow completed: {self.message_text}",
                 current_step.step_name,
             )
 
-            # Continue to next step (same logic as process_input)
-            return flow_engine.process_input(
-                session, self.message_text, None  # Use summary as input
-            )
+            return flow_engine.process_input(session, self.message_text, None)
 
-        except Exception as e:
-            frappe.log_error(f"process_flow_response_in_session error: {str(e)}")
+        except Exception:
+            frappe.log_error(
+                title="Process Flow Response In Session Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Chatbot Session",
+                reference_name=session.name,
+            )
             return "An error occurred processing your form. Please try again."
 
     def build_keyword_response(self, keyword_doc):
-        """Build response from keyword match."""
-        if keyword_doc.response_type == "Text":
-            return keyword_doc.response_text
+        try:
+            if keyword_doc.response_type == "Text":
+                return keyword_doc.response_text
 
-        elif keyword_doc.response_type == "Template":
-            response = {
-                "use_template": 1,
-                "template": keyword_doc.response_template,
-                "message_type": "Template",
-            }
-            if keyword_doc.template_parameters:
-                response["body_param"] = keyword_doc.template_parameters
-            return response
+            elif keyword_doc.response_type == "Template":
+                response = {
+                    "use_template": 1,
+                    "template": keyword_doc.response_template,
+                    "message_type": "Template",
+                }
+                if keyword_doc.template_parameters:
+                    response["body_param"] = keyword_doc.template_parameters
+                return response
 
-        elif keyword_doc.response_type == "Media":
-            return {
-                "content_type": (
-                    keyword_doc.media_type.lower()
-                    if keyword_doc.media_type
-                    else "image"
-                ),
-                "media_image": (
-                    keyword_doc.media_url if keyword_doc.media_type == "Image" else None
-                ),
-                "media_video": (
-                    keyword_doc.media_url if keyword_doc.media_type == "Video" else None
-                ),
-                "media_audio": (
-                    keyword_doc.media_url if keyword_doc.media_type == "Audio" else None
-                ),
-                "media_document": (
-                    keyword_doc.media_url
-                    if keyword_doc.media_type == "Document"
-                    else None
-                ),
-                "message": keyword_doc.media_caption or "",
-            }
+            elif keyword_doc.response_type == "Media":
+                return {
+                    "content_type": (
+                        keyword_doc.media_type.lower()
+                        if keyword_doc.media_type
+                        else "image"
+                    ),
+                    "media_image": (
+                        keyword_doc.media_url
+                        if keyword_doc.media_type == "Image"
+                        else None
+                    ),
+                    "media_video": (
+                        keyword_doc.media_url
+                        if keyword_doc.media_type == "Video"
+                        else None
+                    ),
+                    "media_audio": (
+                        keyword_doc.media_url
+                        if keyword_doc.media_type == "Audio"
+                        else None
+                    ),
+                    "media_document": (
+                        keyword_doc.media_url
+                        if keyword_doc.media_type == "Document"
+                        else None
+                    ),
+                    "message": keyword_doc.media_caption or "",
+                }
 
-        elif keyword_doc.response_type == "Script":
-            return self.execute_script(keyword_doc.script)
+            elif keyword_doc.response_type == "Script":
+                return self.execute_script(keyword_doc.script)
 
-        return None
+            return None
+        except Exception:
+            frappe.log_error(
+                title="Build Keyword Response Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Chatbot Keyword",
+                reference_name=keyword_doc.name,
+            )
+            return None
 
     def execute_script(self, script):
-        """Execute a Server Script or method path.
-
-        Args:
-            script: Server Script name or dotted method path
-
-        Returns:
-            Response from the script/method
-        """
         if not script:
             return None
 
         try:
-            # Get the WhatsApp Message document
             message_doc = frappe.get_doc("WhatsApp Message", self.message_name)
 
-            # Check if it's a Server Script (API type)
             if frappe.db.exists(
                 "Server Script", {"name": script, "script_type": "API"}
             ):
                 server_script = frappe.get_doc("Server Script", script)
-                # Use Frappe's safe_exec to execute the Server Script
-                # Provide context variables that the script can use
                 from frappe.utils.safe_exec import safe_exec
 
                 _locals = {
@@ -370,93 +362,87 @@ class ChatbotProcessor:
                     "phone_number": self.phone_number,
                     "message": self.message_text,
                     "account": self.account,
-                    "response": None,  # Script can set this directly
+                    "response": None,
                 }
                 safe_exec(
                     server_script.script,
                     _locals=_locals,
                     script_filename=server_script.name,
                 )
-                # Check for response in multiple places:
-                # 1. _locals["response"] - direct variable assignment
-                # 2. frappe.response["message"] - standard Frappe API script pattern
                 if _locals.get("response"):
                     return _locals.get("response")
                 elif frappe.response.get("message"):
                     return frappe.response.get("message")
                 return None
             else:
-                # Treat as method path
                 return frappe.call(script, doc=message_doc)
 
-        except Exception as e:
+        except Exception:
             frappe.log_error(
-                f"Script execution error for '{script}': {str(e)}",
-                "WhatsApp Chatbot Script Error",
+                title="Chatbot Script Execution Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.message_name,
             )
             return None
 
     def is_business_hours(self):
-        """Check if current time is within business hours for today."""
         try:
             settings = self.get_chatbot_settings()
-            if not settings:
+            if not settings or not settings.business_hours:
                 return True
-
-            if not settings.business_hours:
-                return True  # No business hours configured
 
             now = datetime.now()
             current_time = now.time()
-            day_name = now.strftime("%A")  # Monday, Tuesday, etc.
+            day_name = now.strftime("%A")
 
-            # Find the business hours entry for today
             for row in settings.business_hours:
                 if row.day == day_name:
-                    # Check if this day is enabled (open)
                     if not row.enabled:
-                        return False  # Closed on this day
+                        return False
 
-                    # Check time range
                     start = self._parse_time(row.start_time)
                     end = self._parse_time(row.end_time)
 
                     if start and end:
                         return start <= current_time <= end
-                    return True  # Day is enabled but no specific times set
+                    return True
 
-            # No entry for this day - default to closed
             return False
 
-        except Exception as e:
-            frappe.log_error(f"is_business_hours error: {str(e)}")
-        return True  # Default to open if there's an error
+        except Exception:
+            frappe.log_error(
+                title="Is Business Hours Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.message_name,
+            )
+            return True
 
     def _parse_time(self, time_value):
-        """Parse time value to time object."""
         if not time_value:
             return None
 
-        if isinstance(time_value, str):
-            from datetime import time
+        try:
+            if isinstance(time_value, str):
+                from datetime import time
 
-            try:
                 parts = time_value.split(":")
                 return time(
                     int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0
                 )
-            except (ValueError, IndexError):
-                return None
-
-        # Already a time object
-        return time_value
+            return time_value
+        except Exception:
+            frappe.log_error(
+                title="Parse Time Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.message_name,
+            )
+            return None
 
 
 def process_incoming_message(doc):
-    """
-    Hook function called when WhatsApp Message is created.
-    Process synchronously but safely - never raise exceptions.
-    """
     global _processing_messages
 
     try:
@@ -511,29 +497,28 @@ def process_incoming_message(doc):
         finally:
             _processing_messages.discard(doc_name)
 
-    except Exception as e:
-        try:
-            frappe.log_error(
-                f"process_incoming_message error: {str(e)}", "WhatsApp Chatbot Error"
-            )
-        except Exception:
-            pass
+    except Exception:
+        frappe.log_error(
+            title="Hook process_incoming_message error",
+            message=frappe.get_traceback(),
+            reference_doctype="WhatsApp Message",
+            reference_name=getattr(doc, "name", "unknown"),
+        )
 
 
 def run_processor(message_data):
-    """Background job to process message (kept for compatibility)."""
     global _processing_messages
-
     message_name = message_data.get("name", "unknown")
 
     try:
         processor = ChatbotProcessor(message_data)
         processor.process()
-    except Exception as e:
+    except Exception:
         frappe.log_error(
-            f"run_processor error for {message_name}: {str(e)}",
-            "WhatsApp Chatbot Error",
+            title="run_processor error",
+            message=frappe.get_traceback(),
+            reference_doctype="WhatsApp Message",
+            reference_name=message_name,
         )
     finally:
-        # Clean up processing flag
         _processing_messages.discard(message_name)

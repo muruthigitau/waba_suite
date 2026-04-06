@@ -3,27 +3,33 @@ from datetime import datetime, timedelta
 
 
 class SessionManager:
-    """Manage chatbot conversation sessions."""
-
     def __init__(self, phone_number, whatsapp_account):
-        self.phone_number = phone_number
-        self.account = whatsapp_account
-        self.timeout_minutes = self.get_timeout()
+        try:
+            self.phone_number = phone_number
+            self.account = whatsapp_account
+            self.timeout_minutes = self.get_timeout()
+        except Exception:
+            frappe.log_error(
+                title="SessionManager Init Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Chatbot Session",
+            )
 
     def get_timeout(self):
-        """Get session timeout from settings."""
         try:
             if frappe.db.exists("WhatsApp Chatbot Settings"):
                 settings = frappe.get_single("WhatsApp Chatbot Settings")
                 return settings.session_timeout_minutes or 30
         except Exception:
-            pass
+            frappe.log_error(
+                title="Get Timeout Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Chatbot Settings",
+            )
         return 30
 
     def get_active_session(self):
-        """Get active session for this phone number."""
         try:
-            # Check for expired sessions first
             self.expire_old_sessions()
 
             session = frappe.db.get_value(
@@ -41,12 +47,15 @@ class SessionManager:
 
             return None
 
-        except Exception as e:
-            frappe.log_error(f"SessionManager get_active_session error: {str(e)}")
+        except Exception:
+            frappe.log_error(
+                title="Get Active Session Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Chatbot Session",
+            )
             return None
 
     def expire_old_sessions(self):
-        """Mark old sessions as timed out."""
         try:
             timeout_threshold = datetime.now() - timedelta(minutes=self.timeout_minutes)
 
@@ -62,17 +71,19 @@ class SessionManager:
                 session.completed_at = datetime.now()
                 session.save(ignore_permissions=True)
 
-                # Send timeout message
                 if session.current_flow:
                     flow = frappe.get_doc("WhatsApp Chatbot Flow", session.current_flow)
                     if flow.timeout_message:
                         self.send_timeout_message(session, flow.timeout_message)
 
-        except Exception as e:
-            frappe.log_error(f"SessionManager expire_old_sessions error: {str(e)}")
+        except Exception:
+            frappe.log_error(
+                title="Expire Old Sessions Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Chatbot Session",
+            )
 
     def send_timeout_message(self, session, message):
-        """Send session timeout message."""
         try:
             frappe.get_doc(
                 {
@@ -84,11 +95,15 @@ class SessionManager:
                     "whatsapp_account": session.whatsapp_account,
                 }
             ).insert(ignore_permissions=True)
-        except Exception as e:
-            frappe.log_error(f"SessionManager send_timeout_message error: {str(e)}")
+        except Exception:
+            frappe.log_error(
+                title="Send Timeout Message Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Chatbot Session",
+                reference_name=session.name,
+            )
 
     def get_conversation_history(self, limit=20):
-        """Get recent conversation history for AI context."""
         try:
             messages = frappe.get_all(
                 "WhatsApp Message",
@@ -117,15 +132,17 @@ class SessionManager:
 
             return history
 
-        except Exception as e:
-            frappe.log_error(f"SessionManager get_conversation_history error: {str(e)}")
+        except Exception:
+            frappe.log_error(
+                title="Get Conversation History Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+            )
             return []
 
 
 def cleanup_expired_sessions():
-    """Scheduled job to clean up expired sessions."""
     try:
-        # Get settings
         if not frappe.db.exists("WhatsApp Chatbot Settings"):
             return
 
@@ -167,10 +184,17 @@ def cleanup_expired_sessions():
                             }
                         ).insert(ignore_permissions=True)
 
-            except Exception as e:
+            except Exception:
                 frappe.log_error(
-                    f"cleanup_expired_sessions error for {session_data.name}: {str(e)}"
+                    title=f"Cleanup Expired Sessions Loop Error: {session_data.name}",
+                    message=frappe.get_traceback(),
+                    reference_doctype="WhatsApp Chatbot Session",
+                    reference_name=session_data.name,
                 )
 
-    except Exception as e:
-        frappe.log_error(f"cleanup_expired_sessions error: {str(e)}")
+    except Exception:
+        frappe.log_error(
+            title="Cleanup Expired Sessions Scheduled Job Error",
+            message=frappe.get_traceback(),
+            reference_doctype="WhatsApp Chatbot Settings",
+        )
