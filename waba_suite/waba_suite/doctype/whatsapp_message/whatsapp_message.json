@@ -20,6 +20,7 @@
   "buttons",
   "column_break_nubt",
   "whatsapp_account",
+  "whatsapp_session",
   "to",
   "from",
   "message_content_section",
@@ -319,11 +320,17 @@
   {
    "fieldname": "column_break_fhhs",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "whatsapp_session",
+   "fieldtype": "Link",
+   "label": "WhatsApp Session",
+   "options": "WhatsApp Session"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-04 12:51:29.159938",
+ "modified": "2026-04-06 16:23:48.464062",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Message",
