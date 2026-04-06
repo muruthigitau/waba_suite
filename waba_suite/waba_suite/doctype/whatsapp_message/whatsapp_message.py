@@ -13,378 +13,392 @@ from waba_suite.utils import get_whatsapp_account, format_number
 
 class WhatsAppMessage(Document):
     def validate(self):
-        self.set_whatsapp_account()
-        self.restyle_message_content()
+        try:
+            self.set_whatsapp_account()
+            self.restyle_message_content()
+        except Exception:
+            frappe.log_error(
+                title=f"WhatsApp Message Validation Error: {self.name}",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
+            raise
 
     def after_insert(self):
-        self.handle_whatsapp_insertion()
+        try:
+            self.handle_whatsapp_insertion()
+        except Exception:
+            frappe.log_error(
+                title=f"WhatsApp Message After Insert Error: {self.name}",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
 
     def on_update(self):
-        self.update_profile_name()
+        try:
+            self.update_profile_name()
+        except Exception:
+            frappe.log_error(
+                title=f"WhatsApp Message On Update Error: {self.name}",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
 
     def update_profile_name(self):
-        number = self.get("from")
-        if not number:
-            return
-        from_number = format_number(number)
+        try:
+            number = self.get("from")
+            if not number:
+                return
+            from_number = format_number(number)
 
-        if (
-            self.has_value_changed("profile_name")
-            and self.profile_name
-            and from_number
-            and frappe.db.exists("WhatsApp Profiles", {"number": from_number})
-        ):
-            profile_id = frappe.get_value(
-                "WhatsApp Profiles", {"number": from_number}, "name"
-            )
-            frappe.db.set_value(
-                "WhatsApp Profiles", profile_id, "profile_name", self.profile_name
+            if (
+                self.has_value_changed("profile_name")
+                and self.profile_name
+                and from_number
+                and frappe.db.exists("WhatsApp Profiles", {"number": from_number})
+            ):
+                profile_id = frappe.get_value(
+                    "WhatsApp Profiles", {"number": from_number}, "name"
+                )
+                frappe.db.set_value(
+                    "WhatsApp Profiles", profile_id, "profile_name", self.profile_name
+                )
+        except Exception:
+            frappe.log_error(
+                title="Update Profile Name Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
             )
 
     def create_whatsapp_profile(self):
-        number = format_number(self.get("from") or self.to)
-        if not frappe.db.exists("WhatsApp Profiles", {"number": number}):
-            frappe.get_doc(
-                {
-                    "doctype": "WhatsApp Profiles",
-                    "profile_name": self.profile_name,
-                    "number": number,
-                    "whatsapp_account": self.whatsapp_account,
-                }
-            ).insert(ignore_permissions=True)
+        try:
+            number = format_number(self.get("from") or self.to)
+            if not frappe.db.exists("WhatsApp Profiles", {"number": number}):
+                frappe.get_doc(
+                    {
+                        "doctype": "WhatsApp Profiles",
+                        "profile_name": self.profile_name,
+                        "number": number,
+                        "whatsapp_account": self.whatsapp_account,
+                    }
+                ).insert(ignore_permissions=True)
+        except Exception:
+            frappe.log_error(
+                title="Create WhatsApp Profile Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
 
     def set_whatsapp_account(self):
-        if not self.whatsapp_account:
-            account_type = "outgoing" if self.type == "Outgoing" else "incoming"
-            default_whatsapp_account = get_whatsapp_account(account_type=account_type)
-            if not default_whatsapp_account:
-                throw(
-                    _(
-                        "Please set a default outgoing WhatsApp Account or Select available WhatsApp Account"
-                    )
+        try:
+            if not self.whatsapp_account:
+                account_type = "outgoing" if self.type == "Outgoing" else "incoming"
+                default_whatsapp_account = get_whatsapp_account(
+                    account_type=account_type
                 )
+                if not default_whatsapp_account:
+                    throw(
+                        _(
+                            "Please set a default outgoing WhatsApp Account or Select available WhatsApp Account"
+                        )
+                    )
+                else:
+                    self.whatsapp_account = default_whatsapp_account.name
+        except Exception:
+            frappe.log_error(
+                title="Set WhatsApp Account Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
+            raise
+
+    @frappe.whitelist()
+    def manual_send(self):
+        try:
+            if self.type == "Outgoing" and self.status == "draft":
+                self.process_outgoing_send()
+                self.save()
+        except Exception:
+            frappe.log_error(
+                title=f"Manual Send Error: {self.name}",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
+            raise
+
+    def process_outgoing_send(self):
+        try:
+            if self.message_type == "Template":
+                self.send_template()
+                return
+
+            if self.attach and not self.attach.startswith("http"):
+                link = frappe.utils.get_url() + "/" + self.attach
             else:
-                self.whatsapp_account = default_whatsapp_account.name
+                link = self.attach
 
-    # def before_insert(self):
-    #     self.set_whatsapp_account()
-    #     if self.type == "Outgoing" and self.message_type != "Template":
-    #         if self.attach and not self.attach.startswith("http"):
-    #             link = frappe.utils.get_url() + "/" + self.attach
-    #         else:
-    #             link = self.attach
+            data = {
+                "messaging_product": "whatsapp",
+                "to": format_number(self.to),
+                "type": self.content_type,
+            }
 
-    #         data = {
-    #             "messaging_product": "whatsapp",
-    #             "to": format_number(self.to),
-    #             "type": self.content_type,
-    #         }
-    #         if self.is_reply and self.reply_to_message_id:
-    #             data["context"] = {"message_id": self.reply_to_message_id}
-    #         if self.content_type in ["document", "image", "video"]:
-    #             data[self.content_type.lower()] = {
-    #                 "link": link,
-    #                 "caption": self.styled_message or self.message,
-    #             }
-    #         elif self.content_type == "reaction":
-    #             data["reaction"] = {
-    #                 "message_id": self.reply_to_message_id,
-    #                 "emoji": self.styled_message or self.message,
-    #             }
-    #         elif self.content_type == "text":
-    #             data["text"] = {
-    #                 "preview_url": True,
-    #                 "body": self.styled_message or self.message,
-    #             }
+            if self.is_reply and self.reply_to_message_id:
+                data["context"] = {"message_id": self.reply_to_message_id}
 
-    #         elif self.content_type == "audio":
-    #             data["audio"] = {"link": link}
+            if self.content_type in ["document", "image", "video"]:
+                data[self.content_type.lower()] = {
+                    "link": link,
+                    "caption": self.styled_message or self.message,
+                }
+            elif self.content_type == "reaction":
+                data["reaction"] = {
+                    "message_id": self.reply_to_message_id,
+                    "emoji": self.styled_message or self.message,
+                }
+            elif self.content_type == "text":
+                data["text"] = {
+                    "preview_url": True,
+                    "body": self.styled_message or self.message,
+                }
+            elif self.content_type == "audio":
+                data["audio"] = {"link": link}
+            elif self.content_type == "interactive":
+                data["type"] = "interactive"
+                buttons_data = (
+                    json.loads(self.buttons)
+                    if isinstance(self.buttons, str)
+                    else self.buttons
+                )
+                if isinstance(buttons_data, list) and len(buttons_data) > 3:
+                    data["interactive"] = {
+                        "type": "list",
+                        "body": {"text": self.message},
+                        "action": {
+                            "button": "Select Option",
+                            "sections": [
+                                {
+                                    "title": "Options",
+                                    "rows": [
+                                        {
+                                            "id": b["id"],
+                                            "title": b["title"],
+                                            "description": b.get("description", ""),
+                                        }
+                                        for b in buttons_data[:10]
+                                    ],
+                                }
+                            ],
+                        },
+                    }
+                else:
+                    data["interactive"] = {
+                        "type": "button",
+                        "body": {"text": self.styled_message or self.message},
+                        "action": {
+                            "buttons": [
+                                {
+                                    "type": "reply",
+                                    "reply": {"id": b["id"], "title": b["title"]},
+                                }
+                                for b in buttons_data[:3]
+                            ]
+                        },
+                    }
 
-    #         elif self.content_type == "interactive":
-    #             data["type"] = "interactive"
-    #             buttons_data = (
-    #                 json.loads(self.buttons)
-    #                 if isinstance(self.buttons, str)
-    #                 else self.buttons
-    #             )
-
-    #             if isinstance(buttons_data, list) and len(buttons_data) > 3:
-    #                 data["interactive"] = {
-    #                     "type": "list",
-    #                     "body": {"text": self.message},
-    #                     "action": {
-    #                         "button": "Select Option",
-    #                         "sections": [
-    #                             {
-    #                                 "title": "Options",
-    #                                 "rows": [
-    #                                     {
-    #                                         "id": btn["id"],
-    #                                         "title": btn["title"],
-    #                                         "description": btn.get("description", ""),
-    #                                     }
-    #                                     for btn in buttons_data[:10]
-    #                                 ],
-    #                             }
-    #                         ],
-    #                     },
-    #                 }
-    #             else:
-    #                 data["interactive"] = {
-    #                     "type": "button",
-    #                     "body": {"text": self.styled_message or self.message},
-    #                     "action": {
-    #                         "buttons": [
-    #                             {
-    #                                 "type": "reply",
-    #                                 "reply": {"id": btn["id"], "title": btn["title"]},
-    #                             }
-    #                             for btn in buttons_data[:3]
-    #                         ]
-    #                     },
-    #                 }
-
-    #         elif self.content_type == "flow":
-    #             if not self.flow:
-    #                 frappe.throw(_("WhatsApp Flow is required for flow content type"))
-
-    #             flow_doc = frappe.get_doc("WhatsApp Flow", self.flow)
-
-    #             if not flow_doc.flow_id:
-    #                 frappe.throw(_("Flow must be created on WhatsApp before sending"))
-
-    #             flow_mode = None
-    #             if flow_doc.status != "Published":
-    #                 flow_mode = "draft"
-    #                 frappe.msgprint(
-    #                     _("Sending flow in draft mode (for testing only)"),
-    #                     indicator="orange",
-    #                 )
-
-    #             flow_screen = self.flow_screen
-    #             if not flow_screen and flow_doc.screens:
-    #                 flow_screen = flow_doc.screens[0].screen_id
-
-    #             data["type"] = "interactive"
-    #             data["interactive"] = {
-    #                 "type": "flow",
-    #                 "body": {
-    #                     "text": self.styled_message
-    #                     or self.message
-    #                     or "Please fill out the form"
-    #                 },
-    #                 "action": {
-    #                     "name": "flow",
-    #                     "parameters": {
-    #                         "flow_message_version": "3",
-    #                         "flow_id": flow_doc.flow_id,
-    #                         "flow_cta": self.flow_cta or flow_doc.flow_cta or "Open",
-    #                         "flow_action": "navigate",
-    #                         "flow_action_payload": {"screen": flow_screen},
-    #                     },
-    #                 },
-    #             }
-
-    #             if flow_mode:
-    #                 data["interactive"]["action"]["parameters"]["mode"] = flow_mode
-
-    #             flow_token = self.flow_token or frappe.generate_hash(length=16)
-    #             data["interactive"]["action"]["parameters"]["flow_token"] = flow_token
-
-    #         try:
-    #             self.notify(data)
-    #             self.status = "Success"
-    #         except Exception as e:
-    #             self.status = "Failed"
-    #             frappe.throw(f"Failed to send message {str(e)}")
-    #     elif (
-    #         self.type == "Outgoing"
-    #         and self.message_type == "Template"
-    #         and not self.message_id
-    #     ):
-    #         self.send_template()
-
-    #     self.create_whatsapp_profile()
+            self.notify(data)
+            self.status = "Success"
+            self.create_whatsapp_profile()
+        except Exception as e:
+            frappe.db.set_value("WhatsApp Message", self.name, "status", "failed")
+            frappe.db.commit()
+            frappe.log_error(
+                title=f"Process Outgoing Send Error: {self.name}",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
+            throw(f"Failed to send message: {str(e)}")
 
     def send_template(self):
-        template = frappe.get_doc("WhatsApp Templates", self.template)
-        data = {
-            "messaging_product": "whatsapp",
-            "to": format_number(self.to),
-            "type": "template",
-            "template": {
-                "name": template.actual_name or template.template_name,
-                "language": {"code": template.language_code},
-                "components": [],
-            },
-        }
+        try:
+            template = frappe.get_doc("WhatsApp Templates", self.template)
+            data = {
+                "messaging_product": "whatsapp",
+                "to": format_number(self.to),
+                "type": "template",
+                "template": {
+                    "name": template.actual_name or template.template_name,
+                    "language": {"code": template.language_code},
+                    "components": [],
+                },
+            }
 
-        if template.sample_values:
-            field_names = (
-                template.field_names.split(",")
-                if template.field_names
-                else template.sample_values.split(",")
-            )
-            parameters = []
-            template_parameters = []
+            if template.sample_values:
+                field_names = (
+                    template.field_names.split(",")
+                    if template.field_names
+                    else template.sample_values.split(",")
+                )
+                parameters = []
+                template_parameters = []
 
-            if self.body_param is not None:
-                params = list(json.loads(self.body_param).values())
-                for param in params:
-                    parameters.append({"type": "text", "text": param})
-                    template_parameters.append(param)
-            elif self.flags.custom_ref_doc:
-                custom_values = self.flags.custom_ref_doc
-                for field_name in field_names:
-                    value = custom_values.get(field_name.strip())
-                    parameters.append({"type": "text", "text": value})
-                    template_parameters.append(value)
-
-            else:
-                ref_doc = frappe.get_doc(self.reference_doctype, self.reference_name)
-                for field_name in field_names:
-                    value = ref_doc.get_formatted(field_name.strip())
-                    parameters.append({"type": "text", "text": value})
-                    template_parameters.append(value)
-
-            self.template_parameters = json.dumps(template_parameters)
-            data["template"]["components"].append(
-                {
-                    "type": "body",
-                    "parameters": parameters,
-                }
-            )
-
-        if template.header_type:
-            if self.attach:
-                if template.header_type == "IMAGE":
-
-                    if self.attach.startswith("http"):
-                        url = f"{self.attach}"
-                    else:
-                        url = f"{frappe.utils.get_url()}{self.attach}"
-                    data["template"]["components"].append(
-                        {
-                            "type": "header",
-                            "parameters": [{"type": "image", "image": {"link": url}}],
-                        }
+                if self.body_param is not None:
+                    params = list(json.loads(self.body_param).values())
+                    for param in params:
+                        parameters.append({"type": "text", "text": param})
+                        template_parameters.append(param)
+                elif self.flags.custom_ref_doc:
+                    custom_values = self.flags.custom_ref_doc
+                    for field_name in field_names:
+                        value = custom_values.get(field_name.strip())
+                        parameters.append({"type": "text", "text": value})
+                        template_parameters.append(value)
+                else:
+                    ref_doc = frappe.get_doc(
+                        self.reference_doctype, self.reference_name
                     )
+                    for field_name in field_names:
+                        value = ref_doc.get_formatted(field_name.strip())
+                        parameters.append({"type": "text", "text": value})
+                        template_parameters.append(value)
 
-            elif template.sample:
-                if template.header_type == "IMAGE":
-                    if template.sample.startswith("http"):
-                        url = f"{template.sample}"
-                    else:
-                        url = f"{frappe.utils.get_url()}{template.sample}"
-                    data["template"]["components"].append(
-                        {
-                            "type": "header",
-                            "parameters": [{"type": "image", "image": {"link": url}}],
-                        }
-                    )
+                self.template_parameters = json.dumps(template_parameters)
+                data["template"]["components"].append(
+                    {"type": "body", "parameters": parameters}
+                )
 
-        if template.buttons:
-            button_parameters = []
-            for idx, btn in enumerate(template.buttons):
-                if btn.button_type == "Quick Reply":
-                    button_parameters.append(
-                        {
-                            "type": "button",
-                            "sub_type": "quick_reply",
-                            "index": str(idx),
-                            "parameters": [
-                                {"type": "payload", "payload": btn.button_label}
-                            ],
-                        }
-                    )
-                elif btn.button_type == "Call Phone":
-                    button_parameters.append(
-                        {
-                            "type": "button",
-                            "sub_type": "phone_number",
-                            "index": str(idx),
-                            "parameters": [{"type": "text", "text": btn.phone_number}],
-                        }
-                    )
-                elif btn.button_type == "Visit Website":
-                    url = btn.website_url
-                    if btn.url_type == "Dynamic":
-                        ref_doc = frappe.get_doc(
-                            self.reference_doctype, self.reference_name
+            if template.header_type and self.attach:
+                url = (
+                    self.attach
+                    if self.attach.startswith("http")
+                    else f"{frappe.utils.get_url()}{self.attach}"
+                )
+                data["template"]["components"].append(
+                    {
+                        "type": "header",
+                        "parameters": [{"type": "image", "image": {"link": url}}],
+                    }
+                )
+
+            if template.buttons:
+                button_parameters = []
+                for idx, btn in enumerate(template.buttons):
+                    if btn.button_type == "Quick Reply":
+                        button_parameters.append(
+                            {
+                                "type": "button",
+                                "sub_type": "quick_reply",
+                                "index": str(idx),
+                                "parameters": [
+                                    {"type": "payload", "payload": btn.button_label}
+                                ],
+                            }
                         )
-                        url = ref_doc.get_formatted(btn.website_url)
-                    button_parameters.append(
-                        {
-                            "type": "button",
-                            "sub_type": "url",
-                            "index": str(idx),
-                            "parameters": [{"type": "text", "text": url}],
-                        }
-                    )
+                    elif btn.button_type == "Call Phone":
+                        button_parameters.append(
+                            {
+                                "type": "button",
+                                "sub_type": "phone_number",
+                                "index": str(idx),
+                                "parameters": [
+                                    {"type": "text", "text": btn.phone_number}
+                                ],
+                            }
+                        )
+                    elif btn.button_type == "Visit Website":
+                        url = btn.website_url
+                        if btn.url_type == "Dynamic":
+                            ref_doc = frappe.get_doc(
+                                self.reference_doctype, self.reference_name
+                            )
+                            url = ref_doc.get_formatted(btn.website_url)
+                        button_parameters.append(
+                            {
+                                "type": "button",
+                                "sub_type": "url",
+                                "index": str(idx),
+                                "parameters": [{"type": "text", "text": url}],
+                            }
+                        )
+                if button_parameters:
+                    data["template"]["components"].extend(button_parameters)
 
-            if button_parameters:
-                data["template"]["components"].extend(button_parameters)
-
-        self.notify(data)
+            self.notify(data)
+        except Exception:
+            frappe.log_error(
+                title=f"Send Template Error: {self.name}",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
+            raise
 
     def notify(self, data):
-        whatsapp_account = frappe.get_doc(
-            "WhatsApp Account",
-            self.whatsapp_account,
-        )
-        token = whatsapp_account.get_password("token")
-
-        headers = {
-            "authorization": f"Bearer {token}",
-            "content-type": "application/json",
-        }
         try:
+            whatsapp_account = frappe.get_doc("WhatsApp Account", self.whatsapp_account)
+            token = whatsapp_account.get_password("token")
+            headers = {
+                "authorization": f"Bearer {token}",
+                "content-type": "application/json",
+            }
+
             response = make_post_request(
                 f"{whatsapp_account.url}/{whatsapp_account.version}/{whatsapp_account.phone_id}/messages",
                 headers=headers,
                 data=json.dumps(data),
             )
             self.message_id = response["messages"][0]["id"]
-
-        except Exception as e:
-            res = frappe.flags.integration_request.json().get("error", {})
-            error_message = res.get("Error", res.get("message"))
+        except Exception:
+            res = (
+                frappe.flags.integration_request.json().get("error", {})
+                if frappe.flags.integration_request
+                else {}
+            )
+            error_message = res.get("message", "WhatsApp API Error")
             frappe.get_doc(
                 {
                     "doctype": "WhatsApp Notification Log",
-                    "template": "Text Message",
-                    "meta_data": frappe.flags.integration_request.json(),
+                    "template": "Error Log",
+                    "meta_data": json.dumps(res),
                 }
             ).insert(ignore_permissions=True)
 
-            frappe.throw(msg=error_message, title=res.get("error_user_title", "Error"))
+            frappe.log_error(
+                title="WhatsApp Notification API Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
+            throw(msg=error_message, title=res.get("error_user_title", "Error"))
 
     def format_number(self, number):
         if number.startswith("+"):
-            number = number[1 : len(number)]
-
+            number = number[1:]
         return number
 
     @frappe.whitelist()
     def send_read_receipt(self):
-        data = {
-            "messaging_product": "whatsapp",
-            "status": "read",
-            "message_id": self.message_id,
-        }
-
-        settings = frappe.get_doc(
-            "WhatsApp Account",
-            self.whatsapp_account,
-        )
-
-        token = settings.get_password("token")
-
-        headers = {
-            "authorization": f"Bearer {token}",
-            "content-type": "application/json",
-        }
         try:
+            data = {
+                "messaging_product": "whatsapp",
+                "status": "read",
+                "message_id": self.message_id,
+            }
+            settings = frappe.get_doc("WhatsApp Account", self.whatsapp_account)
+            token = settings.get_password("token")
+            headers = {
+                "authorization": f"Bearer {token}",
+                "content-type": "application/json",
+            }
+
             response = make_post_request(
                 f"{settings.url}/{settings.version}/{settings.phone_id}/messages",
                 headers=headers,
@@ -395,18 +409,20 @@ class WhatsAppMessage(Document):
                 self.status = "marked as read"
                 self.save()
                 return response.get("success")
-
-        except Exception as e:
-            res = frappe.flags.integration_request.json().get("error", {})
-            error_message = res.get("Error", res.get("message"))
-            frappe.log_error("WhatsApp API Error", f"{error_message}\n{res}")
+        except Exception:
+            frappe.log_error(
+                title=f"Read Receipt Error: {self.name}",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
 
     def restyle_message_content(self):
-        if self.message:
-            self.styled_message = self.advanced_whatsapp_formatter(self.message)
+        try:
+            if self.message:
+                self.styled_message = self.advanced_whatsapp_formatter(self.message)
 
-        if self.content_type == "interactive" and self.buttons:
-            try:
+            if self.content_type == "interactive" and self.buttons:
                 btns = (
                     json.loads(self.buttons)
                     if isinstance(self.buttons, str)
@@ -418,136 +434,111 @@ class WhatsAppMessage(Document):
                             btn["title"], strip_newlines=True
                         )
                 self.buttons = json.dumps(btns)
-            except Exception:
-                pass
+        except Exception:
+            frappe.log_error(
+                title="Restyle Message Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
 
     def advanced_whatsapp_formatter(self, text, strip_newlines=False):
-        if not text:
-            return ""
+        try:
+            if not text:
+                return ""
+            text = html.unescape(text)
+            text = re.sub(
+                r'<a[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
+                lambda m: (
+                    f"{re.sub('<[^>]+>', '', m.group(2)).strip()} - {m.group(1)}"
+                    if m.group(2).strip()
+                    else m.group(1)
+                ),
+                text,
+                flags=re.I | re.S,
+            )
+            text = re.sub(r"<a[^>]*>(https?://[^<]+)</a>", r"\1", text, flags=re.I)
+            text = re.sub(r"<(br|p|div|li|tr)[^>]*\/?>", "\n", text, flags=re.I)
+            text = re.sub(r"<\/(h[1-6])>", "\n", text, flags=re.I)
+            text = re.sub(r"<(h[1-6])[^>]*>", "", text, flags=re.I)
+            text = re.sub(r"<(strong|b)[^>]*>", "*", text, flags=re.I)
+            text = re.sub(r"<\/(strong|b)>", "*", text, flags=re.I)
+            text = re.sub(r"<(em|i)[^>]*>", "_", text, flags=re.I)
+            text = re.sub(r"<\/(em|i)>", "_", text, flags=re.I)
+            text = re.sub(r"<(strike|s|del)[^>]*>", "~", text, flags=re.I)
+            text = re.sub(r"<\/(strike|s|del)>", "~", text, flags=re.I)
+            text = re.sub(r"<code[^>]*>", "```", text, flags=re.I)
+            text = re.sub(r"<\/code>", "```", text, flags=re.I)
+            text = re.sub(r"<pre[^>]*>", "```\n", text, flags=re.I)
+            text = re.sub(r"<\/pre>", "\n```", text, flags=re.I)
+            text = re.sub(r"<ul[^>]*>", "\n", text, flags=re.I)
+            text = re.sub(r"<\/ul>", "\n", text, flags=re.I)
+            text = re.sub(r"<li[^>]*>", "• ", text, flags=re.I)
+            text = re.sub(r"<\/li>", "\n", text, flags=re.I)
+            text = re.sub(r"<[^>]+>", "", text)
 
-        text = html.unescape(text)
-
-        text = re.sub(
-            r'<a[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
-            lambda m: (
-                f"{re.sub('<[^>]+>', '', m.group(2)).strip()} - {m.group(1)}"
-                if m.group(2).strip()
-                else m.group(1)
-            ),
-            text,
-            flags=re.IGNORECASE | re.DOTALL,
-        )
-        text = re.sub(r"<a[^>]*>(https?://[^<]+)</a>", r"\1", text, flags=re.IGNORECASE)
-
-        text = re.sub(r"<(br|p|div|li|tr)[^>]*\/?>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/(h[1-6])>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<(h[1-6])[^>]*>", lambda m: "", text, flags=re.IGNORECASE)
-        text = re.sub(r"<(strong|b)[^>]*>", "*", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/(strong|b)>", "*", text, flags=re.IGNORECASE)
-        text = re.sub(r"<(em|i)[^>]*>", "_", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/(em|i)>", "_", text, flags=re.IGNORECASE)
-        text = re.sub(r"<(strike|s|del)[^>]*>", "~", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/(strike|s|del)>", "~", text, flags=re.IGNORECASE)
-        text = re.sub(r"<code[^>]*>", "```", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/code>", "```", text, flags=re.IGNORECASE)
-        text = re.sub(r"<pre[^>]*>", "```\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/pre>", "\n```", text, flags=re.IGNORECASE)
-
-        text = re.sub(r"<ul[^>]*>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/ul>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<ol[^>]*>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/ol>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<li[^>]*>", "• ", text, flags=re.IGNORECASE)
-        text = re.sub(r"<\/li>", "\n", text, flags=re.IGNORECASE)
-
-        text = re.sub(r"<[^>]+>", "", text)
-
-        lines = text.split("\n")
-        processed_lines = []
-
-        for line in lines:
-            original_line = line
-            line = line.strip()
-
-            if not line:
-                processed_lines.append("")
-                continue
-
-            if re.match(r"^#{1,6}\s", line):
-                hash_count = len(re.match(r"^#{1,6}", line).group())
-                header_text = re.sub(r"^#{1,6}\s+", "", line)
-                processed_lines.append(f"*{header_text}*")
-            elif re.match(r"^#{1,6}[^#]", line):
-                header_text = re.sub(r"^#{1,6}", "", line).strip()
-                processed_lines.append(f"*{header_text}*")
-            elif re.match(r"^[-*+]\s", line):
-                content = re.sub(r"^[-*+]\s+", "", line)
-                processed_lines.append(f"• {content}")
-            elif re.match(r"^\d+\.\s", line):
-                processed_lines.append(line)
-            elif re.match(r"^>\s", line):
-                content = re.sub(r"^>\s+", "", line)
-                processed_lines.append(f"_{content}_")
-            elif re.match(r"^`{3}", line):
-                processed_lines.append(line)
-            elif re.match(r"^_{3,}$|^-{3,}$|^\*{3,}$", line):
-                processed_lines.append("---")
-            else:
-                if (
-                    processed_lines
-                    and processed_lines[-1]
-                    and not processed_lines[-1].startswith(("•", "```", "---"))
-                    and not re.match(r"^\d+\.", processed_lines[-1])
-                ):
-                    processed_lines[-1] = processed_lines[-1] + " " + line
+            lines = text.split("\n")
+            processed_lines = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    processed_lines.append("")
+                    continue
+                if re.match(r"^#{1,6}\s", line):
+                    processed_lines.append(f"*{re.sub(r'^#{1,6}\s+', '', line)}*")
+                elif re.match(r"^[-*+]\s", line):
+                    processed_lines.append(f"• {re.sub(r'^[-*+]\s+', '', line)}")
+                elif re.match(r"^>\s", line):
+                    processed_lines.append(f"_{re.sub(r'^>\s+', '', line)}_")
                 else:
                     processed_lines.append(line)
 
-        text = "\n".join(processed_lines)
-
-        text = re.sub(r"\*\*([^*]+)\*\*", r"*\1*", text)
-        text = re.sub(r"\*([^*]+)\*", r"*\1*", text)
-        text = re.sub(r"__([^_]+)__", r"_\1_", text)
-        text = re.sub(r"_([^_]+)_", r"_\1_", text)
-        text = re.sub(r"~~([^~]+)~~", r"~\1~", text)
-        text = re.sub(r"`([^`]+)`", r"```\1```", text)
-
-        text = re.sub(r"\n{3,}", "\n\n", text)
-
-        if strip_newlines:
-            text = text.replace("\n", " ").strip()
-
-        return text.strip()
+            text = "\n".join(processed_lines)
+            text = re.sub(r"\*\*([^*]+)\*\*", r"*\1*", text)
+            text = re.sub(r"__([^_]+)__", r"_\1_", text)
+            text = re.sub(r"~~([^~]+)~~", r"~\1~", text)
+            text = re.sub(r"\n{3,}", "\n\n", text)
+            if strip_newlines:
+                text = text.replace("\n", " ").strip()
+            return text.strip()
+        except Exception:
+            return text
 
     def handle_whatsapp_insertion(self):
-        """Handle WhatsApp Message insertion."""
+        try:
+            from ....api.message import last_message
+            from ....api.room import (
+                get_or_create_session,
+                route_incoming_message,
+                send_main_menu,
+            )
 
-        from ....api.message import last_message
-        from ....api.room import (
-            get_or_create_session,
-            route_incoming_message,
-            send_main_menu,
-        )
+            last_message(self)
+            if self.type != "Incoming":
+                return
 
-        last_message(self)
+            session, is_new = get_or_create_session(self)
+            self.whatsapp_session = session.name
+            self.save(ignore_permissions=True)
 
-        if self.type != "Incoming":
-            return
-
-        session, is_new = get_or_create_session(self)
-
-        self.whatsapp_session = session.name
-        self.save(ignore_permissions=True)
-
-        if is_new:
-            send_main_menu(self.get("from"), session)
-            return
-
-        route_incoming_message(self, session)
+            if is_new:
+                send_main_menu(self.get("from"), session)
+            else:
+                route_incoming_message(self, session)
+        except Exception:
+            frappe.log_error(
+                title=f"WhatsApp Insertion Logic Error: {self.name}",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=self.name,
+            )
 
 
 def on_doctype_update():
-    frappe.db.add_index("WhatsApp Message", ["reference_doctype", "reference_name"])
+    try:
+        frappe.db.add_index("WhatsApp Message", ["reference_doctype", "reference_name"])
+    except Exception:
+        frappe.log_error(title="Index Creation Error", message=frappe.get_traceback())
 
 
 @frappe.whitelist()
@@ -565,7 +556,9 @@ def send_template(to, reference_doctype, reference_name, template):
                 "template": template,
             }
         )
-
         doc.save()
-    except Exception as e:
-        raise e
+    except Exception:
+        frappe.log_error(
+            title="Whitelist Send Template Error", message=frappe.get_traceback()
+        )
+        raise
