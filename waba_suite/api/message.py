@@ -70,7 +70,6 @@ def send_whatsapp_read_receipts(room):
         if not unread_messages:
             return
 
-        # Check if auto read receipt is enabled for the account
         for msg in unread_messages:
             if not msg.whatsapp_account:
                 continue

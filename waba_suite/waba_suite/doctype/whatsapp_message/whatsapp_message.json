@@ -19,8 +19,8 @@
   "attach",
   "buttons",
   "column_break_nubt",
-  "whatsapp_account",
   "whatsapp_session",
+  "whatsapp_account",
   "to",
   "from",
   "message_content_section",
@@ -70,10 +70,12 @@
    "set_only_once": 1
   },
   {
+   "default": "draft",
    "fieldname": "status",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
+   "options": "draft\nsent\nread\ndelivered\nfailed\nmarked as read",
    "read_only": 1
   },
   {
@@ -325,12 +327,13 @@
    "fieldname": "whatsapp_session",
    "fieldtype": "Link",
    "label": "WhatsApp Session",
-   "options": "WhatsApp Session"
+   "options": "WhatsApp Session",
+   "search_index": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-06 16:23:48.464062",
+ "modified": "2026-04-06 18:52:40.737373",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Message",
@@ -353,6 +356,31 @@
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
+ "states": [
+  {
+   "color": "Blue",
+   "title": "read"
+  },
+  {
+   "color": "Green",
+   "title": "sent"
+  },
+  {
+   "color": "Gray",
+   "title": "draft"
+  },
+  {
+   "color": "Cyan",
+   "title": "delivered"
+  },
+  {
+   "color": "Red",
+   "title": "failed"
+  },
+  {
+   "color": "Light Blue",
+   "title": "marked as read"
+  }
+ ],
  "track_seen": 1
 }
