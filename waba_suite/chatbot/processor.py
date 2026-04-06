@@ -461,16 +461,26 @@ def process_incoming_message(doc):
 
         try:
             whatsapp_account = getattr(doc, "whatsapp_account", None)
-            filters = [["enabled", "=", 1], ["process_all_accounts", "=", 1]]
-            if whatsapp_account:
-                filters = [
-                    "or",
-                    filters,
-                    [["enabled", "=", 1], ["whatsapp_account", "=", whatsapp_account]],
-                ]
-            if not frappe.db.exists("WhatsApp Chatbot Settings", filters):
+            has_global_settings = frappe.db.exists(
+                "WhatsApp Chatbot Settings", {"enabled": 1, "process_all_accounts": 1}
+            )
+
+            has_account_settings = False
+            if not has_global_settings and whatsapp_account:
+                has_account_settings = frappe.db.exists(
+                    "WhatsApp Chatbot Settings",
+                    {"enabled": 1, "whatsapp_account": whatsapp_account},
+                )
+
+            if not (has_global_settings or has_account_settings):
                 return
         except Exception:
+            frappe.log_error(
+                title="Process Incoming Message Error",
+                message=frappe.get_traceback(),
+                reference_doctype="WhatsApp Message",
+                reference_name=doc_name,
+            )
             return
 
         message_data = {
