@@ -121,7 +121,7 @@ class WhatsAppMessage(Document):
     @frappe.whitelist()
     def manual_send(self):
         try:
-            if self.type == "Outgoing" and self.status == "draft":
+            if self.type == "Outgoing":
                 self.process_outgoing_send()
                 self.save()
         except Exception:
@@ -214,7 +214,7 @@ class WhatsAppMessage(Document):
                     }
 
             self.notify(data)
-            self.status = "Success"
+            self.status = "sent"
             self.create_whatsapp_profile()
         except Exception as e:
             frappe.db.set_value("WhatsApp Message", self.name, "status", "failed")
@@ -515,6 +515,7 @@ class WhatsAppMessage(Document):
 
             last_message(self)
             if self.type != "Incoming":
+                self.process_outgoing_send()
                 return
 
             session, is_new = get_or_create_session(self)
