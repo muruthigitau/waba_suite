@@ -31,9 +31,9 @@ class SessionManager:
                 {
                     "phone_number": self.phone_number,
                     "whatsapp_account": self.account,
-                    "status": "Active"
+                    "status": "Active",
                 },
-                "name"
+                "name",
             )
 
             if session:
@@ -52,11 +52,8 @@ class SessionManager:
 
             expired = frappe.get_all(
                 "WhatsApp Chatbot Session",
-                filters={
-                    "status": "Active",
-                    "last_activity": ["<", timeout_threshold]
-                },
-                pluck="name"
+                filters={"status": "Active", "last_activity": ["<", timeout_threshold]},
+                pluck="name",
             )
 
             for session_name in expired:
@@ -77,14 +74,16 @@ class SessionManager:
     def send_timeout_message(self, session, message):
         """Send session timeout message."""
         try:
-            frappe.get_doc({
-                "doctype": "WhatsApp Message",
-                "type": "Outgoing",
-                "to": session.phone_number,
-                "message": message,
-                "content_type": "text",
-                "whatsapp_account": session.whatsapp_account
-            }).insert(ignore_permissions=True)
+            frappe.get_doc(
+                {
+                    "doctype": "WhatsApp Message",
+                    "type": "Outgoing",
+                    "to": session.phone_number,
+                    "message": message,
+                    "content_type": "text",
+                    "whatsapp_account": session.whatsapp_account,
+                }
+            ).insert(ignore_permissions=True)
         except Exception as e:
             frappe.log_error(f"SessionManager send_timeout_message error: {str(e)}")
 
@@ -93,27 +92,28 @@ class SessionManager:
         try:
             messages = frappe.get_all(
                 "WhatsApp Message",
-                filters={
-                    "whatsapp_account": self.account,
-                    "content_type": "text"
-                },
+                filters={"whatsapp_account": self.account, "content_type": "text"},
                 or_filters=[
                     ["from", "=", self.phone_number],
-                    ["to", "=", self.phone_number]
+                    ["to", "=", self.phone_number],
                 ],
                 fields=["type", "message", "creation"],
                 order_by="creation desc",
-                limit=limit
+                limit=limit,
             )
 
             # Convert to standardized format
             history = []
             for msg in reversed(messages):
-                history.append({
-                    "direction": "Incoming" if msg.type == "Incoming" else "Outgoing",
-                    "message": msg.message,
-                    "timestamp": msg.creation
-                })
+                history.append(
+                    {
+                        "direction": (
+                            "Incoming" if msg.type == "Incoming" else "Outgoing"
+                        ),
+                        "message": msg.message,
+                        "timestamp": msg.creation,
+                    }
+                )
 
             return history
 
@@ -139,11 +139,8 @@ def cleanup_expired_sessions():
         # Find all expired active sessions
         expired_sessions = frappe.get_all(
             "WhatsApp Chatbot Session",
-            filters={
-                "status": "Active",
-                "last_activity": ["<", timeout_threshold]
-            },
-            fields=["name", "phone_number", "whatsapp_account", "current_flow"]
+            filters={"status": "Active", "last_activity": ["<", timeout_threshold]},
+            fields=["name", "phone_number", "whatsapp_account", "current_flow"],
         )
 
         for session_data in expired_sessions:
@@ -155,16 +152,20 @@ def cleanup_expired_sessions():
 
                 # Send timeout message
                 if session_data.current_flow:
-                    flow = frappe.get_doc("WhatsApp Chatbot Flow", session_data.current_flow)
+                    flow = frappe.get_doc(
+                        "WhatsApp Chatbot Flow", session_data.current_flow
+                    )
                     if flow.timeout_message:
-                        frappe.get_doc({
-                            "doctype": "WhatsApp Message",
-                            "type": "Outgoing",
-                            "to": session_data.phone_number,
-                            "message": flow.timeout_message,
-                            "content_type": "text",
-                            "whatsapp_account": session_data.whatsapp_account
-                        }).insert(ignore_permissions=True)
+                        frappe.get_doc(
+                            {
+                                "doctype": "WhatsApp Message",
+                                "type": "Outgoing",
+                                "to": session_data.phone_number,
+                                "message": flow.timeout_message,
+                                "content_type": "text",
+                                "whatsapp_account": session_data.whatsapp_account,
+                            }
+                        ).insert(ignore_permissions=True)
 
             except Exception as e:
                 frappe.log_error(
