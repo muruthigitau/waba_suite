@@ -5,7 +5,6 @@ from datetime import datetime
 
 
 def parse_json(value, default=None):
-    """Safely parse JSON - handles both string and already-parsed dict/list."""
     if value is None:
         return default if default is not None else {}
     if isinstance(value, (dict, list)):
@@ -144,48 +143,48 @@ class FlowEngine:
             if not current_step:
                 return self.complete_flow(session, flow)
 
-            # Validate input
             input_value = button_payload or user_input
 
             if current_step.input_type and current_step.input_type != "None":
-                is_valid, error = self.validate_input(current_step, user_input, button_payload)
+                is_valid, error = self.validate_input(
+                    current_step, user_input, button_payload
+                )
 
                 if not is_valid:
-                    # Handle retry
                     session.step_retries = (session.step_retries or 0) + 1
                     max_retries = current_step.max_retries or 3
 
-                    if current_step.retry_on_invalid and session.step_retries < max_retries:
+                    if (
+                        current_step.retry_on_invalid
+                        and session.step_retries < max_retries
+                    ):
                         session.save(ignore_permissions=True)
-            
-                        return error or current_step.validation_error or "Invalid input. Please try again."
+                        return (
+                            error
+                            or current_step.validation_error
+                            or "Invalid input. Please try again."
+                        )
                     else:
-                        # Max retries reached, cancel flow
                         session.status = "Cancelled"
                         session.completed_at = datetime.now()
                         session.save(ignore_permissions=True)
-            
                         return "Too many invalid attempts. Please start again."
 
-                # Store input
                 if current_step.store_as:
                     session_data = parse_json(session.session_data, {})
                     session_data[current_step.store_as] = input_value
                     session.session_data = json.dumps(session_data)
 
-            # Log message in session
             session.add_message("Incoming", user_input, current_step.step_name)
 
-            # Determine next step
-            next_step_name = self.get_next_step(current_step, flow.steps, user_input, button_payload)
+            next_step_name = self.get_next_step(
+                current_step, flow.steps, user_input, button_payload
+            )
 
             if not next_step_name:
-                # No next step, complete flow
                 session.save(ignore_permissions=True)
-    
                 return self.complete_flow(session, flow)
 
-            # Find next step
             next_step = None
             for step in flow.steps:
                 if step.step_name == next_step_name:

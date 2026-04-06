@@ -224,7 +224,6 @@ class ChatbotProcessor:
                 msg.insert(ignore_permissions=True)
 
             elif isinstance(response, dict):
-                # Complex response (template, media, buttons, etc.)
                 msg_data = {
                     "doctype": "WhatsApp Message",
                     "type": "Outgoing",
@@ -462,19 +461,14 @@ def process_incoming_message(doc):
 
         try:
             whatsapp_account = getattr(doc, "whatsapp_account", None)
-
             filters = [["enabled", "=", 1], ["process_all_accounts", "=", 1]]
-
             if whatsapp_account:
                 filters = [
                     "or",
                     filters,
                     [["enabled", "=", 1], ["whatsapp_account", "=", whatsapp_account]],
                 ]
-
-            has_active_settings = frappe.db.exists("WhatsApp Chatbot Settings", filters)
-
-            if not has_active_settings:
+            if not frappe.db.exists("WhatsApp Chatbot Settings", filters):
                 return
         except Exception:
             return

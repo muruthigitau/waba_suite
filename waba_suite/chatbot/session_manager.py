@@ -117,7 +117,6 @@ class SessionManager:
                 limit=limit,
             )
 
-            # Convert to standardized format
             history = []
             for msg in reversed(messages):
                 history.append(
@@ -153,7 +152,6 @@ def cleanup_expired_sessions():
         timeout_minutes = settings.session_timeout_minutes or 30
         timeout_threshold = datetime.now() - timedelta(minutes=timeout_minutes)
 
-        # Find all expired active sessions
         expired_sessions = frappe.get_all(
             "WhatsApp Chatbot Session",
             filters={"status": "Active", "last_activity": ["<", timeout_threshold]},
@@ -167,7 +165,6 @@ def cleanup_expired_sessions():
                 session.completed_at = datetime.now()
                 session.save(ignore_permissions=True)
 
-                # Send timeout message
                 if session_data.current_flow:
                     flow = frappe.get_doc(
                         "WhatsApp Chatbot Flow", session_data.current_flow
