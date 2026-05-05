@@ -114,8 +114,17 @@
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-05-05 12:13:58.027968",
+ "links": [
+  {
+   "link_doctype": "WhatsApp Message",
+   "link_fieldname": "whatsapp_account"
+  },
+  {
+   "link_doctype": "WhatsApp Session",
+   "link_fieldname": "whatsapp_account"
+  }
+ ],
+ "modified": "2026-05-05 13:26:11.826175",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Account",

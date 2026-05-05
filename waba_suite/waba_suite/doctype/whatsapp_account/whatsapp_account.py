@@ -11,12 +11,12 @@ class WhatsAppAccount(Document):
 		self.there_must_be_only_one_default()
 
 	def validate(self):
-		if self.support_enabled and "crm" not in frappe.get_installed_apps():
+		if self.support_enabled and "helpdesk" not in frappe.get_installed_apps():
 			frappe.throw(
 				msg=frappe._(
-					"Support features require Frappe CRM to be installed. Please install Frappe CRM or disable support features."
+					"Support features require Helpdesk to be installed. Please install Helpdesk or disable support features."
 				),
-				title=frappe._("Frappe CRM Not Installed"),
+				title=frappe._("Helpdesk Not Installed"),
 			)
 
 	def there_must_be_only_one_default(self):

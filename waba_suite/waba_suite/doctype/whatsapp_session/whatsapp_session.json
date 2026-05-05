@@ -57,13 +57,8 @@
    "in_standard_filter": 1,
    "label": "WhatsApp Account",
    "options": "WhatsApp Account",
-   "reqd": 1
-  },
-  {
-   "fieldname": "customer",
-   "fieldtype": "Link",
-   "label": "Customer",
-   "options": "Customer"
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "section_break_mapo",

@@ -7,9 +7,12 @@
  "field_order": [
   "contact_name",
   "mobile_no",
+  "email",
+  "user",
+  "customer",
   "is_read",
-  "last_message",
-  "email"
+  "column_break_cbhf",
+  "last_message"
  ],
  "fields": [
   {
@@ -40,11 +43,27 @@
    "fieldtype": "Link",
    "label": "Email",
    "options": "User"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "HD Customer"
+  },
+  {
+   "fieldname": "column_break_cbhf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2024-02-07 11:19:07.878593",
+ "modified": "2026-05-05 21:02:54.815673",
  "modified_by": "Administrator",
  "module": "Whatsapp Chat",
  "name": "WhatsApp Contact",
@@ -63,6 +82,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

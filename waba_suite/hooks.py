@@ -1,14 +1,16 @@
 app_name = "waba_suite"
 app_title = "WABA Suite"
 app_publisher = "David Gitau"
-app_description = "A comprehensive, all-in-one WhatsApp Business API (WABA) integration for the Frappe Framework"
+app_description = (
+	"A comprehensive, all-in-one WhatsApp Business API (WABA) integration for the Frappe Framework"
+)
 app_email = "muruthigitau@gmail.com"
 app_license = "agpl-3.0"
 
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = ["helpdesk"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
