@@ -1,316 +1,300 @@
-"""Webhook."""
+import json
+import time
 
 import frappe
-import json
 import requests
-import time
+from frappe.utils.file_manager import save_file
 from werkzeug.wrappers import Response
-import frappe.utils
 
-from waba_suite.utils import get_whatsapp_account
+from waba_suite.utils import format_number, get_whatsapp_account
 
 
 @frappe.whitelist(allow_guest=True)
 def webhook():
-    """Meta webhook."""
-    if frappe.request.method == "GET":
-        return get()
-    return post()
+	if frappe.request.method == "GET":
+		return get()
+	return post()
 
 
 def get():
-    """Get."""
-    hub_challenge = frappe.form_dict.get("hub.challenge")
-    verify_token = frappe.form_dict.get("hub.verify_token")
-    webhook_verify_token = frappe.db.get_value(
-        "WhatsApp Account",
-        {"webhook_verify_token": verify_token},
-        "webhook_verify_token",
-    )
-    if not webhook_verify_token:
-        frappe.throw("No matching WhatsApp account")
+	hub_challenge = frappe.form_dict.get("hub.challenge")
+	verify_token = frappe.form_dict.get("hub.verify_token")
 
-    if frappe.form_dict.get("hub.verify_token") != webhook_verify_token:
-        frappe.throw("Verify token does not match")
+	webhook_verify_token = frappe.db.get_value(
+		"WhatsApp Account",
+		{"webhook_verify_token": verify_token},
+		"webhook_verify_token",
+	)
 
-    return Response(hub_challenge, status=200)
+	if not webhook_verify_token:
+		frappe.throw("No matching WhatsApp account")
+
+	if verify_token != webhook_verify_token:
+		frappe.throw("Verify token does not match")
+
+	return Response(hub_challenge, status=200)
 
 
 def post():
-    """Post."""
-    data = frappe.local.form_dict
-    frappe.get_doc(
-        {
-            "doctype": "WhatsApp Notification Log",
-            "template": "Webhook",
-            "meta_data": json.dumps(data),
-        }
-    ).insert(ignore_permissions=True)
+	try:
+		data = frappe.local.form_dict
 
-    messages = []
-    phone_id = None
-    try:
-        messages = data["entry"][0]["changes"][0]["value"].get("messages", [])
-        phone_id = (
-            data.get("entry", [{}])[0]
-            .get("changes", [{}])[0]
-            .get("value", {})
-            .get("metadata", {})
-            .get("phone_number_id")
-        )
-    except KeyError:
-        messages = data["entry"]["changes"][0]["value"].get("messages", [])
-    sender_profile_name = next(
-        (
-            contact.get("profile", {}).get("name")
-            for entry in data.get("entry", [])
-            for change in entry.get("changes", [])
-            for contact in change.get("value", {}).get("contacts", [])
-        ),
-        None,
-    )
+		frappe.get_doc(
+			{
+				"doctype": "WhatsApp Notification Log",
+				"template": "Webhook",
+				"meta_data": json.dumps(data),
+			}
+		).insert(ignore_permissions=True)
 
-    whatsapp_account = get_whatsapp_account(phone_id) if phone_id else None
-    if not whatsapp_account:
-        return
+		messages = []
+		phone_id = None
 
-    if messages:
-        for message in messages:
-            message_type = message["type"]
-            is_reply = (
-                True
-                if message.get("context") and "forwarded" not in message.get("context")
-                else False
-            )
-            reply_to_message_id = message["context"]["id"] if is_reply else None
-            if message_type == "text":
-                frappe.get_doc(
-                    {
-                        "doctype": "WhatsApp Message",
-                        "type": "Incoming",
-                        "from": message["from"],
-                        "message": message["text"]["body"],
-                        "message_id": message["id"],
-                        "reply_to_message_id": reply_to_message_id,
-                        "is_reply": is_reply,
-                        "content_type": message_type,
-                        "profile_name": sender_profile_name,
-                        "whatsapp_account": whatsapp_account.name,
-                    }
-                ).insert(ignore_permissions=True)
-            elif message_type == "reaction":
-                frappe.get_doc(
-                    {
-                        "doctype": "WhatsApp Message",
-                        "type": "Incoming",
-                        "from": message["from"],
-                        "message": message["reaction"]["emoji"],
-                        "reply_to_message_id": message["reaction"]["message_id"],
-                        "message_id": message["id"],
-                        "content_type": "reaction",
-                        "profile_name": sender_profile_name,
-                        "whatsapp_account": whatsapp_account.name,
-                    }
-                ).insert(ignore_permissions=True)
-            elif message_type == "interactive":
-                interactive_data = message["interactive"]
-                interactive_type = interactive_data.get("type")
+		entry = data.get("entry", [{}])[0]
+		changes = entry.get("changes", [{}])[0]
+		value = changes.get("value", {})
+		messages = value.get("messages", [])
+		phone_id = value.get("metadata", {}).get("phone_number_id")
 
-                # Handle button reply
-                if interactive_type == "button_reply":
-                    frappe.get_doc(
-                        {
-                            "doctype": "WhatsApp Message",
-                            "type": "Incoming",
-                            "from": message["from"],
-                            "message": interactive_data["button_reply"]["id"],
-                            "message_id": message["id"],
-                            "reply_to_message_id": reply_to_message_id,
-                            "is_reply": is_reply,
-                            "content_type": "button",
-                            "profile_name": sender_profile_name,
-                            "whatsapp_account": whatsapp_account.name,
-                        }
-                    ).insert(ignore_permissions=True)
-                # Handle list reply
-                elif interactive_type == "list_reply":
-                    frappe.get_doc(
-                        {
-                            "doctype": "WhatsApp Message",
-                            "type": "Incoming",
-                            "from": message["from"],
-                            "message": interactive_data["list_reply"]["id"],
-                            "message_id": message["id"],
-                            "reply_to_message_id": reply_to_message_id,
-                            "is_reply": is_reply,
-                            "content_type": "button",
-                            "profile_name": sender_profile_name,
-                            "whatsapp_account": whatsapp_account.name,
-                        }
-                    ).insert(ignore_permissions=True)
-                # Handle WhatsApp Flows (nfm_reply)
-                elif interactive_type == "nfm_reply":
-                    nfm_reply = interactive_data["nfm_reply"]
-                    response_json_str = nfm_reply.get("response_json", "{}")
+		sender_profile_name = next(
+			(
+				contact.get("profile", {}).get("name")
+				for entry in data.get("entry", [])
+				for change in entry.get("changes", [])
+				for contact in change.get("value", {}).get("contacts", [])
+			),
+			None,
+		)
 
-                    # Parse the response JSON
-                    try:
-                        flow_response = json.loads(response_json_str)
-                    except json.JSONDecodeError:
-                        flow_response = {}
+		whatsapp_account = None
 
-                    # Create a summary message from the flow response
-                    summary_parts = []
-                    for key, value in flow_response.items():
-                        if value:
-                            summary_parts.append(f"{key}: {value}")
-                    summary_message = (
-                        ", ".join(summary_parts) if summary_parts else "Flow completed"
-                    )
+		if phone_id:
+			whatsapp_account = get_whatsapp_account(phone_id)
 
-                    msg_doc = frappe.get_doc(
-                        {
-                            "doctype": "WhatsApp Message",
-                            "type": "Incoming",
-                            "from": message["from"],
-                            "message": summary_message,
-                            "message_id": message["id"],
-                            "reply_to_message_id": reply_to_message_id,
-                            "is_reply": is_reply,
-                            "content_type": "flow",
-                            "flow_response": json.dumps(flow_response),
-                            "profile_name": sender_profile_name,
-                            "whatsapp_account": whatsapp_account.name,
-                        }
-                    ).insert(ignore_permissions=True)
+		if not whatsapp_account:
+			default = frappe.db.get_value("WhatsApp Account", {"is_default": 1}, "name")
+			if default:
+				whatsapp_account = frappe.get_doc("WhatsApp Account", default)
 
-                    # Publish realtime event for flow response
-                    frappe.publish_realtime(
-                        "whatsapp_flow_response",
-                        {
-                            "phone": message["from"],
-                            "message_id": message["id"],
-                            "flow_response": flow_response,
-                            "whatsapp_account": whatsapp_account.name,
-                        },
-                    )
-            elif message_type in ["image", "audio", "video", "document"]:
-                token = whatsapp_account.get_password("token")
-                url = f"{whatsapp_account.url}/{whatsapp_account.version}/"
+		if messages and whatsapp_account:
+			for message in messages:
+				try:
+					process_message_sync(
+						message=message,
+						sender_profile_name=sender_profile_name,
+						whatsapp_account=whatsapp_account.name,
+					)
+				except Exception as e:
+					frappe.log_error(
+						title="WhatsApp Webhook Message Processing Error",
+						message=f"Failed to process message: {e}\nMessage: {json.dumps(message)}",
+					)
+					continue
+		else:
+			update_status(changes)
 
-                media_id = message[message_type]["id"]
-                headers = {"Authorization": "Bearer " + token}
-                response = requests.get(f"{url}{media_id}/", headers=headers)
+	except Exception:
+		frappe.log_error(
+			title="WhatsApp Webhook Error",
+			message=frappe.get_traceback(),
+		)
 
-                if response.status_code == 200:
-                    media_data = response.json()
-                    media_url = media_data.get("url")
-                    mime_type = media_data.get("mime_type")
-                    file_extension = mime_type.split("/")[1]
+	return Response("OK", status=200)
 
-                    media_response = requests.get(media_url, headers=headers)
-                    if media_response.status_code == 200:
 
-                        file_data = media_response.content
-                        file_name = (
-                            f"{frappe.generate_hash(length=10)}.{file_extension}"
-                        )
+def process_message_sync(message, sender_profile_name, whatsapp_account):
+	"""Synchronous processing of webhook messages"""
+	try:
+		account = frappe.get_doc("WhatsApp Account", whatsapp_account)
 
-                        message_doc = frappe.get_doc(
-                            {
-                                "doctype": "WhatsApp Message",
-                                "type": "Incoming",
-                                "from": message["from"],
-                                "message_id": message["id"],
-                                "reply_to_message_id": reply_to_message_id,
-                                "is_reply": is_reply,
-                                "message": message[message_type].get("caption", ""),
-                                "content_type": message_type,
-                                "profile_name": sender_profile_name,
-                                "whatsapp_account": whatsapp_account.name,
-                            }
-                        ).insert(ignore_permissions=True)
+		message_type = message.get("type")
+		is_reply = bool(message.get("context") and "forwarded" not in message.get("context", {}))
+		reply_to_message_id = message.get("context", {}).get("id") if is_reply else None
 
-                        file = frappe.get_doc(
-                            {
-                                "doctype": "File",
-                                "file_name": file_name,
-                                "attached_to_doctype": "WhatsApp Message",
-                                "attached_to_name": message_doc.name,
-                                "content": file_data,
-                                "attached_to_field": "attach",
-                            }
-                        ).save(ignore_permissions=True)
+		from_number = message.get("from")
 
-                        message_doc.attach = file.file_url
-                        message_doc.save()
-            elif message_type == "button":
-                frappe.get_doc(
-                    {
-                        "doctype": "WhatsApp Message",
-                        "type": "Incoming",
-                        "from": message["from"],
-                        "message": message["button"]["text"],
-                        "message_id": message["id"],
-                        "reply_to_message_id": reply_to_message_id,
-                        "is_reply": is_reply,
-                        "content_type": message_type,
-                        "profile_name": sender_profile_name,
-                        "whatsapp_account": whatsapp_account.name,
-                    }
-                ).insert(ignore_permissions=True)
-            else:
-                frappe.get_doc(
-                    {
-                        "doctype": "WhatsApp Message",
-                        "type": "Incoming",
-                        "from": message["from"],
-                        "message_id": message["id"],
-                        "message": message[message_type].get(message_type),
-                        "content_type": message_type,
-                        "profile_name": sender_profile_name,
-                        "whatsapp_account": whatsapp_account.name,
-                    }
-                ).insert(ignore_permissions=True)
+		phone_lock_key = f"whatsapp_phone_process_{from_number}"
 
-    else:
-        changes = None
-        try:
-            changes = data["entry"][0]["changes"][0]
-        except KeyError:
-            changes = data["entry"]["changes"][0]
-        update_status(changes)
-    return
+		max_retries = 10
+		retry_delay = 0.5
+
+		for attempt in range(max_retries):
+			if not frappe.cache().get_value(phone_lock_key):
+				frappe.cache().set_value(phone_lock_key, True, expires_in_sec=60)
+				break
+			if attempt < max_retries - 1:
+				time.sleep(retry_delay)
+			else:
+				frappe.log_error(
+					title="Phone Number Lock Timeout",
+					message=f"Could not acquire lock for phone {from_number}",
+				)
+				return
+
+		try:
+			msg_doc = {
+				"doctype": "WhatsApp Message",
+				"type": "Incoming",
+				"from": message.get("from"),
+				"message_id": message.get("id"),
+				"reply_to_message_id": reply_to_message_id,
+				"is_reply": is_reply,
+				"profile_name": sender_profile_name,
+				"whatsapp_account": account.name,
+			}
+
+			if message_type == "text":
+				msg_doc["message"] = message["text"]["body"]
+				msg_doc["content_type"] = "text"
+
+			elif message_type == "reaction":
+				msg_doc["message"] = message["reaction"]["emoji"]
+				msg_doc["reply_to_message_id"] = message["reaction"]["message_id"]
+				msg_doc["content_type"] = "reaction"
+
+			elif message_type == "interactive":
+				interactive_data = message["interactive"]
+				interactive_type = interactive_data.get("type")
+
+				if interactive_type == "button_reply":
+					msg_doc["message"] = interactive_data["button_reply"]["id"]
+					msg_doc["content_type"] = "button"
+
+				elif interactive_type == "list_reply":
+					msg_doc["message"] = interactive_data["list_reply"]["id"]
+					msg_doc["content_type"] = "button"
+
+			elif message_type in ["image", "audio", "video", "document"]:
+				msg_doc["message"] = message[message_type].get("caption", "")
+				msg_doc["content_type"] = message_type
+
+				doc = frappe.get_doc(msg_doc)
+				doc.insert(ignore_permissions=True)
+
+				process_media_sync(
+					message_name=doc.name,
+					message=message,
+					whatsapp_account=account.name,
+				)
+				return
+
+			else:
+				msg_doc["message"] = str(message.get(message_type, {}))
+				msg_doc["content_type"] = message_type
+
+			frappe.get_doc(msg_doc).insert(ignore_permissions=True)
+
+		finally:
+			frappe.cache().delete_value(phone_lock_key)
+
+	except Exception as e:
+		frappe.log_error(
+			title="WhatsApp Webhook Process Message Error",
+			message=f"{e!s}\nMessage: {json.dumps(message)}",
+		)
+
+
+def process_media_sync(message_name, message, whatsapp_account):
+	"""Synchronous media processing"""
+	try:
+		account = frappe.get_doc("WhatsApp Account", whatsapp_account)
+		message_type = message.get("type")
+
+		token = account.get_password("token")
+		url = f"{account.url}/{account.version}/"
+		media_id = message[message_type]["id"]
+
+		headers = {"Authorization": f"Bearer {token}"}
+
+		response = requests.get(f"{url}{media_id}/", headers=headers)
+
+		if response.status_code != 200:
+			frappe.log_error(
+				title="WhatsApp Media Download Error",
+				message=f"Failed to get media info: {response.status_code}",
+			)
+			return
+
+		media_data = response.json()
+		media_url = media_data.get("url")
+		mime_type = media_data.get("mime_type", "application/octet-stream")
+
+		media_response = requests.get(media_url, headers=headers)
+
+		if media_response.status_code != 200:
+			frappe.log_error(
+				title="WhatsApp Media Download Error",
+				message=f"Failed to download media: {media_response.status_code}",
+			)
+			return
+
+		ext = mime_type.split("/")[-1] if "/" in mime_type else "bin"
+		file_name = f"{frappe.generate_hash(length=10)}.{ext}"
+
+		file_doc = save_file(
+			file_name,
+			media_response.content,
+			"WhatsApp Message",
+			message_name,
+			is_private=False,
+		)
+
+		frappe.db.set_value(
+			"WhatsApp Message",
+			message_name,
+			"attach",
+			file_doc.file_url,
+			update_modified=False,
+		)
+		frappe.db.commit()
+
+	except Exception:
+		frappe.log_error(
+			title="WhatsApp Media Processing Error",
+			message=frappe.get_traceback(),
+		)
 
 
 def update_status(data):
-    """Update status hook."""
-    if data.get("field") == "message_template_status_update":
-        update_template_status(data["value"])
-
-    elif data.get("field") == "messages":
-        update_message_status(data["value"])
-
-
-def update_template_status(data):
-    """Update template status."""
-    frappe.db.sql(
-        """UPDATE `tabWhatsApp Templates`
-		SET status = %(event)s
-		WHERE id = %(message_template_id)s""",
-        data,
-    )
+	try:
+		if data.get("field") == "messages":
+			statuses = data.get("value", {}).get("statuses", [])
+			for s in statuses:
+				update_status_sync(status_data=s)
+	except Exception:
+		frappe.log_error(
+			title="Update Status Error",
+			message=frappe.get_traceback(),
+		)
 
 
-def update_message_status(data):
-    """Update message status."""
-    id = data["statuses"][0]["id"]
-    status = data["statuses"][0]["status"]
-    conversation = data["statuses"][0].get("conversation", {}).get("id")
-    name = frappe.db.get_value("WhatsApp Message", filters={"message_id": id})
+def update_status_sync(status_data):
+	try:
+		message_id = status_data.get("id")
+		status = status_data.get("status")
+		conversation = status_data.get("conversation", {}).get("id")
 
-    doc = frappe.get_doc("WhatsApp Message", name)
-    doc.status = status
-    if conversation:
-        doc.conversation_id = conversation
-    doc.save(ignore_permissions=True)
+		name = frappe.db.get_value("WhatsApp Message", {"message_id": message_id})
+
+		if not name:
+			return
+
+		frappe.db.sql(
+			"""
+			UPDATE `tabWhatsApp Message`
+			SET status = %(status)s,
+			    conversation_id = %(conversation)s,
+			    modified = NOW()
+			WHERE name = %(name)s
+			AND (status != %(status)s OR conversation_id != %(conversation)s)
+		""",
+			{"status": status, "conversation": conversation, "name": name},
+		)
+
+		frappe.db.commit()
+
+	except Exception:
+		frappe.log_error(
+			title="Update Status Sync Error",
+			message=frappe.get_traceback(),
+		)

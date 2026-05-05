@@ -7,8 +7,16 @@ from ..chatbot.processor import process_incoming_message
 
 
 def route_incoming_message(doc, session):
+	session_lock_key = f"session_processing_{session.name}"
+
+	if frappe.cache().get_value(session_lock_key):
+		return
+
+	frappe.cache().set_value(session_lock_key, True, expires_in_sec=30)
+
 	try:
 		message = (doc.message or "").strip().lower()
+		temp_data = get_temp_data(session)
 
 		if message == "stop":
 			close_session(session)
@@ -50,52 +58,67 @@ def route_incoming_message(doc, session):
 				return
 
 		elif message == "ticket":
-			session.state = "TICKETING"
-			session.save(ignore_permissions=True)
-			return handle_ticket_flow(doc, session)
+			session.db_set("state", "TICKETING", update_modified=False)
+			session.db_set("temp_data", json.dumps({"ticket_step": "SELECT_CUSTOMER"}), update_modified=False)
+			return handle_ticket_flow(doc, session, session_lock_key)
 
 		if session.state == "AI_CHAT":
 			return process_incoming_message(doc)
-
 		elif session.state == "HUMAN":
 			return handle_agent_flow(doc, session)
-
 		elif session.state == "TICKETING":
-			return handle_ticket_flow(doc, session)
+			return handle_ticket_flow(doc, session, session_lock_key)
 
 		send_main_menu(doc.get("from"), session)
-	except Exception:
-		frappe.log_error(
-			title="WhatsApp Routing Error",
-			message=frappe.get_traceback(),
-			reference_doctype="WhatsApp Message",
-			reference_name=doc.name,
-		)
+	finally:
+		frappe.cache().delete_value(session_lock_key)
 
 
-def get_or_create_session(doc):
+def get_or_create_session_sync(doc):
 	try:
 		phone = doc.get("from")
-		now = frappe.utils.now_datetime()
+		phone_lock_key = f"session_phone_{phone}"
 
-		session_list = frappe.get_all(
-			"WhatsApp Session",
-			filters={"phone": phone, "status": "Active"},
-			fields=["name", "expires_at"],
-			order_by="creation desc",
-			limit=1,
-		)
+		max_retries = 10
+		for attempt in range(max_retries):
+			if not frappe.cache().get_value(phone_lock_key):
+				frappe.cache().set_value(phone_lock_key, True, expires_in_sec=30)
+				break
+			if attempt < max_retries - 1:
+				time.sleep(0.1)
+			else:
+				frappe.log_error(
+					title="Session Phone Lock Timeout",
+					message=f"Could not acquire lock for phone {phone}",
+				)
+				return None
 
-		if session_list:
-			session = frappe.get_doc("WhatsApp Session", session_list[0].name)
-			if session.expires_at and now <= session.expires_at:
-				update_session(session, doc)
-				return session, False
-			close_session(session)
+		try:
+			now = frappe.utils.now_datetime()
 
-		new_session = create_session(doc)
-		update_session(new_session, doc)
-		return new_session, True
+			session_list = frappe.get_all(
+				"WhatsApp Session",
+				filters={"phone": phone, "status": "Active"},
+				fields=["name", "expires_at"],
+				order_by="creation desc",
+				limit=1,
+			)
+
+			if session_list:
+				session = frappe.get_doc("WhatsApp Session", session_list[0].name)
+				if session.expires_at and now <= session.expires_at:
+					update_session(session)
+					session.is_new = False
+					return session
+				close_session(session)
+
+			new_session = create_session_sync(doc)
+			update_session(new_session)
+			new_session.is_new = True
+			return new_session
+		finally:
+			frappe.cache().delete_value(phone_lock_key)
+
 	except Exception:
 		frappe.log_error(
 			title="WhatsApp Session Get/Create Error",
@@ -103,13 +126,25 @@ def get_or_create_session(doc):
 			reference_doctype="WhatsApp Message",
 			reference_name=doc.name,
 		)
-		return None, False
+		return None
 
 
-def create_session(doc):
+def create_session_sync(doc):
 	try:
 		now = frappe.utils.now_datetime()
 		contact = frappe.db.get_value("WhatsApp Contact", {"mobile_no": doc.get("from")})
+
+		if not contact:
+			contact_doc = frappe.get_doc(
+				{
+					"doctype": "WhatsApp Contact",
+					"mobile_no": doc.get("from"),
+					"profile_name": doc.get("profile_name"),
+				}
+			)
+			contact_doc.insert(ignore_permissions=True)
+			contact = contact_doc.name
+
 		session = frappe.get_doc(
 			{
 				"doctype": "WhatsApp Session",

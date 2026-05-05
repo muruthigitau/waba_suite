@@ -481,26 +481,25 @@ class WhatsAppMessage(Document):
 
 	def handle_whatsapp_insertion(self):
 		try:
-			from ....api.message import last_message
-			from ....api.room import (
-				get_or_create_session,
-				route_incoming_message,
-				send_main_menu,
-			)
+			lock_key = f"whatsapp_message_process_{self.name}"
 
-			last_message(self)
-			if self.type != "Incoming":
-				self.process_outgoing_send()
+			if frappe.cache().get_value(lock_key):
+				frappe.log_error(
+					title=f"Message Already Being Processed: {self.name}",
+					message="Another job is already processing this message",
+				)
 				return
 
-			session, is_new = get_or_create_session(self)
-			self.whatsapp_session = session.name
-			self.save(ignore_permissions=True)
+			frappe.cache().set_value(lock_key, True, expires_in_sec=300)
 
-			if is_new:
-				send_main_menu(self.get("from"), session)
-			else:
-				route_incoming_message(self, session)
+			try:
+				if self.type != "Incoming":
+					self.process_outgoing_send()
+				else:
+					process_incoming_sync(self.name)
+			finally:
+				frappe.cache().delete_value(lock_key)
+
 		except Exception:
 			frappe.log_error(
 				title=f"WhatsApp Insertion Logic Error: {self.name}",
@@ -508,6 +507,49 @@ class WhatsAppMessage(Document):
 				reference_doctype="WhatsApp Message",
 				reference_name=self.name,
 			)
+			frappe.cache().delete_value(f"whatsapp_message_process_{self.name}")
+
+
+def process_incoming_sync(docname):
+	"""Synchronous processing of incoming messages"""
+	try:
+		from ....api.room import (
+			get_or_create_session_sync,
+			route_incoming_message,
+			send_main_menu,
+		)
+
+		doc = frappe.get_doc("WhatsApp Message", docname)
+
+		session = get_or_create_session_sync(doc)
+
+		if not session:
+			frappe.log_error(
+				title=f"Session Creation Failed: {docname}",
+				message="Could not create or retrieve session",
+			)
+			return
+
+		frappe.db.set_value(
+			"WhatsApp Message",
+			doc.name,
+			"whatsapp_session",
+			session.name,
+			update_modified=False,
+		)
+
+		is_new = session.get("is_new", False)
+
+		if is_new:
+			send_main_menu(doc.get("from"), session)
+		else:
+			route_incoming_message(doc, session)
+
+	except Exception:
+		frappe.log_error(
+			title=f"WhatsApp Sync Processing Error: {docname}",
+			message=frappe.get_traceback(),
+		)
 
 
 def on_doctype_update():
