@@ -20,7 +20,8 @@
   "business_id",
   "is_default_incoming",
   "is_default_outgoing",
-  "allow_auto_read_receipt"
+  "allow_auto_read_receipt",
+  "support_enabled"
  ],
  "fields": [
   {
@@ -74,6 +75,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Account Name",
+   "reqd": 1,
    "unique": 1
   },
   {
@@ -102,12 +104,27 @@
    "fieldname": "allow_auto_read_receipt",
    "fieldtype": "Check",
    "label": "Allow auto read receipt"
+  },
+  {
+   "default": "0",
+   "fieldname": "support_enabled",
+   "fieldtype": "Check",
+   "label": "Support Enabled"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-04-06 15:53:08.782918",
+ "links": [
+  {
+   "link_doctype": "WhatsApp Message",
+   "link_fieldname": "whatsapp_account"
+  },
+  {
+   "link_doctype": "WhatsApp Session",
+   "link_fieldname": "whatsapp_account"
+  }
+ ],
+ "modified": "2026-05-05 13:26:11.826175",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Account",

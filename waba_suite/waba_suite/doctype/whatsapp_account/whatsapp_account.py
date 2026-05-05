@@ -10,6 +10,15 @@ class WhatsAppAccount(Document):
 		"""Check there is only one default of each type."""
 		self.there_must_be_only_one_default()
 
+	def validate(self):
+		if self.support_enabled and "helpdesk" not in frappe.get_installed_apps():
+			frappe.throw(
+				msg=frappe._(
+					"Support features require Helpdesk to be installed. Please install Helpdesk or disable support features."
+				),
+				title=frappe._("Helpdesk Not Installed"),
+			)
+
 	def there_must_be_only_one_default(self):
 		"""If current WhatsApp Account is default, un-default all other accounts."""
 		for field in ("is_default_incoming", "is_default_outgoing"):
