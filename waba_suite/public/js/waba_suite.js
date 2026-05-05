@@ -1,8 +1,6 @@
 $(document).on("app_ready", function () {
-	// waiting for page to load completely
 	frappe.router.on("change", () => {
 		var route = frappe.get_route();
-		// all form's menu add the 'Send To Telegram' funcationality
 		if (route && route[0] == "Form") {
 			frappe.ui.form.on(route[1], {
 				refresh: function (frm) {
@@ -85,8 +83,6 @@ $(document).on("app_ready", function () {
 											dialog.hide();
 										},
 									});
-
-									// add comment
 									var comment_message =
 										"To : " +
 										values.mobile_no +
@@ -109,14 +105,12 @@ $(document).on("app_ready", function () {
 						});
 						let template = dialog.fields_dict.template;
 						if (template) {
-							// Dynamically set the get_query function for the user field
 							template.get_query = function () {
 								return {
 									filters: { for_doctype: frm.doc.doctype },
 									doctype: "WhatsApp Templates",
 								};
 							};
-							// Refresh the field to apply the new query
 							template.refresh();
 						}
 						dialog.show();
