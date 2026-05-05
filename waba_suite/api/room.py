@@ -1,5 +1,6 @@
 import json
-from datetime import timedelta
+import time
+from datetime import datetime, timedelta
 
 import frappe
 
@@ -24,16 +25,18 @@ def route_incoming_message(doc, session):
 			return
 
 		if message in ["hi", "menu", "start"]:
-			session.state = None
-			session.save(ignore_permissions=True)
+			session.db_set("state", None, update_modified=False)
+			session.db_set("temp_data", json.dumps({}), update_modified=False)
 			send_main_menu(doc.get("from"), session)
 			return
 
 		if message == "ai_support":
 			whatsapp_account = frappe.get_doc("WhatsApp Account", doc.whatsapp_account)
-			if whatsapp_account.chatbot_settings:
-				session.state = "AI_CHAT"
-				session.save(ignore_permissions=True)
+			chatbot_settings = frappe.db.exists(
+				"Chatbot Settings", {"whatsapp_account": whatsapp_account.name}
+			)
+			if chatbot_settings:
+				session.db_set("state", "AI_CHAT", update_modified=False)
 				return process_incoming_message(doc)
 			else:
 				send_message(
@@ -46,8 +49,9 @@ def route_incoming_message(doc, session):
 		elif message == "agent":
 			whatsapp_account = frappe.get_doc("WhatsApp Account", doc.whatsapp_account)
 			if whatsapp_account.support_enabled:
-				session.state = "HUMAN"
-				session.save(ignore_permissions=True)
+				temp_data["agent_request_acknowledged"] = False
+				session.db_set("state", "HUMAN", update_modified=False)
+				session.db_set("temp_data", json.dumps(temp_data), update_modified=False)
 				return handle_agent_flow(doc, session)
 			else:
 				send_message(
@@ -155,6 +159,7 @@ def create_session_sync(doc):
 				"started_at": now,
 				"last_interaction": now,
 				"expires_at": now + timedelta(hours=24),
+				"temp_data": "{}",
 			}
 		)
 		session.insert(ignore_permissions=True)
@@ -166,13 +171,12 @@ def create_session_sync(doc):
 			reference_doctype="WhatsApp Message",
 			reference_name=doc.name,
 		)
+		raise
 
 
-def update_session(session, message_doc):
+def update_session(session):
 	try:
-		session.last_interaction = frappe.utils.now_datetime()
-		session.last_message = message_doc.name
-		session.save(ignore_permissions=True)
+		session.db_set("last_interaction", frappe.utils.now_datetime(), update_modified=False)
 	except Exception:
 		frappe.log_error(
 			title=f"WhatsApp Session Update Error: {session.name}",
@@ -184,9 +188,8 @@ def update_session(session, message_doc):
 
 def close_session(session):
 	try:
-		session.status = "Expired"
-		session.ended_by_system = 1
-		session.save(ignore_permissions=True)
+		session.db_set("status", "Expired", update_modified=False)
+		session.db_set("ended_by_system", 1, update_modified=False)
 	except Exception:
 		frappe.log_error(
 			title=f"WhatsApp Session Close Error: {session.name}",
@@ -194,6 +197,17 @@ def close_session(session):
 			reference_doctype="WhatsApp Session",
 			reference_name=session.name,
 		)
+
+
+def get_temp_data(session):
+	try:
+		return json.loads(session.temp_data or "{}")
+	except Exception:
+		return {}
+
+
+def set_temp_data(session, data):
+	session.db_set("temp_data", json.dumps(data, default=str), update_modified=False)
 
 
 def send_message(to, message):
@@ -251,7 +265,11 @@ def send_main_menu(phone, session=None):
 
 def handle_agent_flow(doc, session):
 	try:
-		send_message(doc.get("from"), "👨‍💼 Connecting you to a support agent. Please wait...")
+		temp_data = get_temp_data(session)
+		if not temp_data.get("agent_request_acknowledged"):
+			send_message(doc.get("from"), "Connecting you to a support agent. Please wait...")
+			temp_data["agent_request_acknowledged"] = True
+			set_temp_data(session, temp_data)
 	except Exception:
 		frappe.log_error(
 			title=f"WhatsApp Agent Flow Error: {session.name}",
