@@ -37,17 +37,6 @@ class WhatsAppMessage(Document):
 				reference_name=self.name,
 			)
 
-	def on_update(self):
-		try:
-			self.update_profile_name()
-		except Exception:
-			frappe.log_error(
-				title=f"WhatsApp Message On Update Error: {self.name}",
-				message=frappe.get_traceback(),
-				reference_doctype="WhatsApp Message",
-				reference_name=self.name,
-			)
-
 	def update_profile_name(self):
 		try:
 			number = self.get("from")
@@ -359,11 +348,6 @@ class WhatsAppMessage(Document):
 				reference_name=self.name,
 			)
 			throw(msg=error_message, title=res.get("error_user_title", "Error"))
-
-	def format_number(self, number):
-		if number.startswith("+"):
-			number = number[1:]
-		return number
 
 	@frappe.whitelist()
 	def send_read_receipt(self):
