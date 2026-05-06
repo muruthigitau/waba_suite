@@ -6,16 +6,12 @@ from frappe.model.document import Document
 
 
 class WhatsAppContact(Document):
-
 	def after_insert(self):
 		if self.email:
 			frappe.publish_realtime(
-				"new_room_creation", 
-				{
-					"user": self.email,  
-					"room_name": self.contact_name
-				}, 
-				user=self.email
+				"new_room_creation",
+				{"user": self.email, "room_name": self.contact_name or self.mobile_no},
+				user=self.email,
 			)
 
 	pass
