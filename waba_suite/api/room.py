@@ -33,7 +33,7 @@ def route_incoming_message(doc, session):
 		if message == "ai_support":
 			whatsapp_account = frappe.get_doc("WhatsApp Account", doc.whatsapp_account)
 			chatbot_settings = frappe.db.exists(
-				"Chatbot Settings", {"whatsapp_account": whatsapp_account.name}
+				"WhatsApp Chatbot Settings", {"whatsapp_account": whatsapp_account.name, "enabled": 1}
 			)
 			if chatbot_settings:
 				session.db_set("state", "AI_CHAT", update_modified=False)
@@ -252,7 +252,7 @@ def send_main_menu(phone, session=None):
 
 		if whatsapp_account:
 			chatbot_settings = frappe.db.exists(
-				"Chatbot Settings", {"whatsapp_account": whatsapp_account.name}
+				"WhatsApp Chatbot Settings", {"whatsapp_account": whatsapp_account.name, "enabled": 1}
 			)
 			if chatbot_settings:
 				buttons.append({"id": "ai_support", "title": "AI Support"})
@@ -719,9 +719,6 @@ def finalize_ticket(phone, session):
 		msg += f"Subject: {ticket.subject}\n"
 		if ticket.ticket_type:
 			msg += f"Type: {ticket.ticket_type}\n"
-		if attachments_data:
-			total_files = sum(len(item.get("files", [])) for item in attachments_data)
-			msg += f"Attachments: {total_files}\n\n"
 		msg += "Support team will contact you soon.\n\n"
 		msg += "Type 'menu' to return to main menu."
 
