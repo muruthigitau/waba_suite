@@ -118,7 +118,6 @@ class WhatsAppMessage(Document):
 		try:
 			if self.type == "Outgoing":
 				self.process_outgoing_send()
-				self.save()
 		except Exception:
 			frappe.log_error(
 				title=f"Manual Send Error: {self.name}",
@@ -572,21 +571,63 @@ def on_doctype_update():
 
 
 @frappe.whitelist()
-def send_template(to, reference_doctype, reference_name, template):
+def send_template(to, reference_doctype, reference_name, template, whatsapp_account=None):
 	try:
+		if not template:
+			frappe.throw("Template is required")
+
 		doc = frappe.get_doc(
 			{
 				"doctype": "WhatsApp Message",
 				"to": to,
 				"type": "Outgoing",
 				"message_type": "Template",
-				"reference_doctype": reference_doctype,
-				"reference_name": reference_name,
 				"content_type": "text",
 				"template": template,
+				"use_template": 1,
+				"reference_doctype": reference_doctype,
+				"reference_name": reference_name,
+				"whatsapp_account": whatsapp_account,
 			}
 		)
-		doc.save()
+
+		doc.insert(ignore_permissions=True)
+		return doc.name
+
 	except Exception:
-		frappe.log_error(title="Whitelist Send Template Error", message=frappe.get_traceback())
+		frappe.log_error(
+			title="Whitelist Send Template Error",
+			message=frappe.get_traceback(),
+			reference_doctype="WhatsApp Message",
+		)
+		raise
+
+
+@frappe.whitelist()
+def send_message(to, message, reference_doctype=None, reference_name=None, whatsapp_account=None):
+	try:
+		doc = frappe.get_doc(
+			{
+				"doctype": "WhatsApp Message",
+				"to": to,
+				"type": "Outgoing",
+				"message_type": "Manual",
+				"content_type": "text",
+				"message": message,
+				"styled_message": message,
+				"reference_doctype": reference_doctype,
+				"reference_name": reference_name,
+				"whatsapp_account": whatsapp_account,
+			}
+		)
+
+		doc.insert(ignore_permissions=True)
+		return doc.name
+
+	except Exception:
+		frappe.log_error(
+			title="Send Message Error",
+			message=frappe.get_traceback(),
+			reference_doctype="WhatsApp Message",
+		)
 		raise
