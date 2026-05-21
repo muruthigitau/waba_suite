@@ -61,8 +61,13 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-05-21 15:17:14.726692",
+ "links": [
+  {
+   "link_doctype": "WhatsApp Message",
+   "link_fieldname": "whatsapp_contact"
+  }
+ ],
+ "modified": "2026-05-21 21:16:06.138606",
  "modified_by": "Administrator",
  "module": "Whatsapp Chat",
  "name": "WhatsApp Contact",
