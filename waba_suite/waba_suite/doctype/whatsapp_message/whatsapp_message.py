@@ -85,14 +85,25 @@ class WhatsAppMessage(Document):
 			if not self.whatsapp_account:
 				account_type = "outgoing" if self.type == "Outgoing" else "incoming"
 				default_whatsapp_account = get_whatsapp_account(account_type=account_type)
-				if not default_whatsapp_account:
-					throw(
-						_(
-							"Please set a default outgoing WhatsApp Account or Select available WhatsApp Account"
-						)
-					)
-				else:
+				if default_whatsapp_account:
 					self.whatsapp_account = default_whatsapp_account.name
+
+			if not self.whatsapp_contact:
+				phone_number = format_number(self.get("from") or self.to)
+				contact = frappe.db.exists("WhatsApp Contact", {"mobile_no": phone_number})
+				if not contact:
+					contact = frappe.get_doc(
+						{
+							"doctype": "WhatsApp Contact",
+							"mobile_no": phone_number,
+							"contact_name": phone_number,
+						}
+					)
+					contact.insert(ignore_permissions=True)
+					self.whatsapp_contact = contact.name
+				else:
+					self.whatsapp_contact = contact
+
 		except Exception:
 			frappe.log_error(
 				title="Set WhatsApp Account Error",
@@ -313,6 +324,9 @@ class WhatsAppMessage(Document):
 
 	def notify(self, data):
 		try:
+			if not self.whatsapp_account:
+				return
+
 			whatsapp_account = frappe.get_doc("WhatsApp Account", self.whatsapp_account)
 			token = whatsapp_account.get_password("token")
 			headers = {
@@ -325,7 +339,8 @@ class WhatsAppMessage(Document):
 				headers=headers,
 				data=json.dumps(data),
 			)
-			self.message_id = response["messages"][0]["id"]
+			frappe.db.set_value("WhatsApp Message", self.name, "message_id", response["messages"][0]["id"])
+
 		except Exception:
 			res = (
 				frappe.flags.integration_request.json().get("error", {})
@@ -352,6 +367,9 @@ class WhatsAppMessage(Document):
 	@frappe.whitelist()
 	def send_read_receipt(self):
 		try:
+			if not self.message_id:
+				return False
+
 			data = {
 				"messaging_product": "whatsapp",
 				"status": "read",
@@ -371,9 +389,10 @@ class WhatsAppMessage(Document):
 			)
 
 			if response.get("success"):
-				self.status = "marked as read"
-				self.save()
+				frappe.db.set_value("WhatsApp Message", self.name, "status", "marked_as_read")
+				frappe.db.commit()
 				return response.get("success")
+			return False
 		except Exception:
 			frappe.log_error(
 				title=f"Read Receipt Error: {self.name}",
@@ -381,6 +400,7 @@ class WhatsAppMessage(Document):
 				reference_doctype="WhatsApp Message",
 				reference_name=self.name,
 			)
+			return False
 
 	def restyle_message_content(self):
 		try:
@@ -524,6 +544,11 @@ def process_incoming_sync(docname):
 			session.name,
 			update_modified=False,
 		)
+		auto_replies_enabled = frappe.db.get_value(
+			"WhatsApp Account", doc.whatsapp_account, "auto_replies_enabled"
+		)
+		if not auto_replies_enabled:
+			return
 
 		is_new = session.get("is_new", False)
 

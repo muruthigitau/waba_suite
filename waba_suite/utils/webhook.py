@@ -103,7 +103,6 @@ def post():
 
 
 def process_message_sync(message, sender_profile_name, whatsapp_account):
-	"""Synchronous processing of webhook messages"""
 	try:
 		account = frappe.get_doc("WhatsApp Account", whatsapp_account)
 
@@ -195,7 +194,6 @@ def process_message_sync(message, sender_profile_name, whatsapp_account):
 
 
 def process_media_sync(message_name, message, whatsapp_account):
-	"""Synchronous media processing"""
 	try:
 		account = frappe.get_doc("WhatsApp Account", whatsapp_account)
 		message_type = message.get("type")
@@ -257,10 +255,10 @@ def process_media_sync(message_name, message, whatsapp_account):
 
 def update_status(data):
 	try:
-		if data.get("field") == "messages":
-			statuses = data.get("value", {}).get("statuses", [])
-			for s in statuses:
-				update_status_sync(status_data=s)
+		value = data.get("value", {})
+		statuses = value.get("statuses", [])
+		for s in statuses:
+			update_status_sync(status_data=s)
 	except Exception:
 		frappe.log_error(
 			title="Update Status Error",
@@ -272,25 +270,18 @@ def update_status_sync(status_data):
 	try:
 		message_id = status_data.get("id")
 		status = status_data.get("status")
-		conversation = status_data.get("conversation", {}).get("id")
+		conversation_id = status_data.get("conversation", {}).get("id")
 
 		name = frappe.db.get_value("WhatsApp Message", {"message_id": message_id})
 
 		if not name:
 			return
 
-		frappe.db.sql(
-			"""
-			UPDATE `tabWhatsApp Message`
-			SET status = %(status)s,
-			    conversation_id = %(conversation)s,
-			    modified = NOW()
-			WHERE name = %(name)s
-			AND (status != %(status)s OR conversation_id != %(conversation)s)
-		""",
-			{"status": status, "conversation": conversation, "name": name},
-		)
+		update_fields = {"status": status}
+		if conversation_id:
+			update_fields["conversation_id"] = conversation_id
 
+		frappe.db.set_value("WhatsApp Message", name, update_fields, update_modified=True)
 		frappe.db.commit()
 
 	except Exception:

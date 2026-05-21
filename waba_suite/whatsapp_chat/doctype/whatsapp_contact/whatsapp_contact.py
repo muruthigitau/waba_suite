@@ -14,4 +14,6 @@ class WhatsAppContact(Document):
 				user=self.email,
 			)
 
-	pass
+	def validate(self):
+		if self.mobile_no and not self.contact_name:
+			self.contact_name = self.mobile_no
