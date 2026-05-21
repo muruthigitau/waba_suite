@@ -45,12 +45,13 @@ function is_image(filename) {
 	return true;
 }
 
-async function get_rooms(email) {
+async function get_rooms(email, whatsapp_account) {
 	const res = await frappe.call({
 		type: "GET",
 		method: "waba_suite.api.contacts.get",
 		args: {
 			email: email,
+			whatsapp_account: whatsapp_account,
 		},
 	});
 	return await res.message;
@@ -106,9 +107,7 @@ async function mark_message_read(room) {
 				room: room,
 			},
 		});
-	} catch (error) {
-		//pass
-	}
+	} catch (error) {}
 }
 
 async function create_guest({ email, full_name, message }) {
@@ -134,18 +133,17 @@ async function set_typing(room, user, is_typing, is_guest) {
 				is_guest: is_guest,
 			},
 		});
-	} catch (error) {
-		//pass
-	}
+	} catch (error) {}
 }
 
-async function create_private_room(contact_name, mobile_no, email) {
+async function create_private_room(contact_name, mobile_no, email, whatsapp_account) {
 	await frappe.call({
 		method: "waba_suite.api.contacts.create",
 		args: {
 			contact_name: contact_name,
 			mobile_no: mobile_no,
 			email: email,
+			whatsapp_account: whatsapp_account,
 		},
 	});
 }
@@ -163,8 +161,9 @@ function get_avatar_html(room_type, user_email, room_name) {
 	let avatar_html;
 	if (room_type === "Direct" && "desk" in frappe) {
 		avatar_html = frappe.avatar(user_email, "avatar-medium");
+		avatar_html = $(avatar_html).addClass("waba-chat-avatar").prop("outerHTML");
 	} else {
-		avatar_html = frappe.get_avatar("avatar-medium", room_name);
+		avatar_html = `<div class="waba-chat-avatar">${room_name.charAt(0).toUpperCase()}</div>`;
 	}
 	return avatar_html;
 }
@@ -172,21 +171,30 @@ function get_avatar_html(room_type, user_email, room_name) {
 function set_notification_count(type) {
 	const current_count = frappe.Chat.settings.unread_count;
 	if (type === "increment") {
-		$("#chat-notification-count").text(current_count + 1);
+		$("#waba-chat-notification-count").text(current_count + 1);
 		frappe.Chat.settings.unread_count += 1;
 	} else {
 		if (current_count - 1 === 0) {
-			$("#chat-notification-count").text("");
+			$("#waba-chat-notification-count").text("");
 		} else {
-			$("#chat-notification-count").text(current_count - 1);
+			$("#waba-chat-notification-count").text(current_count - 1);
 		}
 		frappe.Chat.settings.unread_count -= 1;
 	}
 }
 
+async function get_active_account() {
+	const res = await frappe.call({
+		method: "waba_suite.api.accounts.get_active_account",
+		args: {},
+	});
+	return res.message;
+}
+
 export {
 	create_guest,
 	create_private_room,
+	get_active_account,
 	get_avatar_html,
 	get_date_from_now,
 	get_messages,

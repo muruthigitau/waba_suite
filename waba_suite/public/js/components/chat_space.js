@@ -8,6 +8,7 @@ import {
 	mark_message_read,
 	scroll_to_bottom,
 	send_message,
+	set_typing,
 } from "./chat_utils";
 
 export default class ChatSpace {
@@ -17,13 +18,14 @@ export default class ChatSpace {
 		this.profile = opts.profile;
 		this.file = null;
 		this.refresh_interval = null;
+		this.typing_timeout = null;
 		this.setup();
 	}
 
 	setup() {
 		this.$chat_space = $(document.createElement("div"));
 		this.typing = false;
-		this.$chat_space.addClass("chat-space");
+		this.$chat_space.addClass("waba-chat-space");
 		this.setup_header();
 		this.fetch_and_setup_messages();
 		this.setup_socketio();
@@ -37,21 +39,25 @@ export default class ChatSpace {
 			this.profile.room_name,
 		);
 		const header_html = `
-			<div class='chat-header'>
-				${
-					this.profile.is_admin === true
-						? `<span class='chat-back-button' title='${__("Go Back")}' >
-								${frappe.utils.icon("left")}
-							</span>`
-						: ``
-				}
+			<div class='waba-chat-header'>
+				<span class='waba-chat-back-button' title='${__("Go Back")}'>
+					${frappe.utils.icon("left")}
+				</span>
 				${this.avatar_html}
-				<div class='chat-profile-info'>
-					<div class='chat-profile-name'>
-					${__(this.profile.room_name)}
-					<div class='online-circle'></div>
+				<div class='waba-chat-profile-info'>
+					<div class='waba-chat-profile-name'>
+						${__(this.profile.room_name)}
+						<div class='waba-online-circle'></div>
 					</div>
-					<div class='chat-profile-status'>${__("Typing...")}</div>
+					<div class='waba-chat-profile-status'>${__("Typing...")}</div>
+				</div>
+				<div class='waba-chat-header-actions'>
+					<div class='waba-header-icon waba-fullscreen-chat-btn' title='${__("Open in Full Page")}'>
+						${frappe.utils.icon("expand", "sm")}
+					</div>
+					<div class='waba-header-icon waba-chat-close-button' title='${__("Close")}'>
+						${frappe.utils.icon("close", "md")}
+					</div>
 				</div>
 			</div>
 		`;
@@ -75,10 +81,8 @@ export default class ChatSpace {
 
 	setup_messages(messages_list) {
 		this.$chat_space_container = $(document.createElement("div"));
-		this.$chat_space_container.addClass("chat-space-container");
-
+		this.$chat_space_container.addClass("waba-messages-container");
 		this.make_messages_html(messages_list);
-
 		this.$chat_space_container.html(this.message_html);
 		this.$chat_space.append(this.$chat_space_container);
 	}
@@ -122,7 +126,7 @@ export default class ChatSpace {
 
 	make_date_line_html(dateObj) {
 		let result = `
-			<div class='date-line'>
+			<div class='waba-date-divider'>
 				<span>
 					${__(get_date_from_now(dateObj, "space"))}
 				</span>
@@ -139,132 +143,68 @@ export default class ChatSpace {
 
 	setup_actions() {
 		this.$chat_actions = $(document.createElement("div"));
-		this.$chat_actions.addClass("chat-space-actions");
+		this.$chat_actions.addClass("waba-chat-actions");
 		const chat_actions_html = `
-			<span class='open-attach-items'>
-				${frappe.utils.icon("attachment", "lg")}
-			</span>
-			<input type='file' id='chat-file-uploader'
-				accept='image/*, application/pdf, .doc, .docx'
-				style='display: none;'
-			>
-			<input class='form-control type-message'
-				type='search'
-				placeholder='${__("Type message")}'
-			>
-			<div>
-				<span class='message-send-button'>
-					<svg xmlns="http://www.w3.org/2000/svg" width="1.2rem" height="1.2rem" viewBox="0 0 24 24" fill="#075E54">
-						<path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-5.45-4.45-9.9-9.91-9.9zm0 18.23c-1.5 0-2.97-.4-4.26-1.15l-.31-.18-3.11.82.83-3.04-.2-.32c-.81-1.32-1.24-2.84-1.24-4.39 0-4.56 3.71-8.27 8.28-8.27 4.56 0 8.27 3.71 8.27 8.27.01 4.56-3.7 8.26-8.26 8.26zm4.53-6.18c-.25-.12-1.47-.72-1.7-.81-.23-.08-.39-.12-.56.12-.17.24-.65.81-.8.98-.15.17-.29.19-.54.06-.25-.12-1.06-.39-2.02-1.25-.75-.66-1.25-1.48-1.4-1.73-.15-.25-.02-.38.11-.51.11-.11.25-.29.37-.44.12-.15.16-.25.24-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.76-1.85-.2-.49-.41-.43-.56-.43-.15 0-.32-.01-.49-.01-.17 0-.45.06-.68.31-.23.25-.88.86-.88 2.11 0 1.25.91 2.45 1.04 2.62.13.17 1.76 2.7 4.28 3.76.6.25 1.08.4 1.45.51.61.19 1.17.17 1.61.1.49-.06 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.06-.11-.22-.17-.47-.29z"/>
-					</svg>
-				</span>
+			<input class='form-control waba-type-message' type='text' placeholder='${__("Type a message")}'>
+			<div class='waba-send-button'>
+				<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">
+					<path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+				</svg>
 			</div>
 		`;
 		this.$chat_actions.html(chat_actions_html);
 		this.$chat_space.append(this.$chat_actions);
 	}
 
-	async handle_upload_file(file) {
-		const dataurl = await frappe.dom.file_to_base64(file.file_obj);
-		file.dataurl = dataurl;
-		file.name = file.file_obj.name;
-		return this.upload_file(file);
-	}
-
-	upload_file(file) {
-		const me = this;
-		return new Promise((resolve, reject) => {
-			let xhr = new XMLHttpRequest();
-
-			xhr.upload.addEventListener("load", () => {
-				resolve();
-			});
-
-			xhr.addEventListener("error", () => {
-				reject(frappe.throw(__("Internal Server Error")));
-			});
-			xhr.onreadystatechange = () => {
-				if (xhr.readyState == XMLHttpRequest.DONE) {
-					if (xhr.status === 200) {
-						let r = null;
-						let file_doc = null;
-						try {
-							r = JSON.parse(xhr.responseText);
-							if (r.message.doctype === "File") {
-								file_doc = r.message;
-							}
-						} catch (e) {
-							r = xhr.responseText;
-						}
-						try {
-							if (file_doc === null) {
-								reject(frappe.throw(__("File upload failed!")));
-							}
-							me.handle_send_message(file_doc.file_url);
-						} catch (error) {}
-					} else {
-						try {
-							const error = JSON.parse(xhr.responseText);
-							const messages = JSON.parse(error._server_messages);
-							const errorObj = JSON.parse(messages[0]);
-							reject(frappe.throw(__(errorObj.message)));
-						} catch (e) {}
-					}
-				}
-			};
-
-			xhr.open("POST", "/api/method/upload_file", true);
-			xhr.setRequestHeader("Accept", "application/json");
-			xhr.setRequestHeader("X-Frappe-CSRF-Token", frappe.csrf_token);
-
-			let form_data = new FormData();
-
-			form_data.append("file", file.file_obj, file.name);
-			form_data.append("is_private", +false);
-
-			form_data.append("doctype", "WhatsApp Contact");
-			form_data.append("docname", this.profile.room);
-			form_data.append("optimize", +true);
-			xhr.send(form_data);
-		});
-	}
-
 	setup_events() {
 		const me = this;
 
-		me.typing_timeout = () => {
-			me.typing = false;
-		};
+		me.typing_timeout = null;
 
-		$(".chat-back-button").on("click", function () {
+		$(".waba-chat-back-button").on("click", function () {
 			me.stop_auto_refresh();
 			me.destroy_socket_events();
 			me.chat_list.render_messages();
 			me.chat_list.render();
 		});
 
-		$(".open-attach-items").on("click", function () {
-			$("#chat-file-uploader").click();
+		$(".waba-fullscreen-chat-btn").on("click", function () {
+			window.open("/whatsapp", "_blank");
 		});
 
-		$("#chat-file-uploader").on("change", function () {
-			if (this.files.length > 0) {
-				me.file = {};
-				me.file.file_obj = this.files[0];
-				me.handle_upload_file(me.file);
-				me.file = null;
-			}
-		});
-
-		$(".message-send-button").on("click", function () {
+		$(".waba-send-button").on("click", function () {
 			me.handle_send_message();
 		});
 
-		$(".type-message").keydown(function (e) {
-			if (e.which === 13) {
+		$(".waba-type-message").keydown(function (e) {
+			if (e.which === 13 && !e.shiftKey) {
+				e.preventDefault();
 				me.handle_send_message();
 			}
 		});
+
+		$(".waba-type-message").on("input", function () {
+			if (!me.typing) {
+				me.typing = true;
+				set_typing(me.profile.room, me.profile.user_email, true, false);
+			}
+			if (me.typing_timeout) clearTimeout(me.typing_timeout);
+			me.typing_timeout = setTimeout(() => {
+				if (me.typing) {
+					me.typing = false;
+					set_typing(me.profile.room, me.profile.user_email, false, false);
+				}
+			}, 2000);
+		});
+
+		$(".waba-chat-close-button")
+			.off("click")
+			.on("click", function (e) {
+				e.stopPropagation();
+				if (window.wabaChatBubble) {
+					window.wabaChatBubble.change_bubble();
+				}
+			});
 	}
 
 	setup_socketio() {
@@ -300,32 +240,16 @@ export default class ChatSpace {
 		frappe.realtime.off("latest_chat_updates");
 	}
 
-	get_typing_changes(res) {
-		if (res.user != this.profile.user_email) {
-			if (
-				(this.profile.is_admin === true && res.is_guest === "true") ||
-				this.profile.is_admin === false ||
-				this.profile.room_type === "Group" ||
-				this.profile.room_type === "Direct"
-			) {
-				if (res.is_typing === "false") {
-					$(".chat-profile-status").css("visibility", "hidden");
-				} else {
-					$(".chat-profile-status").css("visibility", "visible");
-					const timeout = setTimeout(() => {
-						$(".chat-profile-status").css("visibility", "hidden");
-					}, 3000);
-				}
-			}
-		}
-	}
-
 	make_message(content, time, type, name, caption) {
-		const message_class = type === "recipient" ? "recipient-message" : "sender-message";
+		const message_class = type === "recipient" ? "waba-message-sent" : "waba-message-received";
+		const bubble_class =
+			type === "recipient" ? "waba-message-bubble-sent" : "waba-message-bubble-received";
 		const $recipient_element = $(document.createElement("div")).addClass(message_class);
-		const $message_element = $(document.createElement("div")).addClass("message-bubble");
+		const $message_element = $(document.createElement("div")).addClass(bubble_class);
 
-		const $name_element = $(document.createElement("div")).addClass("message-name").text(name);
+		const $name_element = $(document.createElement("div"))
+			.addClass("waba-message-name")
+			.text(name);
 
 		const n = content.lastIndexOf("/");
 		const file_name = content.substring(n + 1) || "";
@@ -335,18 +259,17 @@ export default class ChatSpace {
 			let $url;
 			if (is_image(file_name)) {
 				$url = $(document.createElement("img"));
-				$url.attr({ src: content }).addClass("img-responsive chat-image");
+				$url.attr({ src: content }).addClass("waba-chat-image");
 				$message_element.css({ padding: "0px", background: "inherit" });
 				$name_element.css({
-					color: "var(--text-muted)",
-					"padding-bottom": "var(--padding-xs)",
+					color: "var(--wa-text-light)",
+					"padding-bottom": "4px",
 				});
 			} else {
 				$url = $(document.createElement("a"));
 				$url.attr({ href: content, target: "_blank" }).text(__(file_name));
-
-				if (type === "sender") {
-					$url.css("color", "var(--cyan-100)");
+				if (type === "recipient") {
+					$url.css("color", "var(--wa-green-dark)");
 				}
 			}
 			$sanitized_content = $url;
@@ -361,26 +284,19 @@ export default class ChatSpace {
 
 		if (caption) {
 			const $caption_element = $(document.createElement("div"))
-				.addClass("message-caption")
-				.css({
-					padding: "var(--padding-sm)",
-					"font-size": "var(--text-sm)",
-					color: type === "sender" ? "var(--white)" : "var(--text-color)",
-					background: type === "sender" ? "var(--primary-color)" : "var(--control-bg)",
-					"border-radius": "0 0 13px 13px",
-				})
+				.addClass("waba-message-caption")
 				.text(caption);
 			$message_element.append($caption_element);
 		}
 
 		$recipient_element.append($message_element);
-		$recipient_element.append(`<div class='message-time'>${__(time)}</div>`);
+		$recipient_element.append(`<div class='waba-message-time'>${__(time)}</div>`);
 
 		return $recipient_element;
 	}
 
 	handle_send_message(attachment) {
-		const $type_message = $(".type-message");
+		const $type_message = $(".waba-type-message");
 		let content = null;
 
 		if (attachment) {
@@ -389,12 +305,14 @@ export default class ChatSpace {
 			content = $type_message.val();
 		}
 
-		if (content.length === 0) {
+		if (!content || content.trim().length === 0) {
 			return;
 		}
+
 		this.typing = false;
-		if (this.timeout) {
-			clearTimeout(this.timeout);
+		if (this.typing_timeout) {
+			clearTimeout(this.typing_timeout);
+			set_typing(this.profile.room, this.profile.user_email, false, false);
 		}
 
 		if (
@@ -426,7 +344,7 @@ export default class ChatSpace {
 
 		if (
 			this.profile.is_admin === true &&
-			$(".chat-element").is(":visible") &&
+			$(".waba-chat-element").is(":visible") &&
 			frappe.Chat.settings.user.enable_message_tone === 1
 		) {
 			frappe.utils.play_sound("chat-message-receive");
@@ -474,14 +392,14 @@ export default class ChatSpace {
 
 				if (last_existing_message.length && last_new_message) {
 					const existing_content = last_existing_message
-						.closest(".recipient-message, .sender-message")
-						.find(".message-bubble")
+						.closest(".waba-message-sent, .waba-message-received")
+						.find(".waba-message-bubble-sent, .waba-message-bubble-received")
 						.text();
 					const new_content = last_new_message.content;
 
 					if (existing_content !== new_content) {
 						const current_message_count = this.$chat_space_container.find(
-							".recipient-message, .sender-message",
+							".waba-message-sent, .waba-message-received",
 						).length;
 
 						if (messages.length > current_message_count) {
