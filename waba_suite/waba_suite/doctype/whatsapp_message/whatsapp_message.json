@@ -21,6 +21,7 @@
   "column_break_nubt",
   "whatsapp_session",
   "whatsapp_account",
+  "whatsapp_contact",
   "to",
   "from",
   "message_content_section",
@@ -229,7 +230,8 @@
    "fieldname": "whatsapp_account",
    "fieldtype": "Link",
    "label": "WhatsApp Account",
-   "options": "WhatsApp Account"
+   "options": "WhatsApp Account",
+   "search_index": 1
   },
   {
    "collapsible": 1,
@@ -329,11 +331,17 @@
    "label": "WhatsApp Session",
    "options": "WhatsApp Session",
    "search_index": 1
+  },
+  {
+   "fieldname": "whatsapp_contact",
+   "fieldtype": "Link",
+   "label": "WhatsApp Contact",
+   "options": "WhatsApp Contact"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-06 18:52:40.737373",
+ "modified": "2026-05-21 15:27:34.599192",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Message",

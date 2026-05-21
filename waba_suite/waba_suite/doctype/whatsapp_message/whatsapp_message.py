@@ -444,11 +444,14 @@ class WhatsAppMessage(Document):
 					processed_lines.append("")
 					continue
 				if re.match(r"^#{1,6}\s", line):
-					processed_lines.append(f"*{re.sub(r'^#{1,6}\s+', '', line)}*")
+					cleaned = re.sub(r"^#{1,6}\s+", "", line)
+					processed_lines.append(f"*{cleaned}*")
 				elif re.match(r"^[-*+]\s", line):
-					processed_lines.append(f"• {re.sub(r'^[-*+]\s+', '', line)}")
+					cleaned = re.sub(r"^[-*+]\s+", "", line)
+					processed_lines.append(f"• {cleaned}")
 				elif re.match(r"^>\s", line):
-					processed_lines.append(f"_{re.sub(r'^>\s+', '', line)}_")
+					cleaned = re.sub(r"^>\s+", "", line)
+					processed_lines.append(f"_{cleaned}_")
 				else:
 					processed_lines.append(line)
 

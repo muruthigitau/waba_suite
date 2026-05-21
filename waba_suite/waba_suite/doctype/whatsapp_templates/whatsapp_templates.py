@@ -369,7 +369,7 @@ def fetch():
 						msg=error_message,
 						title=res.get("error_user_title", "Error"),
 					)
-				except json.JSONDecodeError, KeyError:
+				except (json.JSONDecodeError, KeyError):
 					# Handle cases where the response is not valid JSON or lacks the 'error' key
 					frappe.throw(f"An unexpected error occurred while fetching templates: {e}")
 			else:

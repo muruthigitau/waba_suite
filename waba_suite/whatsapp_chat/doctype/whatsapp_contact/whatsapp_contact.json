@@ -46,9 +46,8 @@
   },
   {
    "fieldname": "customer",
-   "fieldtype": "Link",
-   "label": "Customer",
-   "options": "HD Customer"
+   "fieldtype": "Data",
+   "label": "Customer"
   },
   {
    "fieldname": "column_break_cbhf",
@@ -63,7 +62,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-05 21:02:54.815673",
+ "modified": "2026-05-21 15:17:14.726692",
  "modified_by": "Administrator",
  "module": "Whatsapp Chat",
  "name": "WhatsApp Contact",

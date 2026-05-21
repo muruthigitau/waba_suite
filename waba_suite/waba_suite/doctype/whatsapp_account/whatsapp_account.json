@@ -21,7 +21,9 @@
   "is_default_incoming",
   "is_default_outgoing",
   "allow_auto_read_receipt",
-  "support_enabled"
+  "support_enabled",
+  "section_break_gxxd",
+  "users"
  ],
  "fields": [
   {
@@ -110,6 +112,16 @@
    "fieldname": "support_enabled",
    "fieldtype": "Check",
    "label": "Support Enabled"
+  },
+  {
+   "fieldname": "section_break_gxxd",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "users",
+   "fieldtype": "Table",
+   "label": "Users",
+   "options": "POS Profile User"
   }
  ],
  "grid_page_length": 50,
@@ -124,7 +136,7 @@
    "link_fieldname": "whatsapp_account"
   }
  ],
- "modified": "2026-05-05 13:26:11.826175",
+ "modified": "2026-05-21 14:34:30.319525",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Account",
