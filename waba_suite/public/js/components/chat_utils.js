@@ -45,6 +45,30 @@ function is_image(filename) {
 	return true;
 }
 
+function get_message_display_text(last_message) {
+	if (!last_message) {
+		return { text: "", type: "", status: "", date: "" };
+	}
+
+	let messageText = "";
+	let messageType = last_message.type || "Incoming";
+	let messageStatus = last_message.status || "sent";
+	let messageDate = last_message.creation || new Date();
+
+	if (typeof last_message === "object") {
+		messageText = last_message.message || last_message.attach || "";
+	} else {
+		messageText = last_message;
+	}
+
+	return {
+		text: messageText,
+		type: messageType,
+		status: messageStatus,
+		date: messageDate,
+	};
+}
+
 async function get_rooms(email, whatsapp_account) {
 	const res = await frappe.call({
 		type: "GET",
@@ -54,21 +78,56 @@ async function get_rooms(email, whatsapp_account) {
 			whatsapp_account: whatsapp_account,
 		},
 	});
-	return await res.message;
+
+	let rooms = await res.message;
+
+	rooms = rooms.sort((a, b) => {
+		let dateA = null;
+		let dateB = null;
+
+		if (a.last_message && a.last_message.creation) {
+			dateA = new Date(a.last_message.creation);
+		} else if (a.modified) {
+			dateA = new Date(a.modified);
+		} else {
+			dateA = new Date(0);
+		}
+
+		if (b.last_message && b.last_message.creation) {
+			dateB = new Date(b.last_message.creation);
+		} else if (b.modified) {
+			dateB = new Date(b.modified);
+		} else {
+			dateB = new Date(0);
+		}
+
+		return dateB - dateA;
+	});
+
+	return rooms;
 }
 
-async function get_messages(room, user_no) {
+async function get_messages(room, user_no, whatsapp_account) {
 	const res = await frappe.call({
 		method: "waba_suite.api.message.get_all",
 		args: {
 			room: room,
 			user_no: user_no,
+			whatsapp_account: whatsapp_account,
 		},
 	});
 	return await res.message;
 }
 
-async function send_message(content, user, room, user_no, attachment) {
+async function send_message(
+	content,
+	user,
+	room,
+	user_no,
+	attachment,
+	messageId,
+	whatsapp_account,
+) {
 	try {
 		await frappe.call({
 			method: "waba_suite.api.message.send",
@@ -78,6 +137,8 @@ async function send_message(content, user, room, user_no, attachment) {
 				room: room,
 				user_no: user_no,
 				attachment: attachment,
+				message_id: messageId,
+				whatsapp_account: whatsapp_account,
 			},
 		});
 	} catch (error) {
@@ -99,12 +160,13 @@ async function get_settings(token) {
 	return await res.message;
 }
 
-async function mark_message_read(room) {
+async function mark_message_read(room, whatsapp_account) {
 	try {
 		await frappe.call({
 			method: "waba_suite.api.message.mark_as_read",
 			args: {
 				room: room,
+				whatsapp_account: whatsapp_account,
 			},
 		});
 	} catch (error) {}
@@ -120,20 +182,6 @@ async function create_guest({ email, full_name, message }) {
 		},
 	});
 	return await res.message;
-}
-
-async function set_typing(room, user, is_typing, is_guest) {
-	try {
-		await frappe.call({
-			method: "waba_suite.api.message.set_typing",
-			args: {
-				room: room,
-				user: user,
-				is_typing: is_typing,
-				is_guest: is_guest,
-			},
-		});
-	} catch (error) {}
 }
 
 async function create_private_room(contact_name, mobile_no, email, whatsapp_account) {
@@ -197,6 +245,7 @@ export {
 	get_active_account,
 	get_avatar_html,
 	get_date_from_now,
+	get_message_display_text,
 	get_messages,
 	get_rooms,
 	get_settings,
@@ -207,6 +256,5 @@ export {
 	scroll_to_bottom,
 	send_message,
 	set_notification_count,
-	set_typing,
 	set_user_settings,
 };

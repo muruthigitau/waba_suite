@@ -15,6 +15,9 @@ export default class ChatList {
 		this.has_multiple_accounts = false;
 		this.chat_rooms = [];
 		this.parent = opts.parent || null;
+		this.refresh_interval = null;
+		this.is_refreshing = false;
+		this.active_room_id = null;
 		this.setup();
 	}
 
@@ -25,6 +28,150 @@ export default class ChatList {
 		this.setup_search();
 		this.setup_socketio();
 		this.initialize_data();
+		this.start_auto_refresh();
+	}
+
+	start_auto_refresh() {
+		if (this.refresh_interval) {
+			clearInterval(this.refresh_interval);
+		}
+		this.refresh_interval = setInterval(() => {
+			if (this.$chat_list && this.$chat_list.is(":visible") && this.whatsapp_account) {
+				this.refresh_rooms();
+			}
+		}, 5000);
+	}
+
+	stop_auto_refresh() {
+		if (this.refresh_interval) {
+			clearInterval(this.refresh_interval);
+			this.refresh_interval = null;
+		}
+	}
+
+	getLastMessageDate(room) {
+		if (!room) return new Date(0);
+		if (room.last_message && room.last_message.creation) {
+			return new Date(room.last_message.creation);
+		}
+		if (room.modified) {
+			return new Date(room.modified);
+		}
+		return new Date(0);
+	}
+
+	async refresh_rooms() {
+		if (this.is_refreshing || !this.whatsapp_account) {
+			return;
+		}
+
+		this.is_refreshing = true;
+
+		try {
+			const current_search = this.$chat_list.find(".waba-chat-search-box").val() || "";
+
+			const res = await get_rooms(this.user_email, this.whatsapp_account);
+
+			if (res && Array.isArray(res)) {
+				const new_rooms_sorted = [...res].sort((a, b) => {
+					const dateA = this.getLastMessageDate(a);
+					const dateB = this.getLastMessageDate(b);
+					return dateB - dateA;
+				});
+
+				const current_rooms_sorted = [...(this.rooms || [])].sort((a, b) => {
+					const dateA = this.getLastMessageDate(a);
+					const dateB = this.getLastMessageDate(b);
+					return dateB - dateA;
+				});
+
+				if (JSON.stringify(new_rooms_sorted) !== JSON.stringify(current_rooms_sorted)) {
+					this.rooms = res;
+
+					const sorted_rooms_for_display = [...res].sort((a, b) => {
+						const dateA = this.getLastMessageDate(a);
+						const dateB = this.getLastMessageDate(b);
+						return dateB - dateA;
+					});
+
+					const existing_rooms = new Map(this.chat_rooms);
+					const new_chat_rooms = [];
+
+					for (const element of sorted_rooms_for_display) {
+						if (!element || !element.name) continue;
+
+						let profile = {
+							user: this.user,
+							user_email: element.mobile_no,
+							last_message: element.last_message,
+							last_date: element.last_date || element.modified,
+							is_admin: this.is_admin,
+							room: element.name,
+							is_read: element.is_read || 0,
+							room_name: element.contact_name || element.mobile_no,
+							room_type: element.type || "Direct",
+							opposite_person_email: element.mobile_no,
+							whatsapp_account: this.whatsapp_account,
+							unread_incoming: element.unread_incoming || 0,
+							contact_name: element.contact_name,
+							mobile_no: element.mobile_no,
+						};
+
+						if (existing_rooms.has(profile.room)) {
+							const existing_room = existing_rooms.get(profile.room);
+							if (
+								existing_room &&
+								existing_room[1] &&
+								existing_room[1].update_room_data
+							) {
+								existing_room[1].update_room_data(profile);
+								new_chat_rooms.push([profile.room, existing_room[1]]);
+							} else {
+								const new_room = new ChatRoom({
+									$wrapper: this.$wrapper,
+									$chat_rooms_container: this.$chat_rooms_container,
+									chat_list: this,
+									element: profile,
+								});
+								new_chat_rooms.push([profile.room, new_room]);
+							}
+						} else {
+							const new_room = new ChatRoom({
+								$wrapper: this.$wrapper,
+								$chat_rooms_container: this.$chat_rooms_container,
+								chat_list: this,
+								element: profile,
+							});
+							new_chat_rooms.push([profile.room, new_room]);
+						}
+					}
+
+					this.chat_rooms = new_chat_rooms;
+
+					if (this.$chat_rooms_container) {
+						this.$chat_rooms_container.empty();
+						this.render_messages();
+					}
+
+					if (current_search) {
+						this.filter_rooms(current_search.toLowerCase());
+					}
+
+					if (this.active_room_id) {
+						const active_room = this.chat_rooms.find(
+							(room) => room && room[0] === this.active_room_id,
+						);
+						if (active_room && active_room[1] && active_room[1].$chat_room) {
+							active_room[1].$chat_room.addClass("waba-chat-room-active");
+						}
+					}
+				}
+			}
+		} catch (error) {
+			console.error("Error refreshing rooms:", error);
+		} finally {
+			this.is_refreshing = false;
+		}
 	}
 
 	async initialize_data() {
@@ -33,6 +180,8 @@ export default class ChatList {
 	}
 
 	setup_header() {
+		if (!this.$chat_list) return;
+
 		this.$chat_list.find(".waba-account-header, .waba-chat-list-header").remove();
 
 		const chat_list_header_html = `
@@ -88,6 +237,7 @@ export default class ChatList {
 	}
 
 	setup_search() {
+		if (!this.$chat_list) return;
 		if (this.$chat_list.find(".waba-chat-search").length) return;
 		const chat_list_search_html = `
 			<div class='waba-chat-search'>
@@ -121,6 +271,7 @@ export default class ChatList {
 			this.setup_header();
 
 			const res = await get_rooms(this.user_email, this.whatsapp_account);
+
 			this.rooms = res || [];
 			this.setup_rooms();
 			this.render_messages();
@@ -139,7 +290,19 @@ export default class ChatList {
 		this.$chat_rooms_container.empty();
 		this.chat_rooms = [];
 
-		this.rooms.forEach((element) => {
+		if (!this.rooms || !Array.isArray(this.rooms)) {
+			return;
+		}
+
+		const sorted_rooms = [...this.rooms].sort((a, b) => {
+			const dateA = this.getLastMessageDate(a);
+			const dateB = this.getLastMessageDate(b);
+			return dateB - dateA;
+		});
+
+		for (const element of sorted_rooms) {
+			if (!element || !element.name) continue;
+
 			let profile = {
 				user: this.user,
 				user_email: element.mobile_no,
@@ -147,37 +310,44 @@ export default class ChatList {
 				last_date: element.last_date || element.modified,
 				is_admin: this.is_admin,
 				room: element.name,
-				is_read: element.is_read,
+				is_read: element.is_read || 0,
 				room_name: element.contact_name || element.mobile_no,
 				room_type: element.type || "Direct",
 				opposite_person_email: element.mobile_no,
 				whatsapp_account: this.whatsapp_account,
+				unread_incoming: element.unread_incoming || 0,
+				contact_name: element.contact_name,
+				mobile_no: element.mobile_no,
 			};
 
-			this.chat_rooms.push([
-				profile.room,
-				new ChatRoom({
-					$wrapper: this.$wrapper,
-					$chat_rooms_container: this.$chat_rooms_container,
-					chat_list: this,
-					element: profile,
-				}),
-			]);
-		});
+			const new_room = new ChatRoom({
+				$wrapper: this.$wrapper,
+				$chat_rooms_container: this.$chat_rooms_container,
+				chat_list: this,
+				element: profile,
+			});
+
+			this.chat_rooms.push([profile.room, new_room]);
+		}
 	}
 
 	filter_rooms(query) {
+		if (!this.chat_rooms) return;
 		for (const room of this.chat_rooms) {
-			const txt = room[1].profile.room_name.toLowerCase();
-			if (txt.includes(query)) {
-				room[1].$chat_room.show();
-			} else {
-				room[1].$chat_room.hide();
+			if (room && room[1] && room[1].$chat_room && room[1].profile) {
+				const txt = room[1].profile.room_name.toLowerCase();
+				if (txt.includes(query)) {
+					room[1].$chat_room.show();
+				} else {
+					room[1].$chat_room.hide();
+				}
 			}
 		}
 	}
 
 	create_new_room(profile) {
+		if (!profile) return;
+
 		profile.whatsapp_account = this.whatsapp_account;
 		const new_room = new ChatRoom({
 			$wrapper: this.$wrapper,
@@ -185,12 +355,28 @@ export default class ChatList {
 			chat_list: this,
 			element: profile,
 		});
-		this.chat_rooms.unshift([profile.room, new_room]);
-		new_room.render("prepend");
+
+		const new_room_date = this.getLastMessageDate(profile);
+		let insert_position = 0;
+
+		for (let i = 0; i < this.chat_rooms.length; i++) {
+			if (!this.chat_rooms[i] || !this.chat_rooms[i][1]) continue;
+			const existing_date = this.getLastMessageDate(this.chat_rooms[i][1].profile);
+			if (new_room_date > existing_date) {
+				insert_position = i;
+				break;
+			}
+			insert_position = this.chat_rooms.length;
+		}
+
+		this.chat_rooms.splice(insert_position, 0, [profile.room, new_room]);
+		new_room.render(insert_position === 0 ? "prepend" : "append");
 	}
 
 	setup_events() {
 		const me = this;
+		if (!this.$chat_list) return;
+
 		const $list = this.$chat_list;
 
 		$list
@@ -261,44 +447,109 @@ export default class ChatList {
 
 	async refreshWithNewAccount(accountName) {
 		this.whatsapp_account = accountName;
-		this.$chat_rooms_container?.empty();
+		if (this.$chat_rooms_container) {
+			this.$chat_rooms_container.empty();
+		}
 		await this.fetch_and_setup_rooms();
 	}
 
 	render_messages() {
 		if (!this.$chat_rooms_container) return;
 		this.$chat_rooms_container.empty();
-		this.chat_rooms.forEach((element) => element[1].render("append"));
+		for (const element of this.chat_rooms) {
+			if (element && element[1] && element[1].render) {
+				element[1].render("append");
+			}
+		}
 	}
 
 	render() {
+		if (!this.$wrapper) return;
 		this.$wrapper.html(this.$chat_list);
 		this.setup_events();
 	}
 
 	move_room_to_top(chat_room_item) {
-		this.chat_rooms = [
-			chat_room_item,
-			...this.chat_rooms.filter((item) => item !== chat_room_item),
-		];
+		if (!chat_room_item || !chat_room_item[0]) return;
+
+		const roomIndex = this.chat_rooms.findIndex(
+			(item) => item && item[0] === chat_room_item[0],
+		);
+		if (roomIndex > -1) {
+			this.chat_rooms.splice(roomIndex, 1);
+			this.chat_rooms.unshift(chat_room_item);
+
+			if (this.$chat_rooms_container && chat_room_item[1] && chat_room_item[1].$chat_room) {
+				this.$chat_rooms_container.prepend(chat_room_item[1].$chat_room);
+			}
+		}
+	}
+
+	set_active_room(roomId) {
+		this.active_room_id = roomId;
+
+		if (!this.chat_rooms) return;
+
+		for (const room of this.chat_rooms) {
+			if (room && room[1] && room[1].$chat_room) {
+				if (room[0] === roomId) {
+					room[1].$chat_room.addClass("waba-chat-room-active");
+				} else {
+					room[1].$chat_room.removeClass("waba-chat-room-active");
+				}
+			}
+		}
+	}
+
+	clear_active_room() {
+		this.active_room_id = null;
+		if (!this.chat_rooms) return;
+
+		for (const room of this.chat_rooms) {
+			if (room && room[1] && room[1].$chat_room) {
+				room[1].$chat_room.removeClass("waba-chat-room-active");
+			}
+		}
 	}
 
 	setup_socketio() {
 		const me = this;
-		frappe.realtime.on("latest_chat_updates", function (res) {
-			if (res.whatsapp_account !== me.whatsapp_account) return;
 
-			const chat_room_item = me.chat_rooms.find((element) => element[0] === res.room);
-			if (!chat_room_item) return;
+		frappe.realtime.on("latest_chat_updates", function (res) {
+			if (!me.whatsapp_account || res.whatsapp_account !== me.whatsapp_account) return;
+
+			let chat_room_item = me.chat_rooms
+				? me.chat_rooms.find((element) => element && element[0] === res.room)
+				: null;
+
+			if (!chat_room_item && res.room) {
+				frappe.call({
+					method: "waba_suite.api.contacts.get",
+					args: {
+						email: me.user_email,
+						whatsapp_account: me.whatsapp_account,
+					},
+					callback: function (response) {
+						if (response.message && me.refresh_rooms) {
+							me.refresh_rooms();
+						}
+					},
+				});
+				return;
+			}
+
+			if (!chat_room_item || !chat_room_item[1]) return;
 
 			frappe.utils.play_sound("chat-message-receive");
 			const message =
-				res.content.length > 24 ? res.content.substring(0, 24) + "..." : res.content;
+				res.content && res.content.length > 24
+					? res.content.substring(0, 24) + "..."
+					: res.content || "";
 
 			frappe.show_alert(
 				{
 					message: `<a href="#" data-action="open-chat" style="text-decoration: none; color: inherit;">
-						<strong>${res.contact_name}</strong><br>
+						<strong>${res.contact_name || ""}</strong><br>
 						<span style="opacity: 0.9;">${message}</span>
 					</a>`,
 					indicator: "green",
@@ -313,33 +564,62 @@ export default class ChatList {
 				},
 			);
 
-			chat_room_item[1].set_last_message(message, res.creation);
+			if (chat_room_item[1].set_last_message) {
+				chat_room_item[1].set_last_message(message, res.creation, res.status, res.type);
+			}
 
-			if ($(".waba-chat-list").is(":visible")) {
-				chat_room_item[1].set_as_unread();
+			if (chat_room_item[1].move_to_top) {
 				chat_room_item[1].move_to_top();
-				me.move_room_to_top(chat_room_item);
-			} else if ($(".waba-chat-space").is(":visible")) {
-				mark_message_read(res.room);
+			}
+
+			me.move_room_to_top(chat_room_item);
+
+			if (me.active_room_id === res.room) {
+				if (res.room) {
+					mark_message_read(res.room, me.whatsapp_account);
+				}
 			} else {
-				if (chat_room_item[1].profile.is_read === 1) {
+				if (chat_room_item[1].profile && chat_room_item[1].profile.is_read === 1) {
 					set_notification_count("increment");
-					chat_room_item[1].profile.is_read = 0;
+					if (chat_room_item[1].profile) {
+						chat_room_item[1].profile.is_read = 0;
+						chat_room_item[1].profile.unread_incoming =
+							(chat_room_item[1].profile.unread_incoming || 0) + 1;
+					}
+
+					const $badge = chat_room_item[1].$chat_room
+						? chat_room_item[1].$chat_room.find(".waba-unread-badge")
+						: null;
+					const displayCount =
+						chat_room_item[1].profile && chat_room_item[1].profile.unread_incoming > 9
+							? "9+"
+							: chat_room_item[1].profile?.unread_incoming || 1;
+					if ($badge && $badge.length) {
+						$badge.text(displayCount);
+					} else if (chat_room_item[1].$chat_room) {
+						chat_room_item[1].$chat_room
+							.find(".waba-room-name")
+							.append(`<div class='waba-unread-badge'>${displayCount}</div>`);
+					}
 				}
 			}
 		});
 
 		frappe.realtime.on("new_room_creation", function (res) {
-			if (res.whatsapp_account !== me.whatsapp_account) return;
+			if (!me.whatsapp_account || res.whatsapp_account !== me.whatsapp_account) return;
 			frappe.utils.play_sound("chat-notification");
-			res.user = me.user;
-			me.create_new_room(res);
+			if (res) {
+				res.user = me.user;
+				me.create_new_room(res);
+			}
 		});
 
 		frappe.realtime.on("private_room_creation", function (res) {
-			if (res.whatsapp_account !== me.whatsapp_account) return;
+			if (!me.whatsapp_account || res.whatsapp_account !== me.whatsapp_account) return;
 			if (
 				!$(".waba-chat-element").is(":visible") &&
+				frappe.Chat.settings &&
+				frappe.Chat.settings.user &&
 				frappe.Chat.settings.user.enable_notifications === 1
 			) {
 				frappe.utils.play_sound("chat-notification");
@@ -347,7 +627,10 @@ export default class ChatList {
 
 			if (res.members && res.members.includes(me.user_email)) {
 				if (res.room_type === "Direct") {
-					const is_me = res.member_names[0]["email"] == me.user_email;
+					const is_me =
+						res.member_names &&
+						res.member_names[0] &&
+						res.member_names[0]["email"] == me.user_email;
 					res.room_name = is_me
 						? res.member_names[1]["name"]
 						: res.member_names[0]["name"];

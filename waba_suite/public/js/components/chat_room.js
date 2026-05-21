@@ -2,7 +2,7 @@ import ChatSpace from "./chat_space";
 import {
 	get_avatar_html,
 	get_date_from_now,
-	get_time,
+	get_message_display_text,
 	mark_message_read,
 	set_notification_count,
 } from "./chat_utils";
@@ -13,15 +13,38 @@ export default class ChatRoom {
 		this.$chat_rooms_container = opts.$chat_rooms_container;
 		this.chat_list = opts.chat_list;
 		this.profile = opts.element;
+		this.$chat_room = null;
+		this.chat_space = null;
 		this.setup();
 		if (!this.profile.is_read) {
 			set_notification_count("increment");
 		}
 	}
 
-	setup() {
-		this.$chat_room = $(document.createElement("div"));
-		this.$chat_room.addClass("waba-chat-room");
+	update_room_data(new_profile) {
+		const had_unread = !this.profile.is_read;
+		const old_unread_count = this.profile.unread_incoming || 0;
+
+		this.profile = { ...this.profile, ...new_profile };
+
+		if (this.$chat_room) {
+			this.refresh_display();
+
+			if (!had_unread && !this.profile.is_read) {
+				set_notification_count("increment");
+			} else if (had_unread && this.profile.is_read) {
+				set_notification_count("decrement");
+			} else if (!this.profile.is_read && this.profile.unread_incoming > old_unread_count) {
+				const diff = this.profile.unread_incoming - old_unread_count;
+				for (let i = 0; i < diff; i++) {
+					set_notification_count("increment");
+				}
+			}
+		}
+	}
+
+	refresh_display() {
+		this.$chat_room.empty();
 
 		this.avatar_html = get_avatar_html(
 			this.profile.room_type,
@@ -29,37 +52,96 @@ export default class ChatRoom {
 			this.profile.room_name,
 		);
 
-		let last_message = this.sanitize_last_message(this.profile.last_message);
+		const messageInfo = get_message_display_text(this.profile.last_message);
+		const last_message_text = this.sanitize_last_message(messageInfo.text);
+		const last_message_status = messageInfo.status;
+		const last_message_type = messageInfo.type;
+		const last_message_date =
+			messageInfo.date || this.profile.last_date || this.profile.modified;
+
+		const status_icon = this.getMessageStatusIcon(last_message_type, last_message_status);
+		const unread_count = this.profile.unread_incoming || 0;
+
+		const display_name =
+			this.profile.contact_name && this.profile.contact_name !== this.profile.mobile_no
+				? `${this.profile.contact_name} (${this.profile.mobile_no})`
+				: this.profile.room_name;
 
 		const info_html = `
-      <div class='waba-room-info'>
-        <div class='waba-room-name'>
-          ${__(this.profile.room_name)}
-          ${!this.profile.is_read ? `<div class='waba-unread-badge'></div>` : ""}
-        </div>
-        <div class='waba-last-message'>${__(last_message)}</div>
-      </div>
-    `;
+			<div class='waba-room-info'>
+				<div class='waba-room-name'>
+					<span class='waba-room-title'>${__(display_name)}</span>
+					${unread_count > 0 ? `<div class='waba-unread-badge'>${unread_count > 9 ? "9+" : unread_count}</div>` : ""}
+				</div>
+				<div class='waba-last-message'>
+					${status_icon}
+					<span>${__(last_message_text) || __("No messages yet")}</span>
+				</div>
+			</div>
+		`;
+
 		const date_html = `
-      <div class='waba-room-date'>
-        ${__(get_date_from_now(this.profile.last_date, "room"))}
-      </div>
-    `;
+			<div class='waba-room-date'>
+				${__(get_date_from_now(last_message_date, "room"))}
+			</div>
+		`;
+
 		let inner_html = "";
-
 		inner_html += this.avatar_html + info_html + date_html;
-
 		this.$chat_room.html(inner_html);
 	}
 
+	getMessageStatusIcon(messageType, status) {
+		if (messageType !== "Outgoing") {
+			return "";
+		}
+
+		const statusMap = {
+			draft: `<svg class="waba-status-icon waba-status-draft" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696A0" stroke-width="2">
+		<circle cx="12" cy="12" r="10"/>
+		<line x1="12" y1="8" x2="12" y2="12"/>
+		<line x1="12" y1="16" x2="12.01" y2="16"/>
+	</svg>`,
+			sent: `<svg class="waba-status-icon waba-status-sent" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8696A0" stroke-width="2">
+		<path d="M20 6L9 17L4 12"/>
+	</svg>`,
+			delivered: `<svg class="waba-status-icon waba-status-delivered" width="24" height="16" viewBox="0 0 32 24" fill="none" stroke="#8696A0" stroke-width="2">
+		<path d="M20 6L9 17L4 12"/>
+		<path d="M26 6L15 17L10 12"/>
+	</svg>`,
+			read: `<svg class="waba-status-icon waba-status-read" width="24" height="16" viewBox="0 0 32 24" fill="none" stroke="#25D366" stroke-width="2">
+		<path d="M20 6L9 17L4 12"/>
+		<path d="M26 6L15 17L10 12"/>
+	</svg>`,
+			failed: `<svg class="waba-status-icon waba-status-failed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2">
+		<circle cx="12" cy="12" r="10"/>
+		<line x1="18" y1="6" x2="6" y2="18"/>
+		<line x1="6" y1="6" x2="18" y2="18"/>
+	</svg>`,
+			marked_as_read: `<svg class="waba-status-icon waba-status-read" width="24" height="16" viewBox="0 0 32 24" fill="none" stroke="#25D366" stroke-width="2">
+		<path d="M20 6L9 17L4 12"/>
+		<path d="M26 6L15 17L10 12"/>
+	</svg>`,
+		};
+
+		return statusMap[status] || statusMap["sent"];
+	}
+
 	sanitize_last_message(message) {
+		if (!message) return "";
 		let sanitize_last_message = $("<div>").text(message).html();
 		if (sanitize_last_message) {
 			if (sanitize_last_message.length > 30) {
 				sanitize_last_message = sanitize_last_message.substring(0, 30) + "...";
 			}
 		}
-		return sanitize_last_message;
+		return sanitize_last_message || "";
+	}
+
+	setup() {
+		this.$chat_room = $(document.createElement("div"));
+		this.$chat_room.addClass("waba-chat-room");
+		this.refresh_display();
 	}
 
 	set_as_read() {
@@ -68,21 +150,43 @@ export default class ChatRoom {
 		set_notification_count("decrement");
 	}
 
-	set_last_message(message, date) {
-		const sanitized_message = this.sanitize_last_message(message);
-		this.$chat_room.find(".waba-last-message").html(__(sanitized_message));
-		this.$chat_room.find(".waba-room-date").text(__(get_time(date)));
+	set_last_message(message, date, status, type) {
+		const messageContent =
+			typeof message === "object" ? message.message || message.attach || "" : message;
+		const sanitized_message = this.sanitize_last_message(messageContent);
+		const status_icon = this.getMessageStatusIcon(type || "Outgoing", status || "sent");
+
+		this.$chat_room.find(".waba-last-message").html(`
+			${status_icon}
+			<span>${__(sanitized_message)}</span>
+		`);
+		this.$chat_room.find(".waba-room-date").text(__(get_date_from_now(date, "room")));
 	}
 
-	set_as_unread() {
+	set_as_unread(unreadCount) {
 		if (this.profile.is_read) {
 			set_notification_count("increment");
 		}
 		this.profile.is_read = 0;
+		this.profile.unread_incoming = unreadCount || this.profile.unread_incoming + 1;
+
 		const $nameDiv = this.$chat_room.find(".waba-room-name");
-		if (!$nameDiv.find(".waba-unread-badge").length) {
-			$nameDiv.append(`<div class='waba-unread-badge'></div>`);
+		const $existingBadge = $nameDiv.find(".waba-unread-badge");
+		const displayCount =
+			this.profile.unread_incoming > 9 ? "9+" : this.profile.unread_incoming;
+
+		if ($existingBadge.length) {
+			$existingBadge.text(displayCount);
+		} else {
+			$nameDiv.append(`<div class='waba-unread-badge'>${displayCount}</div>`);
 		}
+	}
+
+	destroy_chat_space() {
+		if (this.chat_space && this.chat_space.destroy_socket_events) {
+			this.chat_space.destroy_socket_events();
+		}
+		this.chat_space = null;
 	}
 
 	render(mode) {
@@ -99,18 +203,26 @@ export default class ChatRoom {
 	}
 
 	setup_events() {
-		this.$chat_room.on("click", () => {
-			if (typeof this.chat_space !== "undefined") {
-				this.chat_space.destroy_socket_events();
+		const me = this;
+
+		this.$chat_room.on("click", function () {
+			if (me.chat_space) {
+				me.destroy_chat_space();
 			}
-			this.chat_space = new ChatSpace({
-				$wrapper: this.$wrapper,
-				chat_list: this.chat_list,
-				profile: this.profile,
+
+			if (me.chat_list && me.chat_list.set_active_room) {
+				me.chat_list.set_active_room(me.profile.room);
+			}
+
+			me.chat_space = new ChatSpace({
+				$wrapper: me.$wrapper,
+				chat_list: me.chat_list,
+				profile: me.profile,
 			});
-			if (this.profile.is_read === 0) {
-				mark_message_read(this.profile.room);
-				this.set_as_read();
+
+			if (me.profile.is_read === 0) {
+				mark_message_read(me.profile.room, me.profile.whatsapp_account);
+				me.set_as_read();
 			}
 		});
 	}
