@@ -10,7 +10,7 @@ app_license = "agpl-3.0"
 # Apps
 # ------------------
 
-required_apps = ["helpdesk"]
+# required_apps = ["helpdesk"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
