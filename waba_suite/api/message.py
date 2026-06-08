@@ -20,21 +20,31 @@ def get_all(room: str, user_no: str, whatsapp_account: str = None):
 		messages = frappe.get_all(
 			"WhatsApp Message",
 			filters=filters,
-			fields=[
-				"name",
-				"creation",
-				"to",
-				"from",
-				"message",
-				"attach",
-				"content_type",
-				"type",
-				"status",
-			],
+			fields="*",
 			order_by="creation asc",
 		)
 
+		message_dict = {}
+		reactions_dict = {}
+
 		for msg in messages:
+			if msg.get("content_type") == "reaction":
+				try:
+					parent_id = msg.get("reply_to_message")
+					if parent_id:
+						if parent_id not in reactions_dict:
+							reactions_dict[parent_id] = []
+						reactions_dict[parent_id].append(
+							{
+								"emoji": msg.get("message", "👍"),
+								"sender": msg.get("to") or msg.get("from", "Administrator"),
+								"message_id": msg.get("name"),
+							}
+						)
+				except:
+					pass
+				continue
+
 			if msg.get("content_type") == "text":
 				msg["content"] = msg.get("message", "")
 			else:
@@ -47,7 +57,27 @@ def get_all(room: str, user_no: str, whatsapp_account: str = None):
 			else:
 				msg["sender_user_no"] = "Administrator"
 
-		return messages
+			message_dict[msg.get("name")] = msg
+
+		for msg_id, reactions in reactions_dict.items():
+			if msg_id in message_dict:
+				reaction_counts = {}
+				for reaction in reactions:
+					emoji = reaction.get("emoji")
+					if emoji:
+						reaction_counts[emoji] = reaction_counts.get(emoji, 0) + 1
+
+				aggregated_reactions = []
+				for emoji, count in reaction_counts.items():
+					aggregated_reactions.append({"emoji": emoji, "count": count})
+
+				if aggregated_reactions:
+					message_dict[msg_id]["reactions"] = aggregated_reactions
+
+		result = list(message_dict.values())
+		result.sort(key=lambda x: x.get("creation", ""))
+
+		return result
 	except Exception:
 		frappe.log_error(title="WhatsApp get_all Error", message=frappe.get_traceback())
 		return []
@@ -122,9 +152,20 @@ def send_whatsapp_read_receipts_sync(room: str, whatsapp_account: str = None):
 
 
 @frappe.whitelist()
-def send(content, user, room, user_no, attachment=None, message_id=None, whatsapp_account=None):
+def send(
+	content,
+	user,
+	room,
+	user_no,
+	attachment=None,
+	message_id=None,
+	whatsapp_account=None,
+	reply_to_message_id=None,
+	content_type=None,
+):
 	try:
-		content_type = "text"
+		if not content_type:
+			content_type = "text"
 
 		contact = frappe.get_doc("WhatsApp Contact", room)
 
@@ -162,6 +203,7 @@ def send(content, user, room, user_no, attachment=None, message_id=None, whatsap
 				"content_type": content_type,
 				"status": "sent",
 				"whatsapp_account": whatsapp_account or contact.whatsapp_account,
+				"reply_to_message": reply_to_message_id if reply_to_message_id else None,
 			}
 		)
 		msg_doc.insert(ignore_permissions=True)

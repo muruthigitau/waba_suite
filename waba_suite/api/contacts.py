@@ -19,7 +19,10 @@ def create(contact_name, mobile_no, email, whatsapp_account=None):
 @frappe.whitelist()
 def get(email, whatsapp_account=None):
 	if not whatsapp_account:
-		frappe.throw(_("WhatsApp Account is required"))
+		whatsapp_account = frappe.db.get_single_value("WhatsApp Settings", "default_incoming_account")
+
+	if not whatsapp_account:
+		return []
 
 	message_rows = frappe.get_all(
 		"WhatsApp Message",
@@ -80,7 +83,7 @@ def get(email, whatsapp_account=None):
 		contact["unread_incoming"] = unread_count
 
 	contacts.sort(
-		key=lambda x: x.get("last_message_data", {}).get("creation") if x.get("last_message_data") else "",
+		key=lambda x: x.get("last_message", {}).get("creation") if x.get("last_message") else "",
 		reverse=True,
 	)
 
