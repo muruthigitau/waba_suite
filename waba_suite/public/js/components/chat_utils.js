@@ -127,6 +127,8 @@ async function send_message(
 	attachment,
 	messageId,
 	whatsapp_account,
+	reply_to_message_id = null,
+	content_type = "text",
 ) {
 	try {
 		await frappe.call({
@@ -139,6 +141,8 @@ async function send_message(
 				attachment: attachment,
 				message_id: messageId,
 				whatsapp_account: whatsapp_account,
+				reply_to_message_id: reply_to_message_id,
+				content_type: content_type,
 			},
 		});
 	} catch (error) {

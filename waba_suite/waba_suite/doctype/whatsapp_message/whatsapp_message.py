@@ -82,6 +82,21 @@ class WhatsAppMessage(Document):
 
 	def set_whatsapp_account(self):
 		try:
+			if self.reply_to_message_id and not self.reply_to_message:
+				reply_to_message = frappe.db.exists(
+					"WhatsApp Message",
+					{
+						"message_id": self.reply_to_message_id,
+					},
+				)
+				if reply_to_message:
+					self.reply_to_message = reply_to_message
+					self.is_reply = 1
+			elif self.reply_to_message and not self.reply_to_message_id:
+				self.reply_to_message_id = frappe.db.get_value(
+					"WhatsApp Message", self.reply_to_message, "message_id"
+				)
+				self.is_reply = 1
 			if not self.whatsapp_account:
 				account_type = "outgoing" if self.type == "Outgoing" else "incoming"
 				default_whatsapp_account = get_whatsapp_account(account_type=account_type)
