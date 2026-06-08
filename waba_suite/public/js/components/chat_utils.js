@@ -216,18 +216,33 @@ function get_avatar_html(room_type, user_email, room_name) {
 	return avatar_html;
 }
 
-function set_notification_count(type) {
-	const current_count = frappe.Chat.settings.unread_count;
-	if (type === "increment") {
-		$("#waba-chat-notification-count").text(current_count + 1);
-		frappe.Chat.settings.unread_count += 1;
-	} else {
-		if (current_count - 1 === 0) {
+function set_notification_count(value) {
+	if (typeof value === "number") {
+		frappe.Chat.settings.unread_count = value;
+		if (value === 0) {
 			$("#waba-chat-notification-count").text("");
+			$("#waba-chat-notification-count").hide();
 		} else {
-			$("#waba-chat-notification-count").text(current_count - 1);
+			const displayCount = value > 99 ? "99+" : value;
+			$("#waba-chat-notification-count").text(displayCount);
+			$("#waba-chat-notification-count").show();
 		}
-		frappe.Chat.settings.unread_count -= 1;
+	} else if (value === "increment") {
+		const new_count = (frappe.Chat.settings.unread_count || 0) + 1;
+		frappe.Chat.settings.unread_count = new_count;
+		const displayCount = new_count > 99 ? "99+" : new_count;
+		$("#waba-chat-notification-count").text(displayCount);
+		$("#waba-chat-notification-count").show();
+	} else if (value === "decrement") {
+		const new_count = Math.max(0, (frappe.Chat.settings.unread_count || 0) - 1);
+		frappe.Chat.settings.unread_count = new_count;
+		if (new_count === 0) {
+			$("#waba-chat-notification-count").text("");
+			$("#waba-chat-notification-count").hide();
+		} else {
+			const displayCount = new_count > 99 ? "99+" : new_count;
+			$("#waba-chat-notification-count").text(displayCount);
+		}
 	}
 }
 

@@ -4,7 +4,6 @@ import {
 	get_date_from_now,
 	get_message_display_text,
 	mark_message_read,
-	set_notification_count,
 } from "./chat_utils";
 
 export default class ChatRoom {
@@ -16,29 +15,20 @@ export default class ChatRoom {
 		this.$chat_room = null;
 		this.chat_space = null;
 		this.setup();
-		if (!this.profile.is_read) {
-			set_notification_count("increment");
-		}
 	}
 
 	update_room_data(new_profile) {
-		const had_unread = !this.profile.is_read;
 		const old_unread_count = this.profile.unread_incoming || 0;
+		const new_unread_count = new_profile.unread_incoming || 0;
 
 		this.profile = { ...this.profile, ...new_profile };
 
 		if (this.$chat_room) {
 			this.refresh_display();
 
-			if (!had_unread && !this.profile.is_read) {
-				set_notification_count("increment");
-			} else if (had_unread && this.profile.is_read) {
-				set_notification_count("decrement");
-			} else if (!this.profile.is_read && this.profile.unread_incoming > old_unread_count) {
-				const diff = this.profile.unread_incoming - old_unread_count;
-				for (let i = 0; i < diff; i++) {
-					set_notification_count("increment");
-				}
+			const unread_diff = new_unread_count - old_unread_count;
+			if (unread_diff !== 0 && this.chat_list) {
+				this.chat_list.update_unread_count(null, this.profile.room, new_unread_count);
 			}
 		}
 	}
@@ -145,9 +135,16 @@ export default class ChatRoom {
 	}
 
 	set_as_read() {
+		if (this.profile.is_read === 1) return;
+
 		this.profile.is_read = 1;
+		const old_unread = this.profile.unread_incoming || 0;
+		this.profile.unread_incoming = 0;
 		this.$chat_room.find(".waba-unread-badge").remove();
-		set_notification_count("decrement");
+
+		if (this.chat_list && old_unread > 0) {
+			this.chat_list.update_unread_count("decrement", this.profile.room, 0);
+		}
 	}
 
 	set_last_message(message, date, status, type) {
@@ -165,20 +162,27 @@ export default class ChatRoom {
 
 	set_as_unread(unreadCount) {
 		if (this.profile.is_read) {
-			set_notification_count("increment");
-		}
-		this.profile.is_read = 0;
-		this.profile.unread_incoming = unreadCount || this.profile.unread_incoming + 1;
+			this.profile.is_read = 0;
+			const newUnreadCount = unreadCount || this.profile.unread_incoming + 1;
+			const oldUnread = this.profile.unread_incoming || 0;
+			this.profile.unread_incoming = newUnreadCount;
 
-		const $nameDiv = this.$chat_room.find(".waba-room-name");
-		const $existingBadge = $nameDiv.find(".waba-unread-badge");
-		const displayCount =
-			this.profile.unread_incoming > 9 ? "9+" : this.profile.unread_incoming;
+			if (this.chat_list) {
+				const diff = newUnreadCount - oldUnread;
+				if (diff > 0) {
+					this.chat_list.update_unread_count(null, this.profile.room, newUnreadCount);
+				}
+			}
 
-		if ($existingBadge.length) {
-			$existingBadge.text(displayCount);
-		} else {
-			$nameDiv.append(`<div class='waba-unread-badge'>${displayCount}</div>`);
+			const $nameDiv = this.$chat_room.find(".waba-room-name");
+			const $existingBadge = $nameDiv.find(".waba-unread-badge");
+			const displayCount = newUnreadCount > 9 ? "9+" : newUnreadCount;
+
+			if ($existingBadge.length) {
+				$existingBadge.text(displayCount);
+			} else {
+				$nameDiv.append(`<div class='waba-unread-badge'>${displayCount}</div>`);
+			}
 		}
 	}
 

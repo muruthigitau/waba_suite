@@ -18,6 +18,7 @@ export default class ChatList {
 		this.refresh_interval = null;
 		this.is_refreshing = false;
 		this.active_room_id = null;
+		this.total_unread_count = 0;
 		this.setup();
 	}
 
@@ -96,9 +97,13 @@ export default class ChatList {
 
 					const existing_rooms = new Map(this.chat_rooms);
 					const new_chat_rooms = [];
+					let new_total_unread = 0;
 
 					for (const element of sorted_rooms_for_display) {
 						if (!element || !element.name) continue;
+
+						const unread_count = element.unread_incoming || 0;
+						new_total_unread += unread_count;
 
 						let profile = {
 							user: this.user,
@@ -112,7 +117,7 @@ export default class ChatList {
 							room_type: element.type || "Direct",
 							opposite_person_email: element.mobile_no,
 							whatsapp_account: this.whatsapp_account,
-							unread_incoming: element.unread_incoming || 0,
+							unread_incoming: unread_count,
 							contact_name: element.contact_name,
 							mobile_no: element.mobile_no,
 						};
@@ -147,6 +152,8 @@ export default class ChatList {
 					}
 
 					this.chat_rooms = new_chat_rooms;
+					this.total_unread_count = new_total_unread;
+					set_notification_count(this.total_unread_count);
 
 					if (this.$chat_rooms_container) {
 						this.$chat_rooms_container.empty();
@@ -258,15 +265,31 @@ export default class ChatList {
 			});
 
 			const accounts = accData.message.accounts || [];
+
 			this.has_multiple_accounts = accounts.length > 1;
+
+			let totalUnread = 0;
 
 			if (!this.whatsapp_account) {
 				const activeAccount = accData.message.default_account || accounts[0];
 				if (activeAccount) {
 					this.whatsapp_account = activeAccount.name;
 					this.account_display_name = activeAccount.account_name;
+					totalUnread = activeAccount.unread_count || 0;
+				}
+			} else {
+				const currentAcc = accounts.find((acc) => acc.name === this.whatsapp_account);
+				if (currentAcc) {
+					totalUnread = currentAcc.unread_count || 0;
+				} else {
+					for (const acc of accounts) {
+						totalUnread += acc.unread_count || 0;
+					}
 				}
 			}
+
+			this.total_unread_count = totalUnread;
+			set_notification_count(this.total_unread_count);
 
 			this.setup_header();
 
@@ -289,6 +312,7 @@ export default class ChatList {
 
 		this.$chat_rooms_container.empty();
 		this.chat_rooms = [];
+		this.total_unread_count = 0;
 
 		if (!this.rooms || !Array.isArray(this.rooms)) {
 			return;
@@ -303,6 +327,9 @@ export default class ChatList {
 		for (const element of sorted_rooms) {
 			if (!element || !element.name) continue;
 
+			const unread_count = element.unread_incoming || 0;
+			this.total_unread_count += unread_count;
+
 			let profile = {
 				user: this.user,
 				user_email: element.mobile_no,
@@ -315,7 +342,7 @@ export default class ChatList {
 				room_type: element.type || "Direct",
 				opposite_person_email: element.mobile_no,
 				whatsapp_account: this.whatsapp_account,
-				unread_incoming: element.unread_incoming || 0,
+				unread_incoming: unread_count,
 				contact_name: element.contact_name,
 				mobile_no: element.mobile_no,
 			};
@@ -329,6 +356,8 @@ export default class ChatList {
 
 			this.chat_rooms.push([profile.room, new_room]);
 		}
+
+		set_notification_count(this.total_unread_count);
 	}
 
 	filter_rooms(query) {
@@ -349,6 +378,7 @@ export default class ChatList {
 		if (!profile) return;
 
 		profile.whatsapp_account = this.whatsapp_account;
+
 		const new_room = new ChatRoom({
 			$wrapper: this.$wrapper,
 			$chat_rooms_container: this.$chat_rooms_container,
@@ -371,6 +401,11 @@ export default class ChatList {
 
 		this.chat_rooms.splice(insert_position, 0, [profile.room, new_room]);
 		new_room.render(insert_position === 0 ? "prepend" : "append");
+
+		if (profile.unread_incoming) {
+			this.total_unread_count += profile.unread_incoming;
+			set_notification_count(this.total_unread_count);
+		}
 	}
 
 	setup_events() {
@@ -424,10 +459,12 @@ export default class ChatList {
 				if (!me.chat_account_switcher) {
 					me.chat_account_switcher = new ChatAccountSwitcher({
 						currentAccount: me.whatsapp_account,
-						onAccountChange: (newAccount, displayName) => {
+						onAccountChange: async (newAccount, displayName, unreadCount) => {
 							me.whatsapp_account = newAccount;
 							me.account_display_name = displayName;
-							me.refreshWithNewAccount(newAccount);
+							me.total_unread_count = unreadCount || 0;
+							set_notification_count(me.total_unread_count);
+							await me.refreshWithNewAccount(newAccount);
 						},
 					});
 				}
@@ -512,6 +549,23 @@ export default class ChatList {
 		}
 	}
 
+	update_unread_count(change, roomId = null, newUnreadCount = null) {
+		if (roomId !== null && newUnreadCount !== null) {
+			const room = this.chat_rooms.find((r) => r && r[0] === roomId);
+			if (room && room[1] && room[1].profile) {
+				const oldUnread = room[1].profile.unread_incoming || 0;
+				this.total_unread_count = this.total_unread_count - oldUnread + newUnreadCount;
+				room[1].profile.unread_incoming = newUnreadCount;
+			}
+		} else if (change === "increment") {
+			this.total_unread_count += 1;
+		} else if (change === "decrement") {
+			this.total_unread_count = Math.max(0, this.total_unread_count - 1);
+		}
+
+		set_notification_count(this.total_unread_count);
+	}
+
 	setup_socketio() {
 		const me = this;
 
@@ -577,23 +631,29 @@ export default class ChatList {
 			if (me.active_room_id === res.room) {
 				if (res.room) {
 					mark_message_read(res.room, me.whatsapp_account);
+					if (
+						chat_room_item[1].profile &&
+						chat_room_item[1].profile.unread_incoming > 0
+					) {
+						const oldUnread = chat_room_item[1].profile.unread_incoming;
+						me.total_unread_count = Math.max(0, me.total_unread_count - oldUnread);
+						chat_room_item[1].profile.unread_incoming = 0;
+						set_notification_count(me.total_unread_count);
+						chat_room_item[1].set_as_read();
+					}
 				}
 			} else {
 				if (chat_room_item[1].profile && chat_room_item[1].profile.is_read === 1) {
-					set_notification_count("increment");
-					if (chat_room_item[1].profile) {
-						chat_room_item[1].profile.is_read = 0;
-						chat_room_item[1].profile.unread_incoming =
-							(chat_room_item[1].profile.unread_incoming || 0) + 1;
-					}
+					const newUnreadCount = (chat_room_item[1].profile.unread_incoming || 0) + 1;
+					chat_room_item[1].profile.is_read = 0;
+					chat_room_item[1].profile.unread_incoming = newUnreadCount;
+					me.total_unread_count += 1;
+					set_notification_count(me.total_unread_count);
 
 					const $badge = chat_room_item[1].$chat_room
 						? chat_room_item[1].$chat_room.find(".waba-unread-badge")
 						: null;
-					const displayCount =
-						chat_room_item[1].profile && chat_room_item[1].profile.unread_incoming > 9
-							? "9+"
-							: chat_room_item[1].profile?.unread_incoming || 1;
+					const displayCount = newUnreadCount > 9 ? "9+" : newUnreadCount;
 					if ($badge && $badge.length) {
 						$badge.text(displayCount);
 					} else if (chat_room_item[1].$chat_room) {

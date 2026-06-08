@@ -21,6 +21,12 @@ export default class ChatAccountSwitcher {
 					.find('input[name="account_radio"]:checked')
 					.val();
 
+				const unreadCount = parseInt(
+					this.accountDialog.$wrapper
+						.find('input[name="account_radio"]:checked')
+						.data("unread") || 0,
+				);
+
 				if (!selectedAccount) {
 					frappe.msgprint(__("Please select an account"));
 					return;
@@ -40,7 +46,11 @@ export default class ChatAccountSwitcher {
 
 					if (res.message && res.message.success) {
 						this.currentAccount = selectedAccount;
-						this.onAccountChange(selectedAccount, res.message.account.account_name);
+						this.onAccountChange(
+							selectedAccount,
+							res.message.account.account_name,
+							unreadCount,
+						);
 						this.accountDialog.hide();
 					}
 				} finally {
@@ -65,12 +75,15 @@ export default class ChatAccountSwitcher {
 				html += `
           <div class="waba-account-row" style="border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 8px; transition: all 0.2s;">
             <label style="display: flex; align-items: center; padding: 12px 14px; margin: 0; cursor: pointer; width: 100%;">
-              <input type="radio" name="account_radio" class="waba-account-radio" value="${acc.name}" ${isCurrent ? "checked" : ""}>
+              <input type="radio" name="account_radio" class="waba-account-radio" value="${acc.name}" data-unread="${acc.unread_count || 0}" ${isCurrent ? "checked" : ""}>
               <div style="flex: 1;">
                 <div style="font-weight: 600; font-size: 14px;">${acc.account_name}</div>
                 <div style="font-size: 11px; color: var(--text-muted);">ID: ${acc.phone_id}</div>
               </div>
-              ${acc.is_default ? `<span class="badge" style="background: #25D366; color: #fff; font-size: 10px; margin-left: 10px; padding: 2px 8px; border-radius: 20px;">${__("Default")}</span>` : ""}
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                ${acc.unread_count > 0 ? `<span class="badge" style="background: var(--red-500); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 10px;">${acc.unread_count} ${__("unread")}</span>` : ""}
+                ${acc.is_default ? `<span class="badge" style="background: #25D366; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 20px;">${__("Default")}</span>` : ""}
+              </div>
             </label>
           </div>
         `;

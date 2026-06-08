@@ -38,8 +38,8 @@ frappe.Chat = class {
 		this.chat_bubble.render();
 
 		const navbar_icon_html = `
-			<li class='nav-item dropdown dropdown-notifications dropdown-mobile waba-navbar-icon' title="Show Chats">
-				${frappe.utils.icon("small-message", "md")}
+			<li class='nav-item dropdown dropdown-notifications dropdown-mobile waba-navbar-icon' title="Show Chats" style="display: flex; align-items: center; justify-content: center;">
+				<img src="/assets/waba_suite/whatsapp.png" alt="WhatsApp" style="width: 24px; height: 24px; object-fit: contain;" />
 				<span class="badge waba-notification-badge" id="waba-chat-notification-count"></span>
 			</li>
 		`;
