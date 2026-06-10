@@ -76,13 +76,11 @@ export default class ChatSpace {
 				this.profile.whatsapp_account,
 			);
 			this.last_message_count = res ? res.length : 0;
-			console.log("Fetched messages:", res);
 			this.setup_messages(res);
 			this.setup_actions();
 			this.render();
 			await this.mark_all_unread_as_read();
 		} catch (error) {
-			console.error("Error fetching messages:", error);
 			frappe.msgprint({
 				title: __("Error"),
 				message: __("Something went wrong. Please refresh and try again."),
@@ -114,9 +112,7 @@ export default class ChatSpace {
 					}
 				});
 			}
-		} catch (error) {
-			console.error("Error marking messages as read:", error);
-		}
+		} catch (error) {}
 	}
 
 	setup_messages(messages_list) {
@@ -179,6 +175,8 @@ export default class ChatSpace {
 				element.button_data,
 				element.interactive_data,
 				element.reactions || null,
+				element.is_template || false,
+				element.template_name || null,
 			).prop("outerHTML");
 
 			this.prevMessage = element;
@@ -222,6 +220,9 @@ export default class ChatSpace {
 				break;
 			case "interactive":
 				replied_content = "💬 " + __("Interactive Message");
+				break;
+			case "template":
+				replied_content = "📨 " + __("Template Message");
 				break;
 			default:
 				replied_content = replied_msg.content || replied_msg.message || "";
@@ -354,6 +355,9 @@ export default class ChatSpace {
 				break;
 			case "interactive":
 				replyText = "💬 " + __("Interactive Message");
+				break;
+			case "template":
+				replyText = "📨 " + __("Template Message");
 				break;
 			default:
 				replyText = message.content || message.message || "";
@@ -857,6 +861,8 @@ export default class ChatSpace {
 		buttonData = null,
 		interactiveData = null,
 		reactions = null,
+		isTemplate = false,
+		templateName = null,
 	) {
 		const message_class = type === "recipient" ? "waba-message-sent" : "waba-message-received";
 		const bubble_class =
@@ -895,6 +901,7 @@ export default class ChatSpace {
 					flow: "📋 " + __("Form"),
 					button: "🔘 " + __("Button"),
 					interactive: "💬 " + __("Interactive Message"),
+					template: "📨 " + __("Template Message"),
 				};
 				replyContent = typeIcons[repliedMessage.content_type] || replyContent;
 			}
@@ -913,6 +920,24 @@ export default class ChatSpace {
 		let $sanitized_content;
 
 		switch (contentType) {
+			case "template":
+				$sanitized_content = $(document.createElement("div"));
+				$sanitized_content.addClass("waba-template-content");
+				if (content) {
+					$sanitized_content.html(content);
+					$sanitized_content.css({
+						"font-size": "14px",
+						"line-height": "1.5",
+					});
+					$sanitized_content.find("button, a").on("click", function (e) {
+						e.stopPropagation();
+						const url = $(this).attr("href");
+						if (url && url !== "#") {
+							window.open(url, "_blank");
+						}
+					});
+				}
+				break;
 			case "image":
 				$sanitized_content = $(document.createElement("div"));
 				$sanitized_content.html(`
@@ -922,7 +947,6 @@ export default class ChatSpace {
 				$message_element.css({ padding: "0px", background: "inherit" });
 				$name_element.css({ color: "var(--wa-text-light)", "padding-bottom": "4px" });
 				break;
-
 			case "video":
 				$sanitized_content = $(document.createElement("div"));
 				$sanitized_content.html(`
@@ -933,7 +957,6 @@ export default class ChatSpace {
                 `);
 				$message_element.css({ padding: "0px", background: "inherit" });
 				break;
-
 			case "audio":
 				$sanitized_content = $(document.createElement("div"));
 				$sanitized_content.html(`
@@ -943,7 +966,6 @@ export default class ChatSpace {
                     ${caption ? `<div class='waba-message-caption'>${__(caption)}</div>` : ""}
                 `);
 				break;
-
 			case "document":
 				$sanitized_content = $(document.createElement("div"));
 				const fileName = content?.split("/").pop() || __("Document");
@@ -959,29 +981,24 @@ export default class ChatSpace {
                 `);
 				if (type === "recipient") $sanitized_content.css("color", "var(--wa-green-dark)");
 				break;
-
 			case "location":
 				$sanitized_content = $(document.createElement("div"));
 				$sanitized_content.html(this.renderLocationMessage(locationData || content));
 				break;
-
 			case "contact":
 				$sanitized_content = $(document.createElement("div"));
 				$sanitized_content.html(this.renderContactMessage(contactData || content));
 				break;
-
 			case "button":
 				$sanitized_content = $(document.createElement("div"));
 				$sanitized_content.html(
 					`<div>${content || ""}</div>${this.renderButtonMessage(buttonData || content)}`,
 				);
 				break;
-
 			case "interactive":
 				$sanitized_content = $(document.createElement("div"));
 				$sanitized_content.html(this.renderInteractiveMessage(interactiveData || content));
 				break;
-
 			case "flow":
 				$sanitized_content = $(document.createElement("div"));
 				let flowData = null;
@@ -1001,7 +1018,6 @@ export default class ChatSpace {
                     </div>
                 `);
 				break;
-
 			case "reaction":
 				$sanitized_content = $(document.createElement("div"));
 				let reactionData = null;
@@ -1017,7 +1033,6 @@ export default class ChatSpace {
                     </div>
                 `);
 				break;
-
 			default:
 				const n = content?.lastIndexOf("/") || -1;
 				const file_name = n > -1 ? content.substring(n + 1) : "";
@@ -1122,6 +1137,8 @@ export default class ChatSpace {
 				res.button_data,
 				res.interactive_data,
 				reactions,
+				res.is_template || false,
+				res.template_name || null,
 			),
 		);
 		scroll_to_bottom(this.$chat_space_container);
@@ -1306,7 +1323,6 @@ export default class ChatSpace {
 				}
 			}
 		} catch (error) {
-			console.error("Auto-refresh error:", error);
 		} finally {
 			this.is_refreshing = false;
 		}

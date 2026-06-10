@@ -175,7 +175,6 @@ export default class ChatList {
 				}
 			}
 		} catch (error) {
-			console.error("Error refreshing rooms:", error);
 		} finally {
 			this.is_refreshing = false;
 		}
@@ -298,9 +297,7 @@ export default class ChatList {
 			this.rooms = res || [];
 			this.setup_rooms();
 			this.render_messages();
-		} catch (error) {
-			console.error("Error fetching rooms:", error);
-		}
+		} catch (error) {}
 	}
 
 	setup_rooms() {

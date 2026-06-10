@@ -43,11 +43,35 @@ export default class ChatRoom {
 		);
 
 		const messageInfo = get_message_display_text(this.profile.last_message);
-		const last_message_text = this.sanitize_last_message(messageInfo.text);
+		let last_message_text = this.sanitize_last_message(messageInfo.text);
 		const last_message_status = messageInfo.status;
 		const last_message_type = messageInfo.type;
 		const last_message_date =
 			messageInfo.date || this.profile.last_date || this.profile.modified;
+
+		if (messageInfo.is_template) {
+			last_message_text = "📨 " + __("Template Message");
+		} else if (messageInfo.content_type === "image") {
+			last_message_text = "📷 " + __("Image");
+		} else if (messageInfo.content_type === "video") {
+			last_message_text = "🎥 " + __("Video");
+		} else if (messageInfo.content_type === "audio") {
+			last_message_text = "🎵 " + __("Audio");
+		} else if (messageInfo.content_type === "document") {
+			last_message_text = "📄 " + __("Document");
+		} else if (messageInfo.content_type === "location") {
+			last_message_text = "📍 " + __("Location");
+		} else if (messageInfo.content_type === "contact") {
+			last_message_text = "👤 " + __("Contact");
+		} else if (messageInfo.content_type === "reaction") {
+			last_message_text = "😊 " + __("Reaction");
+		} else if (messageInfo.content_type === "flow") {
+			last_message_text = "📋 " + __("Form");
+		} else if (messageInfo.content_type === "button") {
+			last_message_text = "🔘 " + __("Button");
+		} else if (messageInfo.content_type === "interactive") {
+			last_message_text = "💬 " + __("Interactive Message");
+		}
 
 		const status_icon = this.getMessageStatusIcon(last_message_type, last_message_status);
 		const unread_count = this.profile.unread_incoming || 0;
@@ -65,7 +89,7 @@ export default class ChatRoom {
 				</div>
 				<div class='waba-last-message'>
 					${status_icon}
-					<span>${__(last_message_text) || __("No messages yet")}</span>
+					<span>${last_message_text || __("No messages yet")}</span>
 				</div>
 			</div>
 		`;
@@ -119,12 +143,31 @@ export default class ChatRoom {
 
 	sanitize_last_message(message) {
 		if (!message) return "";
-		let sanitize_last_message = $("<div>").text(message).html();
-		if (sanitize_last_message) {
-			if (sanitize_last_message.length > 30) {
-				sanitize_last_message = sanitize_last_message.substring(0, 30) + "...";
+
+		let sanitize_last_message = "";
+
+		if (typeof message === "object") {
+			if (message.message && message.message.includes("<")) {
+				const tempDiv = document.createElement("div");
+				tempDiv.innerHTML = message.message;
+				sanitize_last_message = tempDiv.textContent || tempDiv.innerText || "";
+			} else {
+				sanitize_last_message = message.message || message.attach || "";
+			}
+		} else if (typeof message === "string") {
+			if (message.includes("<")) {
+				const tempDiv = document.createElement("div");
+				tempDiv.innerHTML = message;
+				sanitize_last_message = tempDiv.textContent || tempDiv.innerText || "";
+			} else {
+				sanitize_last_message = message;
 			}
 		}
+
+		if (sanitize_last_message && sanitize_last_message.length > 30) {
+			sanitize_last_message = sanitize_last_message.substring(0, 30) + "...";
+		}
+
 		return sanitize_last_message || "";
 	}
 
@@ -148,14 +191,52 @@ export default class ChatRoom {
 	}
 
 	set_last_message(message, date, status, type) {
-		const messageContent =
-			typeof message === "object" ? message.message || message.attach || "" : message;
-		const sanitized_message = this.sanitize_last_message(messageContent);
+		let messageContent = "";
+		let isTemplate = false;
+		let contentType = "text";
+
+		if (typeof message === "object") {
+			messageContent = message.message || message.attach || "";
+			isTemplate = message.is_template || false;
+			contentType = message.content_type || "text";
+		} else {
+			messageContent = message;
+		}
+
+		let displayText = "";
+
+		if (isTemplate) {
+			displayText = "📨 " + __("Template Message");
+		} else if (contentType === "image") {
+			displayText = "📷 " + __("Image");
+		} else if (contentType === "video") {
+			displayText = "🎥 " + __("Video");
+		} else if (contentType === "audio") {
+			displayText = "🎵 " + __("Audio");
+		} else if (contentType === "document") {
+			displayText = "📄 " + __("Document");
+		} else if (contentType === "location") {
+			displayText = "📍 " + __("Location");
+		} else if (contentType === "contact") {
+			displayText = "👤 " + __("Contact");
+		} else if (contentType === "reaction") {
+			displayText = "😊 " + __("Reaction");
+		} else {
+			if (typeof messageContent === "string" && messageContent.includes("<")) {
+				const tempDiv = document.createElement("div");
+				tempDiv.innerHTML = messageContent;
+				displayText = tempDiv.textContent || tempDiv.innerText || "";
+			} else {
+				displayText = messageContent;
+			}
+		}
+
+		const sanitized_message = this.sanitize_last_message(displayText);
 		const status_icon = this.getMessageStatusIcon(type || "Outgoing", status || "sent");
 
 		this.$chat_room.find(".waba-last-message").html(`
 			${status_icon}
-			<span>${__(sanitized_message)}</span>
+			<span>${sanitized_message || __("No messages yet")}</span>
 		`);
 		this.$chat_room.find(".waba-room-date").text(__(get_date_from_now(date, "room")));
 	}

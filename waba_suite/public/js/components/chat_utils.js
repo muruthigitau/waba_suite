@@ -45,30 +45,6 @@ function is_image(filename) {
 	return true;
 }
 
-function get_message_display_text(last_message) {
-	if (!last_message) {
-		return { text: "", type: "", status: "", date: "" };
-	}
-
-	let messageText = "";
-	let messageType = last_message.type || "Incoming";
-	let messageStatus = last_message.status || "sent";
-	let messageDate = last_message.creation || new Date();
-
-	if (typeof last_message === "object") {
-		messageText = last_message.message || last_message.attach || "";
-	} else {
-		messageText = last_message;
-	}
-
-	return {
-		text: messageText,
-		type: messageType,
-		status: messageStatus,
-		date: messageDate,
-	};
-}
-
 async function get_rooms(email, whatsapp_account) {
 	const res = await frappe.call({
 		type: "GET",
@@ -257,7 +233,77 @@ async function get_active_account() {
 	});
 	return res.message;
 }
+export function get_message_display_text(last_message) {
+	if (!last_message) {
+		return {
+			text: "",
+			status: "",
+			type: "",
+			date: null,
+			is_template: false,
+			content_type: "text",
+		};
+	}
 
+	let messageObj = last_message;
+	if (typeof last_message === "string") {
+		try {
+			messageObj = JSON.parse(last_message);
+		} catch (e) {
+			messageObj = {
+				message: last_message,
+				type: "Incoming",
+				status: "sent",
+				content_type: "text",
+				is_template: false,
+			};
+		}
+	}
+
+	let display_text = "";
+
+	if (messageObj.is_template) {
+		display_text = "📨 Template Message";
+	} else if (messageObj.content_type === "image") {
+		display_text = "📷 Image";
+	} else if (messageObj.content_type === "video") {
+		display_text = "🎥 Video";
+	} else if (messageObj.content_type === "audio") {
+		display_text = "🎵 Audio";
+	} else if (messageObj.content_type === "document") {
+		display_text = "📄 Document";
+	} else if (messageObj.content_type === "location") {
+		display_text = "📍 Location";
+	} else if (messageObj.content_type === "contact") {
+		display_text = "👤 Contact";
+	} else if (messageObj.content_type === "reaction") {
+		display_text = "😊 Reaction";
+	} else if (messageObj.content_type === "flow") {
+		display_text = "📋 Form";
+	} else if (messageObj.content_type === "button") {
+		display_text = "🔘 Button";
+	} else if (messageObj.content_type === "interactive") {
+		display_text = "💬 Interactive Message";
+	} else {
+		let raw_message = messageObj.message || messageObj.content || "";
+		if (raw_message && raw_message.includes("<")) {
+			const tempDiv = document.createElement("div");
+			tempDiv.innerHTML = raw_message;
+			display_text = tempDiv.textContent || tempDiv.innerText || "";
+		} else {
+			display_text = raw_message;
+		}
+	}
+
+	return {
+		text: display_text,
+		status: messageObj.status || "sent",
+		type: messageObj.type || "Incoming",
+		date: messageObj.creation,
+		is_template: messageObj.is_template || false,
+		content_type: messageObj.content_type || "text",
+	};
+}
 export {
 	create_guest,
 	create_private_room,
