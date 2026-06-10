@@ -28,8 +28,8 @@ class WhatsAppTemplates(Document):
 			self.get_session_id()
 			self.get_media_id()
 
-		if not self.is_new():
-			self.update_template()
+		# if not self.is_new():
+		# 	self.update_template()
 
 	def set_whatsapp_account(self):
 		"""Set whatsapp account to default if missing"""
