@@ -1,465 +1,277 @@
-import {
-  Archive,
-  Check,
-  CheckCheck,
-  ChevronLeft,
-  Clock,
-  MessageCircle,
-  MoreVertical,
-  Paperclip,
-  Phone,
-  Search,
-  Send,
-  Settings,
-  Smile,
-  Star,
-  Users,
-  Video,
-} from "lucide-react";
-import React, { useEffect, useState } from "react";
+import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
+import { MessageCircle } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ChatList } from "../components/chat/ChatList";
+import { ChatSpace } from "../components/chat/ChatSpace";
+import type { Account, Chat, Message, UserSettings } from "../types";
 
-interface Chat {
-  id: string;
-  name: string;
-  avatar: string;
-  lastMessage: string;
-  timestamp: string;
-  unreadCount: number;
-  online: boolean;
-  typing: boolean;
-  isGroup: boolean;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  timestamp: string;
-  isSent: boolean;
-  status: "sent" | "delivered" | "read";
-  type: "text" | "image" | "reaction";
-  reactions?: { emoji: string; count: number }[];
-  replyTo?: {
-    content: string;
-    sender: string;
-  };
-}
-
-const Home: React.FC = () => {
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
-  const [messageInput, setMessageInput] = useState("");
+export const WhatsAppHome: React.FC = () => {
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [chats, setChats] = useState<Chat[]>([
-    {
-      id: "1",
-      name: "Sarah Johnson",
-      avatar: "SJ",
-      lastMessage: "Hey! How are you?",
-      timestamp: "10:30 AM",
-      unreadCount: 2,
-      online: true,
-      typing: false,
-      isGroup: false,
-    },
-    {
-      id: "2",
-      name: "Design Team",
-      avatar: "DT",
-      lastMessage: "Great work on the project!",
-      timestamp: "Yesterday",
-      unreadCount: 0,
-      online: false,
-      typing: true,
-      isGroup: true,
-    },
-    {
-      id: "3",
-      name: "Mike Chen",
-      avatar: "MC",
-      lastMessage: "See you at the meeting",
-      timestamp: "Yesterday",
-      unreadCount: 0,
-      online: false,
-      typing: false,
-      isGroup: false,
-    },
-    {
-      id: "4",
-      name: "Emma Wilson",
-      avatar: "EW",
-      lastMessage: "Thanks for your help!",
-      timestamp: "Monday",
-      unreadCount: 0,
-      online: true,
-      typing: false,
-      isGroup: false,
-    },
-  ]);
-
-  const [messages, setMessages] = useState<Record<string, Message[]>>({
-    "1": [
-      {
-        id: "1",
-        content: "Hey! How are you?",
-        timestamp: "10:30 AM",
-        isSent: false,
-        status: "read",
-        type: "text",
-      },
-      {
-        id: "2",
-        content: "I'm doing great! Working on the new feature.",
-        timestamp: "10:31 AM",
-        isSent: true,
-        status: "read",
-        type: "text",
-      },
-      {
-        id: "3",
-        content: "That's awesome! Let me know if you need any help.",
-        timestamp: "10:32 AM",
-        isSent: false,
-        status: "read",
-        type: "text",
-      },
-    ],
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [currentAccount, setCurrentAccount] = useState<string>("");
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [userSettings, setUserSettings] = useState<UserSettings>({
+    enableMessageTone: true,
+    enableNotifications: true,
   });
+  const [currentUserName, setCurrentUserName] = useState<string>("User");
+
+  const { data: accountsData } = useFrappeGetCall<{
+    message: { accounts: Account[]; default_account: string };
+  }>("waba_suite.api.accounts.get_user_accounts_with_default", {}, undefined);
+
+  const { data: userSettingsData } = useFrappeGetCall<{
+    message: {
+      enable_message_tone: number;
+      enable_notifications: number;
+      full_name: string;
+    };
+  }>("waba_suite.api.config.get_user_settings", {}, undefined);
+
+  const shouldFetchRooms = useMemo(() => {
+    return !!currentAccount;
+  }, [currentAccount]);
+
+  const { data: roomsData, mutate: mutateRooms } = useFrappeGetCall<{
+    message: any[];
+  }>(
+    "waba_suite.api.contacts.get",
+    {
+      email: "",
+      whatsapp_account: currentAccount,
+    },
+    shouldFetchRooms ? undefined : { enabled: false },
+  );
+
+  const { call: sendMessageCall } = useFrappePostCall(
+    "waba_suite.api.message.send",
+  );
+  const { call: markMultipleAsReadCall } = useFrappePostCall(
+    "waba_suite.api.message.mark_multiple_as_read",
+  );
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth < 768) {
-        setShowSidebar(true);
-      }
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) setShowSidebar(true);
     };
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const getCurrentChat = () => {
-    return chats.find((chat) => chat.id === selectedChat);
-  };
-
-  const handleSendMessage = () => {
-    if (!messageInput.trim() || !selectedChat) return;
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content: messageInput,
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      isSent: true,
-      status: "sent",
-      type: "text",
-    };
-
-    setMessages((prev) => ({
-      ...prev,
-      [selectedChat]: [...(prev[selectedChat] || []), newMessage],
-    }));
-
-    setChats((prev) =>
-      prev.map((chat) =>
-        chat.id === selectedChat
-          ? { ...chat, lastMessage: messageInput, timestamp: "Just now" }
-          : chat,
-      ),
-    );
-
-    setMessageInput("");
-
-    setTimeout(() => {
-      setMessages((prev) => ({
-        ...prev,
-        [selectedChat]: prev[selectedChat].map((msg) =>
-          msg.id === newMessage.id ? { ...msg, status: "delivered" } : msg,
-        ),
-      }));
-    }, 1000);
-
-    setTimeout(() => {
-      setMessages((prev) => ({
-        ...prev,
-        [selectedChat]: prev[selectedChat].map((msg) =>
-          msg.id === newMessage.id ? { ...msg, status: "read" } : msg,
-        ),
-      }));
-    }, 2000);
-
-    setTimeout(() => {
-      const replyMessage: Message = {
-        id: Date.now().toString(),
-        content: "Thanks for your message!",
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        isSent: false,
-        status: "read",
-        type: "text",
-      };
-      setMessages((prev) => ({
-        ...prev,
-        [selectedChat]: [...(prev[selectedChat] || []), replyMessage],
-      }));
-    }, 3000);
-  };
-
-  const getMessageStatusIcon = (status: string) => {
-    switch (status) {
-      case "sent":
-        return <Check className="w-3 h-3" />;
-      case "delivered":
-        return <CheckCheck className="w-3 h-3" />;
-      case "read":
-        return <CheckCheck className="w-3 h-3 text-blue-500" />;
-      default:
-        return <Clock className="w-3 h-3" />;
+  useEffect(() => {
+    if (userSettingsData?.message) {
+      setUserSettings({
+        enableMessageTone: userSettingsData.message.enable_message_tone === 1,
+        enableNotifications:
+          userSettingsData.message.enable_notifications === 1,
+      });
+      if (userSettingsData.message.full_name) {
+        setCurrentUserName(userSettingsData.message.full_name);
+      }
     }
-  };
+  }, [userSettingsData]);
+
+  useEffect(() => {
+    if (accountsData?.message) {
+      const { accounts: accs, default_account } = accountsData.message;
+      if (accs && Array.isArray(accs)) {
+        setAccounts(accs);
+        let defaultAccName = default_account;
+        if (!defaultAccName && accs.length > 0) {
+          defaultAccName = accs[0].name;
+        }
+        if (defaultAccName && typeof defaultAccName === "string") {
+          setCurrentAccount(defaultAccName);
+        } else if (defaultAccName && typeof defaultAccName === "object") {
+          setCurrentAccount(defaultAccName.name);
+        }
+      }
+    }
+  }, [accountsData]);
+
+  const formattedChats = useMemo(() => {
+    if (!roomsData?.message) {
+      return [];
+    }
+
+    let roomsArray = roomsData.message;
+    if (!Array.isArray(roomsArray)) {
+      roomsArray = [];
+    }
+
+    return roomsArray.map((room: any) => {
+      let lastMessageContent = "";
+      let lastMessageType = "";
+      let lastMessageStatus = "";
+      let lastMessageTimestamp = room.modified;
+
+      if (room.last_message) {
+        lastMessageContent =
+          room.last_message.message || room.last_message.content || "";
+        lastMessageType =
+          room.last_message.type || room.last_message.content_type || "text";
+        lastMessageStatus = room.last_message.status || "sent";
+        lastMessageTimestamp = room.last_message.creation || room.modified;
+      }
+
+      return {
+        id: room.name,
+        name: room.contact_name || room.mobile_no,
+        mobileNo: room.mobile_no,
+        avatar:
+          (room.contact_name || room.mobile_no)?.charAt(0)?.toUpperCase() ||
+          "?",
+        lastMessage: lastMessageContent,
+        lastMessageType: lastMessageType,
+        lastMessageStatus: lastMessageStatus,
+        timestamp: lastMessageTimestamp,
+        unreadCount: room.unread_incoming || 0,
+        online: false,
+        typing: false,
+        isGroup: room.type === "Group",
+        whatsappAccount: room.whatsapp_account,
+        roomType: room.type,
+        contactName: room.contact_name,
+      };
+    });
+  }, [roomsData]);
+
+  useEffect(() => {
+    if (formattedChats.length > 0) {
+      setChats(formattedChats);
+    }
+  }, [formattedChats]);
+
+  const handleMarkAsRead = useCallback(
+    async (chat: Chat) => {
+      if (chat && chat.unreadCount > 0) {
+        try {
+          await markMultipleAsReadCall({
+            whatsapp_contact: chat.mobileNo,
+            whatsapp_account: chat.whatsappAccount,
+          });
+          setChats((prev) =>
+            prev.map((c) => (c.id === chat.id ? { ...c, unreadCount: 0 } : c)),
+          );
+        } catch (error) {
+          console.error("Failed to mark as read:", error);
+        }
+      }
+    },
+    [markMultipleAsReadCall],
+  );
+
+  const handleSendMessage = useCallback(
+    async (content: string, replyTo?: Message, chat?: Chat) => {
+      if (!chat) return;
+
+      const messageId = Date.now().toString();
+
+      if (userSettings.enableMessageTone) {
+        const audio = new Audio("/sounds/message-sent.mp3");
+        audio.play().catch(() => {});
+      }
+
+      try {
+        await sendMessageCall({
+          content,
+          user: chat.name,
+          room: chat.mobileNo,
+          user_no: "",
+          message_id: messageId,
+          whatsapp_account: chat.whatsappAccount,
+          reply_to_message_id: replyTo?.id || null,
+          content_type: "text",
+        });
+
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === chat.id
+              ? {
+                  ...c,
+                  lastMessage: content,
+                  timestamp: new Date().toISOString(),
+                  lastMessageStatus: "sent",
+                }
+              : c,
+          ),
+        );
+      } catch (error) {
+        console.error("Failed to send message:", error);
+      }
+    },
+    [sendMessageCall, userSettings.enableMessageTone],
+  );
+
+  const handleSwitchAccount = useCallback(
+    async (accountName: string) => {
+      setCurrentAccount(accountName);
+      setSelectedChatId(null);
+      setChats([]);
+      await mutateRooms();
+    },
+    [mutateRooms],
+  );
+
+  const selectedChat = useMemo(() => {
+    return selectedChatId
+      ? chats.find((c) => c.id === selectedChatId) || null
+      : null;
+  }, [chats, selectedChatId]);
+
+  const handleSelectChat = useCallback(
+    (id: string) => {
+      setSelectedChatId(id);
+      if (isMobile) setShowSidebar(false);
+    },
+    [isMobile],
+  );
+
+  const handleBack = useCallback(() => {
+    setShowSidebar(true);
+  }, []);
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-[#111b21]">
       <div
         className={`${
           showSidebar ? "flex" : "hidden"
-        } ${isMobile ? "absolute inset-0 z-20" : "relative w-96"} flex-col bg-white border-r border-gray-200`}
+        } ${isMobile ? "absolute inset-0 z-20" : "relative w-[400px]"} flex-col`}
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-semibold">
-              JD
-            </div>
-            <div>
-              <h2 className="font-semibold text-gray-800">John Doe</h2>
-              <p className="text-xs text-gray-500">Online</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <button className="p-2 hover:bg-gray-100 rounded-full transition">
-              <Users className="w-5 h-5 text-gray-600" />
-            </button>
-            <button className="p-2 hover:bg-gray-100 rounded-full transition">
-              <MessageCircle className="w-5 h-5 text-gray-600" />
-            </button>
-            <button className="p-2 hover:bg-gray-100 rounded-full transition">
-              <MoreVertical className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
-        </div>
-
-        <div className="p-3 border-b border-gray-200">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search or start new chat"
-              className="w-full pl-9 pr-4 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {chats.map((chat) => (
-            <div
-              key={chat.id}
-              onClick={() => {
-                setSelectedChat(chat.id);
-                if (isMobile) setShowSidebar(false);
-              }}
-              className={`flex items-center p-3 hover:bg-gray-50 cursor-pointer transition ${
-                selectedChat === chat.id ? "bg-gray-50" : ""
-              }`}
-            >
-              <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center text-white font-semibold">
-                  {chat.avatar}
-                </div>
-                {chat.online && (
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-                )}
-              </div>
-              <div className="flex-1 ml-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium text-gray-800">
-                      {chat.name}
-                    </span>
-                    {chat.isGroup && (
-                      <Users className="w-3 h-3 text-gray-400" />
-                    )}
-                  </div>
-                  <span className="text-xs text-gray-400">
-                    {chat.timestamp}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-sm text-gray-500 truncate max-w-[180px]">
-                    {chat.typing ? (
-                      <span className="text-green-500">Typing...</span>
-                    ) : (
-                      chat.lastMessage
-                    )}
-                  </p>
-                  {chat.unreadCount > 0 && (
-                    <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                      <span className="text-xs text-white">
-                        {chat.unreadCount}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="border-t border-gray-200 p-3">
-          <div className="flex items-center justify-between">
-            <button className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg transition w-full">
-              <Archive className="w-5 h-5 text-gray-600" />
-              <span className="text-sm text-gray-700">Archived</span>
-            </button>
-            <button className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg transition w-full">
-              <Star className="w-5 h-5 text-gray-600" />
-              <span className="text-sm text-gray-700">Starred</span>
-            </button>
-            <button className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg transition w-full">
-              <Settings className="w-5 h-5 text-gray-600" />
-              <span className="text-sm text-gray-700">Settings</span>
-            </button>
-          </div>
-        </div>
+        <ChatList
+          chats={chats}
+          selectedChatId={selectedChatId}
+          onSelectChat={handleSelectChat}
+          onClose={handleBack}
+          isMobile={isMobile}
+          currentAccount={currentAccount}
+          accounts={accounts}
+          onSwitchAccount={handleSwitchAccount}
+          userSettings={userSettings}
+          currentUserName={currentUserName}
+        />
       </div>
 
       <div className="flex-1 flex flex-col">
-        {selectedChat ? (
-          <>
-            <div className="flex items-center justify-between p-3 bg-white border-b border-gray-200">
-              <div className="flex items-center space-x-3">
-                {isMobile && (
-                  <button
-                    onClick={() => setShowSidebar(true)}
-                    className="p-1 hover:bg-gray-100 rounded-full transition mr-2"
-                  >
-                    <ChevronLeft className="w-5 h-5 text-gray-600" />
-                  </button>
-                )}
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center text-white font-semibold">
-                    {getCurrentChat()?.avatar}
-                  </div>
-                  {getCurrentChat()?.online && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-                  )}
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800">
-                    {getCurrentChat()?.name}
-                  </h3>
-                  <p className="text-xs text-gray-500">
-                    {getCurrentChat()?.typing
-                      ? "Typing..."
-                      : getCurrentChat()?.online
-                        ? "Online"
-                        : "Offline"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <button className="p-2 hover:bg-gray-100 rounded-full transition">
-                  <Phone className="w-5 h-5 text-gray-600" />
-                </button>
-                <button className="p-2 hover:bg-gray-100 rounded-full transition">
-                  <Video className="w-5 h-5 text-gray-600" />
-                </button>
-                <button className="p-2 hover:bg-gray-100 rounded-full transition">
-                  <MoreVertical className="w-5 h-5 text-gray-600" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-              {messages[selectedChat]?.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.isSent ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[70%] ${
-                      message.isSent
-                        ? "bg-green-500 text-white"
-                        : "bg-white text-gray-800"
-                    } rounded-lg px-4 py-2 shadow-sm`}
-                  >
-                    {message.replyTo && (
-                      <div className="mb-2 p-2 bg-gray-100 rounded text-xs text-gray-600">
-                        <p className="font-semibold">
-                          Replying to {message.replyTo.sender}
-                        </p>
-                        <p className="truncate">{message.replyTo.content}</p>
-                      </div>
-                    )}
-                    <p className="text-sm">{message.content}</p>
-                    <div className="flex items-center justify-end space-x-1 mt-1">
-                      <span className="text-[10px] opacity-70">
-                        {message.timestamp}
-                      </span>
-                      {message.isSent && getMessageStatusIcon(message.status)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="p-3 bg-white border-t border-gray-200">
-              <div className="flex items-center space-x-3">
-                <button className="p-2 hover:bg-gray-100 rounded-full transition">
-                  <Smile className="w-5 h-5 text-gray-600" />
-                </button>
-                <button className="p-2 hover:bg-gray-100 rounded-full transition">
-                  <Paperclip className="w-5 h-5 text-gray-600" />
-                </button>
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                  placeholder="Type a message"
-                  className="flex-1 px-4 py-2 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!messageInput.trim()}
-                  className="p-2 bg-green-500 hover:bg-green-600 rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Send className="w-5 h-5 text-white" />
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center bg-gray-50">
-            <div className="text-center">
-              <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gray-200 flex items-center justify-center">
-                <MessageCircle className="w-12 h-12 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                WhatsApp Web
-              </h3>
-              <p className="text-gray-500">Select a chat to start messaging</p>
-            </div>
-          </div>
-        )}
+        <ChatSpace
+          chat={selectedChat}
+          currentAccount={currentAccount}
+          onSendMessage={handleSendMessage}
+          onMarkAsRead={handleMarkAsRead}
+          onBack={handleBack}
+          isMobile={isMobile}
+        />
       </div>
 
       {isMobile && !showSidebar && (
         <button
-          onClick={() => setShowSidebar(true)}
-          className="fixed bottom-4 left-4 p-3 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 transition"
+          onClick={handleBack}
+          className="fixed bottom-4 left-4 p-3 bg-[#25D366] text-white rounded-full shadow-lg hover:bg-[#20b859] transition"
         >
           <MessageCircle className="w-6 h-6" />
         </button>
@@ -468,4 +280,4 @@ const Home: React.FC = () => {
   );
 };
 
-export default Home;
+export default WhatsAppHome;

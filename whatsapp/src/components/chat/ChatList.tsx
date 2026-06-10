@@ -1,153 +1,205 @@
 import {
   Archive,
-  ChevronLeft,
   MessageCircle,
   MoreVertical,
-  Search,
   Settings,
   Star,
   Users,
 } from "lucide-react";
-import React, { useState } from "react";
-import { useChat } from "../../contexts/ChatContext";
+import React, { useCallback, useMemo, useState } from "react";
+import type { Account, Chat } from "../../types";
 import { Avatar } from "../common/Avatar";
+import { SearchBar } from "../common/SearchBar";
 import { AccountSwitcher } from "../modals/AccountSwitcher";
 import { AddRoomModal } from "../modals/AddRoomModal";
 import { UserSettingsModal } from "../modals/UserSettingsModal";
-import { ChatRoomItem } from "./ChatRoomItem";
+import { ChatRoom } from "./ChatRoom";
 
 interface ChatListProps {
+  chats: Chat[];
+  selectedChatId: string | null;
+  onSelectChat: (chatId: string) => void;
   onClose?: () => void;
   isMobile?: boolean;
+  currentAccount: string;
+  accounts: Account[];
+  onSwitchAccount: (accountName: string) => Promise<void>;
+  userSettings: {
+    enableNotifications: boolean;
+  };
+  currentUserName?: string;
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
+  chats,
+  selectedChatId,
+  onSelectChat,
   onClose,
   isMobile = false,
+  currentAccount,
+  accounts,
+  onSwitchAccount,
+  userSettings,
+  currentUserName = "User",
 }) => {
-  const { chats, selectedChat, setSelectedChat, currentAccount, accounts } =
-    useChat();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  const filteredChats = chats.filter(
-    (chat) =>
-      chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.mobileNo.includes(searchQuery),
+  const filteredChats = useMemo(() => {
+    if (!searchQuery.trim()) return chats;
+    return chats.filter(
+      (chat) =>
+        chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        chat.mobileNo.includes(searchQuery),
+    );
+  }, [chats, searchQuery]);
+
+  const currentAccountInfo = useMemo(() => {
+    return accounts.find((acc) => acc.name === currentAccount);
+  }, [accounts, currentAccount]);
+
+  const formatTime = useCallback((timestamp: string) => {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+
+    if (hours < 24) {
+      return date.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } else if (hours < 48) {
+      return "Yesterday";
+    } else if (hours < 168) {
+      return date.toLocaleDateString([], { weekday: "short" });
+    } else {
+      return date.toLocaleDateString([], { month: "short", day: "numeric" });
+    }
+  }, []);
+
+  const handleSelectChat = useCallback(
+    (chatId: string) => {
+      onSelectChat(chatId);
+      if (isMobile && onClose) {
+        onClose();
+      }
+    },
+    [onSelectChat, isMobile, onClose],
   );
 
-  const handleChatSelect = (chat: (typeof chats)[0]) => {
-    setSelectedChat(chat);
-    if (isMobile && onClose) {
-      onClose();
-    }
-  };
-
-  const currentAccountInfo = accounts.find(
-    (acc) => acc.name === currentAccount,
+  const handleSwitchAccount = useCallback(
+    async (accountName: string) => {
+      await onSwitchAccount(accountName);
+      setShowAccountSwitcher(false);
+    },
+    [onSwitchAccount],
   );
 
   return (
     <>
-      <div className="flex flex-col h-full bg-white border-r border-gray-200">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex flex-col h-full bg-[#202c33]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3942] bg-[#202c33]">
           <div className="flex items-center space-x-3">
-            <Avatar name="John Doe" size="md" color="green" />
+            <Avatar name={currentUserName} size="md" color="#25D366" />
             <div>
-              <h2 className="font-semibold text-gray-800">John Doe</h2>
-              <p className="text-xs text-gray-500">Online</p>
+              <h2 className="font-semibold text-white text-sm">
+                {currentUserName}
+              </h2>
+              <p className="text-xs text-[#8696a0]">Online</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <button className="p-2 hover:bg-gray-100 rounded-full transition">
-              <Users className="w-5 h-5 text-gray-600" />
+            <button className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1]">
+              <Users className="w-5 h-5" />
             </button>
             <button
               onClick={() => setShowAddRoom(true)}
-              className="p-2 hover:bg-gray-100 rounded-full transition"
+              className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1]"
             >
-              <MessageCircle className="w-5 h-5 text-gray-600" />
+              <MessageCircle className="w-5 h-5" />
             </button>
-            <button className="p-2 hover:bg-gray-100 rounded-full transition">
-              <MoreVertical className="w-5 h-5 text-gray-600" />
+            <button className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1]">
+              <MoreVertical className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Account Switcher Bar */}
         {accounts.length > 1 && (
           <div
             onClick={() => setShowAccountSwitcher(true)}
-            className="flex items-center justify-between p-3 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition"
+            className="flex items-center justify-between px-4 py-2 bg-[#2a3942] cursor-pointer hover:bg-[#3b4a54] transition"
           >
             <div className="flex items-center space-x-2">
               <span className="text-lg">📱</span>
               <div>
-                <div className="text-sm font-medium text-gray-800">
+                <div className="text-sm font-medium text-white">
                   {currentAccountInfo?.account_name || currentAccount}
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-[#8696a0]">
                   Active WhatsApp Account
                 </div>
               </div>
             </div>
-            <div className="flex items-center text-sm text-green-600">
-              <span>Switch</span>
-              <ChevronLeft className="w-4 h-4 rotate-180" />
-            </div>
+            <div className="text-xs text-[#25D366]">Switch</div>
           </div>
         )}
 
-        {/* Search */}
-        <div className="p-3 border-b border-gray-200">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search or start new chat"
-              className="w-full pl-9 pr-4 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
+        <div className="p-3 bg-[#202c33]">
+          <SearchBar value={searchQuery} onChange={setSearchQuery} />
         </div>
 
-        {/* Chat List */}
         <div className="flex-1 overflow-y-auto">
-          {filteredChats.map((chat) => (
-            <ChatRoomItem
-              key={chat.id}
-              chat={chat}
-              isActive={selectedChat?.id === chat.id}
-              onClick={() => handleChatSelect(chat)}
-            />
-          ))}
+          {filteredChats.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center px-4">
+              <div className="w-16 h-16 rounded-full bg-[#2a3942] flex items-center justify-center mb-3">
+                <MessageCircle className="w-8 h-8 text-[#8696a0]" />
+              </div>
+              <p className="text-[#8696a0] text-sm font-medium">
+                {searchQuery ? "No chats found" : "No chats available"}
+              </p>
+              <p className="text-[#8696a0] text-xs mt-1">
+                {searchQuery
+                  ? "Try a different search term"
+                  : "Start a new conversation by clicking the + button"}
+              </p>
+            </div>
+          ) : (
+            filteredChats.map((chat) => (
+              <ChatRoom
+                key={chat.id}
+                chat={chat}
+                isActive={selectedChatId === chat.id}
+                onClick={() => handleSelectChat(chat.id)}
+                formatTime={formatTime}
+              />
+            ))
+          )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="border-t border-gray-200 p-3">
+        <div className="border-t border-[#2a3942] p-3">
           <div className="flex items-center justify-between">
-            <button className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg transition flex-1 justify-center">
-              <Archive className="w-5 h-5 text-gray-600" />
-              <span className="text-sm text-gray-700 hidden sm:inline">
+            <button className="flex flex-col items-center space-y-1 p-2 hover:bg-[#2a3942] rounded-lg transition flex-1 group">
+              <Archive className="w-5 h-5 text-[#aebac1] group-hover:text-white transition" />
+              <span className="text-[10px] text-[#aebac1] group-hover:text-white transition">
                 Archived
               </span>
             </button>
-            <button className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg transition flex-1 justify-center">
-              <Star className="w-5 h-5 text-gray-600" />
-              <span className="text-sm text-gray-700 hidden sm:inline">
+            <button className="flex flex-col items-center space-y-1 p-2 hover:bg-[#2a3942] rounded-lg transition flex-1 group">
+              <Star className="w-5 h-5 text-[#aebac1] group-hover:text-white transition" />
+              <span className="text-[10px] text-[#aebac1] group-hover:text-white transition">
                 Starred
               </span>
             </button>
             <button
               onClick={() => setShowSettings(true)}
-              className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg transition flex-1 justify-center"
+              className="flex flex-col items-center space-y-1 p-2 hover:bg-[#2a3942] rounded-lg transition flex-1 group"
             >
-              <Settings className="w-5 h-5 text-gray-600" />
-              <span className="text-sm text-gray-700 hidden sm:inline">
+              <Settings className="w-5 h-5 text-[#aebac1] group-hover:text-white transition" />
+              <span className="text-[10px] text-[#aebac1] group-hover:text-white transition">
                 Settings
               </span>
             </button>
@@ -155,14 +207,20 @@ export const ChatList: React.FC<ChatListProps> = ({
         </div>
       </div>
 
-      {/* Modals */}
       <AccountSwitcher
         isOpen={showAccountSwitcher}
         onClose={() => setShowAccountSwitcher(false)}
+        currentAccount={currentAccount}
+        accounts={accounts}
+        onSwitch={handleSwitchAccount}
       />
       <AddRoomModal
         isOpen={showAddRoom}
         onClose={() => setShowAddRoom(false)}
+        whatsappAccount={currentAccount}
+        onSuccess={() => {
+          if (onClose) onClose();
+        }}
       />
       <UserSettingsModal
         isOpen={showSettings}
