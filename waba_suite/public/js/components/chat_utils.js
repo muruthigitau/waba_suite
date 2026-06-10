@@ -233,7 +233,7 @@ async function get_active_account() {
 	});
 	return res.message;
 }
-export function get_message_display_text(last_message) {
+function get_message_display_text(last_message) {
 	if (!last_message) {
 		return {
 			text: "",
