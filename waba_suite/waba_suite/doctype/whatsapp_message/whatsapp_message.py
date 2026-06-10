@@ -164,7 +164,6 @@ class WhatsAppMessage(Document):
 		button_html = []
 
 		if template.header_type == "IMAGE" and self.file_url:
-			# Use file_url for image
 			url = self.file_url if self.file_url.startswith("http") else frappe.utils.get_url(self.file_url)
 
 			data["template"]["components"].append(
@@ -180,14 +179,12 @@ class WhatsAppMessage(Document):
 			file_url = None
 			filename = None
 
-			# Check if file_url exists and is valid
 			if self.file_url:
 				file_url = (
 					self.file_url if self.file_url.startswith("http") else frappe.utils.get_url(self.file_url)
 				)
 				filename = file_url.split("/")[-1]
 
-			# If no file_url, generate from source_doc (similar to first function)
 			elif source_doc:
 				pdf = frappe.attach_print(
 					doctype=source_doc.doctype,
@@ -214,7 +211,6 @@ class WhatsAppMessage(Document):
 					file_url = frappe.utils.get_url(file_doc.file_url)
 					filename = file_doc.file_name
 
-					# Update the WhatsApp Message with the file_url
 					frappe.db.set_value(
 						"WhatsApp Message",
 						self.name,
@@ -223,7 +219,6 @@ class WhatsAppMessage(Document):
 						update_modified=False,
 					)
 
-			# Use the file_url if available
 			if file_url:
 				data["template"]["components"].append(
 					{
