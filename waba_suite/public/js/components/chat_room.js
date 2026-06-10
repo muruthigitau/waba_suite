@@ -4,7 +4,6 @@ import {
 	get_date_from_now,
 	get_message_display_text,
 	mark_message_read,
-	set_notification_count,
 } from "./chat_utils";
 
 export default class ChatRoom {
@@ -16,29 +15,20 @@ export default class ChatRoom {
 		this.$chat_room = null;
 		this.chat_space = null;
 		this.setup();
-		if (!this.profile.is_read) {
-			set_notification_count("increment");
-		}
 	}
 
 	update_room_data(new_profile) {
-		const had_unread = !this.profile.is_read;
 		const old_unread_count = this.profile.unread_incoming || 0;
+		const new_unread_count = new_profile.unread_incoming || 0;
 
 		this.profile = { ...this.profile, ...new_profile };
 
 		if (this.$chat_room) {
 			this.refresh_display();
 
-			if (!had_unread && !this.profile.is_read) {
-				set_notification_count("increment");
-			} else if (had_unread && this.profile.is_read) {
-				set_notification_count("decrement");
-			} else if (!this.profile.is_read && this.profile.unread_incoming > old_unread_count) {
-				const diff = this.profile.unread_incoming - old_unread_count;
-				for (let i = 0; i < diff; i++) {
-					set_notification_count("increment");
-				}
+			const unread_diff = new_unread_count - old_unread_count;
+			if (unread_diff !== 0 && this.chat_list) {
+				this.chat_list.update_unread_count(null, this.profile.room, new_unread_count);
 			}
 		}
 	}
@@ -53,11 +43,35 @@ export default class ChatRoom {
 		);
 
 		const messageInfo = get_message_display_text(this.profile.last_message);
-		const last_message_text = this.sanitize_last_message(messageInfo.text);
+		let last_message_text = this.sanitize_last_message(messageInfo.text);
 		const last_message_status = messageInfo.status;
 		const last_message_type = messageInfo.type;
 		const last_message_date =
 			messageInfo.date || this.profile.last_date || this.profile.modified;
+
+		if (messageInfo.is_template) {
+			last_message_text = "📨 " + __("Template Message");
+		} else if (messageInfo.content_type === "image") {
+			last_message_text = "📷 " + __("Image");
+		} else if (messageInfo.content_type === "video") {
+			last_message_text = "🎥 " + __("Video");
+		} else if (messageInfo.content_type === "audio") {
+			last_message_text = "🎵 " + __("Audio");
+		} else if (messageInfo.content_type === "document") {
+			last_message_text = "📄 " + __("Document");
+		} else if (messageInfo.content_type === "location") {
+			last_message_text = "📍 " + __("Location");
+		} else if (messageInfo.content_type === "contact") {
+			last_message_text = "👤 " + __("Contact");
+		} else if (messageInfo.content_type === "reaction") {
+			last_message_text = "😊 " + __("Reaction");
+		} else if (messageInfo.content_type === "flow") {
+			last_message_text = "📋 " + __("Form");
+		} else if (messageInfo.content_type === "button") {
+			last_message_text = "🔘 " + __("Button");
+		} else if (messageInfo.content_type === "interactive") {
+			last_message_text = "💬 " + __("Interactive Message");
+		}
 
 		const status_icon = this.getMessageStatusIcon(last_message_type, last_message_status);
 		const unread_count = this.profile.unread_incoming || 0;
@@ -75,7 +89,7 @@ export default class ChatRoom {
 				</div>
 				<div class='waba-last-message'>
 					${status_icon}
-					<span>${__(last_message_text) || __("No messages yet")}</span>
+					<span>${last_message_text || __("No messages yet")}</span>
 				</div>
 			</div>
 		`;
@@ -129,12 +143,31 @@ export default class ChatRoom {
 
 	sanitize_last_message(message) {
 		if (!message) return "";
-		let sanitize_last_message = $("<div>").text(message).html();
-		if (sanitize_last_message) {
-			if (sanitize_last_message.length > 30) {
-				sanitize_last_message = sanitize_last_message.substring(0, 30) + "...";
+
+		let sanitize_last_message = "";
+
+		if (typeof message === "object") {
+			if (message.message && message.message.includes("<")) {
+				const tempDiv = document.createElement("div");
+				tempDiv.innerHTML = message.message;
+				sanitize_last_message = tempDiv.textContent || tempDiv.innerText || "";
+			} else {
+				sanitize_last_message = message.message || message.attach || "";
+			}
+		} else if (typeof message === "string") {
+			if (message.includes("<")) {
+				const tempDiv = document.createElement("div");
+				tempDiv.innerHTML = message;
+				sanitize_last_message = tempDiv.textContent || tempDiv.innerText || "";
+			} else {
+				sanitize_last_message = message;
 			}
 		}
+
+		if (sanitize_last_message && sanitize_last_message.length > 30) {
+			sanitize_last_message = sanitize_last_message.substring(0, 30) + "...";
+		}
+
 		return sanitize_last_message || "";
 	}
 
@@ -145,40 +178,92 @@ export default class ChatRoom {
 	}
 
 	set_as_read() {
+		if (this.profile.is_read === 1) return;
+
 		this.profile.is_read = 1;
+		const old_unread = this.profile.unread_incoming || 0;
+		this.profile.unread_incoming = 0;
 		this.$chat_room.find(".waba-unread-badge").remove();
-		set_notification_count("decrement");
+
+		if (this.chat_list && old_unread > 0) {
+			this.chat_list.update_unread_count("decrement", this.profile.room, 0);
+		}
 	}
 
 	set_last_message(message, date, status, type) {
-		const messageContent =
-			typeof message === "object" ? message.message || message.attach || "" : message;
-		const sanitized_message = this.sanitize_last_message(messageContent);
+		let messageContent = "";
+		let isTemplate = false;
+		let contentType = "text";
+
+		if (typeof message === "object") {
+			messageContent = message.message || message.attach || "";
+			isTemplate = message.is_template || false;
+			contentType = message.content_type || "text";
+		} else {
+			messageContent = message;
+		}
+
+		let displayText = "";
+
+		if (isTemplate) {
+			displayText = "📨 " + __("Template Message");
+		} else if (contentType === "image") {
+			displayText = "📷 " + __("Image");
+		} else if (contentType === "video") {
+			displayText = "🎥 " + __("Video");
+		} else if (contentType === "audio") {
+			displayText = "🎵 " + __("Audio");
+		} else if (contentType === "document") {
+			displayText = "📄 " + __("Document");
+		} else if (contentType === "location") {
+			displayText = "📍 " + __("Location");
+		} else if (contentType === "contact") {
+			displayText = "👤 " + __("Contact");
+		} else if (contentType === "reaction") {
+			displayText = "😊 " + __("Reaction");
+		} else {
+			if (typeof messageContent === "string" && messageContent.includes("<")) {
+				const tempDiv = document.createElement("div");
+				tempDiv.innerHTML = messageContent;
+				displayText = tempDiv.textContent || tempDiv.innerText || "";
+			} else {
+				displayText = messageContent;
+			}
+		}
+
+		const sanitized_message = this.sanitize_last_message(displayText);
 		const status_icon = this.getMessageStatusIcon(type || "Outgoing", status || "sent");
 
 		this.$chat_room.find(".waba-last-message").html(`
 			${status_icon}
-			<span>${__(sanitized_message)}</span>
+			<span>${sanitized_message || __("No messages yet")}</span>
 		`);
 		this.$chat_room.find(".waba-room-date").text(__(get_date_from_now(date, "room")));
 	}
 
 	set_as_unread(unreadCount) {
 		if (this.profile.is_read) {
-			set_notification_count("increment");
-		}
-		this.profile.is_read = 0;
-		this.profile.unread_incoming = unreadCount || this.profile.unread_incoming + 1;
+			this.profile.is_read = 0;
+			const newUnreadCount = unreadCount || this.profile.unread_incoming + 1;
+			const oldUnread = this.profile.unread_incoming || 0;
+			this.profile.unread_incoming = newUnreadCount;
 
-		const $nameDiv = this.$chat_room.find(".waba-room-name");
-		const $existingBadge = $nameDiv.find(".waba-unread-badge");
-		const displayCount =
-			this.profile.unread_incoming > 9 ? "9+" : this.profile.unread_incoming;
+			if (this.chat_list) {
+				const diff = newUnreadCount - oldUnread;
+				if (diff > 0) {
+					this.chat_list.update_unread_count(null, this.profile.room, newUnreadCount);
+				}
+			}
 
-		if ($existingBadge.length) {
-			$existingBadge.text(displayCount);
-		} else {
-			$nameDiv.append(`<div class='waba-unread-badge'>${displayCount}</div>`);
+			const $nameDiv = this.$chat_room.find(".waba-room-name");
+			const $existingBadge = $nameDiv.find(".waba-unread-badge");
+			const displayCount = newUnreadCount > 9 ? "9+" : newUnreadCount;
+
+			if ($existingBadge.length) {
+				$existingBadge.text(displayCount);
+			} else {
+				$nameDiv.append(`<div class='waba-unread-badge'>${displayCount}</div>`);
+			}
 		}
 	}
 

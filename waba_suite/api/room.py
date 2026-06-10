@@ -189,7 +189,6 @@ def update_session(session):
 def close_session(session):
 	try:
 		session.db_set("status", "Expired", update_modified=False)
-		session.db_set("ended_by_system", 1, update_modified=False)
 	except Exception:
 		frappe.log_error(
 			title=f"WhatsApp Session Close Error: {session.name}",

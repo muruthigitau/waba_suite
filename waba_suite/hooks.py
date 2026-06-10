@@ -296,3 +296,5 @@ sounds = [
 		"volume": 0.5,
 	},
 ]
+
+website_route_rules = [{'from_route': '/whatsapp/<path:app_path>', 'to_route': 'whatsapp'},]

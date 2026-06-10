@@ -37,16 +37,15 @@
 
 .waba-chat-app {
 	position: fixed;
-	bottom: 24px;
+	bottom: 20px;
 	right: 0;
 	display: flex;
 	flex-direction: column;
 	align-items: flex-end;
 	justify-content: flex-end;
 	width: 100%;
-	max-width: 400px;
 	z-index: 1030;
-	padding: 0 1rem;
+	padding: 0 16px;
 	font-family:
 		"Inter",
 		-apple-system,
@@ -59,11 +58,10 @@
 
 .waba-chat-element {
 	position: relative;
-	height: 620px;
 	width: 100%;
 	border-radius: var(--wa-radius-xl);
 	overflow: hidden;
-	margin-bottom: 16px;
+	margin-bottom: 12px;
 	background: var(--wa-bg-sidebar);
 	box-shadow: var(--wa-shadow-lg);
 	transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -97,8 +95,8 @@
 	font-weight: 600;
 	display: flex;
 	align-items: center;
-	padding: 14px 24px;
-	gap: 12px;
+	padding: 12px 20px;
+	gap: 10px;
 	box-shadow: var(--wa-shadow-md);
 	transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 	font-size: 14px;
@@ -110,8 +108,8 @@
 .waba-chat-bubble svg {
 	fill: #ffffff;
 	flex-shrink: 0;
-	width: 22px;
-	height: 22px;
+	width: 20px;
+	height: 20px;
 }
 
 .waba-chat-bubble:hover {
@@ -125,8 +123,8 @@
 }
 
 .waba-chat-bubble-closed {
-	width: 60px;
-	height: 60px;
+	width: 56px;
+	height: 56px;
 	border-radius: 50%;
 	padding: 0;
 	display: flex;
@@ -144,24 +142,24 @@
 
 .waba-chat-bubble-closed .waba-cross-icon svg {
 	fill: #ffffff;
-	width: 26px;
-	height: 26px;
+	width: 24px;
+	height: 24px;
 }
 
 .waba-chat-header {
 	display: flex;
 	align-items: center;
-	padding: 14px 18px;
+	padding: 12px 16px;
 	background: var(--wa-bg-header);
 	border-bottom: 1px solid var(--wa-border);
-	min-height: 64px;
-	gap: 14px;
+	min-height: 60px;
+	gap: 12px;
 	backdrop-filter: blur(10px);
 }
 
 .waba-chat-back-button {
-	height: 40px;
-	width: 40px;
+	height: 36px;
+	width: 36px;
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -181,13 +179,13 @@
 
 .waba-chat-back-button svg {
 	fill: currentColor;
-	width: 20px;
-	height: 20px;
+	width: 18px;
+	height: 18px;
 }
 
 .waba-chat-close-button {
-	height: 40px;
-	width: 40px;
+	height: 36px;
+	width: 36px;
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -197,7 +195,7 @@
 	transition: all 0.2s;
 	color: var(--wa-icon);
 	background: transparent;
-	margin-left: 8px;
+	margin-left: 4px;
 }
 
 .waba-chat-close-button:hover {
@@ -212,17 +210,17 @@
 
 .waba-chat-close-button svg {
 	fill: currentColor;
-	width: 20px;
-	height: 20px;
+	width: 18px;
+	height: 18px;
 }
 
 .waba-chat-avatar {
-	width: 44px !important;
-	height: 44px !important;
+	width: 40px !important;
+	height: 40px !important;
 	border-radius: 50% !important;
 	flex-shrink: 0;
-	font-size: 18px !important;
-	line-height: 44px !important;
+	font-size: 16px !important;
+	line-height: 40px !important;
 	background: linear-gradient(135deg, var(--wa-primary) 0%, var(--wa-secondary) 100%) !important;
 	color: #ffffff !important;
 	font-weight: 600 !important;
@@ -241,15 +239,15 @@
 .waba-chat-profile-name {
 	color: var(--wa-text-primary);
 	font-weight: 600;
-	font-size: 16px;
+	font-size: 15px;
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
 	letter-spacing: -0.2px;
 }
 
 .waba-chat-profile-status {
-	font-size: 12px;
+	font-size: 11px;
 	color: var(--wa-text-secondary);
 	visibility: hidden;
 	margin-top: 2px;
@@ -257,8 +255,8 @@
 
 .waba-online-circle {
 	display: inline-block;
-	height: 10px;
-	width: 10px;
+	height: 8px;
+	width: 8px;
 	border-radius: 50%;
 	background: var(--wa-online);
 	box-shadow: 0 0 0 2px rgba(37, 211, 102, 0.3);
@@ -278,12 +276,12 @@
 .waba-chat-header-actions {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 4px;
 }
 
 .waba-header-icon {
-	width: 40px;
-	height: 40px;
+	width: 36px;
+	height: 36px;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
@@ -301,13 +299,13 @@
 
 .waba-header-icon svg {
 	fill: currentColor;
-	width: 20px;
-	height: 20px;
+	width: 18px;
+	height: 18px;
 }
 
 .waba-account-header {
 	background: var(--wa-primary-light) !important;
-	padding: 12px 18px !important;
+	padding: 10px 16px !important;
 	border-bottom: 1px solid var(--wa-border) !important;
 	display: flex !important;
 	justify-content: space-between !important;
@@ -323,32 +321,32 @@
 .waba-account-info {
 	display: flex !important;
 	align-items: center !important;
-	gap: 12px !important;
+	gap: 10px !important;
 }
 
 .waba-account-icon {
-	font-size: 22px;
+	font-size: 20px;
 }
 
 .waba-account-name {
 	color: var(--wa-text-primary) !important;
 	font-weight: 600 !important;
-	font-size: 14px !important;
+	font-size: 13px !important;
 }
 
 .waba-account-status {
 	color: var(--wa-text-secondary) !important;
-	font-size: 11px !important;
+	font-size: 10px !important;
 	margin-top: 2px;
 }
 
 .waba-switch-account {
 	background: rgba(37, 211, 102, 0.12) !important;
-	border-radius: 24px !important;
-	padding: 6px 14px !important;
+	border-radius: 20px !important;
+	padding: 5px 12px !important;
 	display: flex !important;
 	align-items: center !important;
-	gap: 8px;
+	gap: 6px;
 	cursor: pointer;
 	transition: all 0.2s;
 	color: var(--wa-primary);
@@ -362,13 +360,13 @@
 
 .waba-switch-account svg {
 	fill: var(--wa-primary) !important;
-	width: 16px;
-	height: 16px;
+	width: 14px;
+	height: 14px;
 }
 
 .waba-switch-account span {
 	color: var(--wa-primary) !important;
-	font-size: 12px !important;
+	font-size: 11px !important;
 	font-weight: 600;
 }
 
@@ -380,18 +378,18 @@
 }
 
 .waba-chat-list-header {
-	padding: 16px 18px;
+	padding: 12px 16px;
 	background: var(--wa-bg-header);
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	min-height: 64px;
+	min-height: 60px;
 	border-bottom: 1px solid var(--wa-border);
 }
 
 .waba-chat-list-header h3 {
 	color: var(--wa-text-primary);
-	font-size: 20px;
+	font-size: 18px;
 	font-weight: 700;
 	margin: 0;
 	letter-spacing: -0.3px;
@@ -400,13 +398,13 @@
 .waba-chat-list-icons {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: 8px;
 }
 
 .waba-list-icon {
 	cursor: pointer;
-	width: 40px;
-	height: 40px;
+	width: 36px;
+	height: 36px;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
@@ -423,12 +421,12 @@
 
 .waba-list-icon svg {
 	fill: currentColor !important;
-	width: 20px;
-	height: 20px;
+	width: 18px;
+	height: 18px;
 }
 
 .waba-chat-search {
-	padding: 12px 16px;
+	padding: 10px 16px;
 	background: var(--wa-bg-sidebar);
 	border-bottom: 1px solid var(--wa-border);
 	flex-shrink: 0;
@@ -442,7 +440,7 @@
 
 .waba-search-icon {
 	position: absolute;
-	left: 16px;
+	left: 14px;
 	z-index: 3;
 	display: flex;
 	align-items: center;
@@ -451,17 +449,17 @@
 
 .waba-search-icon svg {
 	fill: currentColor;
-	width: 18px;
-	height: 18px;
+	width: 16px;
+	height: 16px;
 }
 
 .waba-chat-search-box {
 	width: 100%;
 	background: var(--wa-bg-search);
 	border: none;
-	border-radius: 32px;
-	padding: 12px 16px 12px 48px;
-	font-size: 14px;
+	border-radius: 28px;
+	padding: 10px 14px 10px 42px;
+	font-size: 13px;
 	color: var(--wa-text-primary);
 	outline: none;
 	transition: all 0.2s;
@@ -486,11 +484,11 @@
 .waba-chat-room {
 	display: flex;
 	align-items: center;
-	padding: 14px 18px;
+	padding: 12px 16px;
 	cursor: pointer;
 	border-bottom: 1px solid var(--wa-border-light);
 	transition: all 0.2s;
-	gap: 14px;
+	gap: 12px;
 }
 
 .waba-chat-room:hover {
@@ -499,12 +497,12 @@
 }
 
 .waba-room-avatar {
-	width: 52px !important;
-	height: 52px !important;
+	width: 48px !important;
+	height: 48px !important;
 	border-radius: 50% !important;
 	flex-shrink: 0;
-	font-size: 20px !important;
-	line-height: 52px !important;
+	font-size: 18px !important;
+	line-height: 48px !important;
 	background: linear-gradient(135deg, var(--wa-primary) 0%, var(--wa-secondary) 100%) !important;
 	color: #ffffff !important;
 	font-weight: 600 !important;
@@ -521,7 +519,7 @@
 }
 
 .waba-room-name {
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 600;
 	color: var(--wa-text-primary);
 	display: flex;
@@ -531,21 +529,21 @@
 }
 
 .waba-unread-badge {
-	min-width: 20px;
-	height: 20px;
+	min-width: 18px;
+	height: 18px;
 	background: var(--wa-unread);
 	border-radius: 50%;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 11px;
+	font-size: 10px;
 	color: #ffffff;
 	font-weight: 700;
-	padding: 0 6px;
+	padding: 0 5px;
 }
 
 .waba-last-message {
-	font-size: 13px;
+	font-size: 12px;
 	color: var(--wa-text-secondary);
 	white-space: nowrap;
 	overflow: hidden;
@@ -554,7 +552,7 @@
 }
 
 .waba-room-date {
-	font-size: 11px;
+	font-size: 10px;
 	color: var(--wa-text-light);
 	white-space: nowrap;
 	align-self: flex-start;
@@ -573,7 +571,7 @@
 .waba-chat-space::before {
 	content: "";
 	position: absolute;
-	inset: 64px 0 0 0;
+	inset: 60px 0 0 0;
 	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cpattern id='p' patternUnits='userSpaceOnUse' width='120' height='120'%3E%3Ccircle cx='20' cy='20' r='1.5' fill='%2325D366' fill-opacity='0.08'/%3E%3Ccircle cx='60' cy='60' r='1.5' fill='%2325D366' fill-opacity='0.08'/%3E%3Ccircle cx='100' cy='100' r='1.5' fill='%2325D366' fill-opacity='0.08'/%3E%3C/pattern%3E%3Crect width='400' height='400' fill='url(%23p)'/%3E%3C/svg%3E");
 	pointer-events: none;
 	z-index: 0;
@@ -582,7 +580,7 @@
 .waba-messages-container {
 	flex: 1;
 	overflow-y: auto;
-	padding: 16px 20px;
+	padding: 12px 16px;
 	position: relative;
 	z-index: 1;
 	display: flex;
@@ -594,15 +592,15 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin: 16px 0 12px;
+	margin: 12px 0 10px;
 }
 
 .waba-date-divider span {
 	background: rgba(0, 0, 0, 0.05);
 	color: var(--wa-text-secondary);
-	font-size: 11px;
+	font-size: 10px;
 	font-weight: 600;
-	padding: 6px 14px;
+	padding: 4px 12px;
 	border-radius: var(--wa-radius-full);
 	backdrop-filter: blur(10px);
 	letter-spacing: 0.3px;
@@ -619,25 +617,25 @@
 .waba-message-bubble-sent {
 	background: var(--wa-bubble-out);
 	color: var(--wa-text-primary);
-	padding: 10px 14px 11px;
-	border-radius: 20px 20px 6px 20px;
+	padding: 8px 12px 9px;
+	border-radius: 18px 18px 5px 18px;
 	max-width: 75%;
-	min-width: 80px;
-	font-size: 14px;
-	line-height: 1.45;
+	min-width: 70px;
+	font-size: 13px;
+	line-height: 1.4;
 	position: relative;
 	word-break: break-word;
 	box-shadow: var(--wa-bubble-shadow);
 }
 
 .waba-message-sent .waba-message-time {
-	font-size: 10px;
+	font-size: 9px;
 	color: var(--wa-text-light);
-	margin-top: 4px;
-	padding-right: 6px;
+	margin-top: 3px;
+	padding-right: 5px;
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: 3px;
 	font-weight: 500;
 }
 
@@ -652,37 +650,37 @@
 .waba-message-bubble-received {
 	background: var(--wa-bubble-in);
 	color: var(--wa-text-primary);
-	padding: 10px 14px 11px;
-	border-radius: 20px 20px 20px 6px;
+	padding: 8px 12px 9px;
+	border-radius: 18px 18px 18px 5px;
 	max-width: 75%;
-	min-width: 80px;
-	font-size: 14px;
-	line-height: 1.45;
+	min-width: 70px;
+	font-size: 13px;
+	line-height: 1.4;
 	position: relative;
 	word-break: break-word;
 	box-shadow: var(--wa-bubble-shadow);
 }
 
 .waba-message-name {
-	font-size: 12px;
+	font-size: 11px;
 	font-weight: 700;
 	color: var(--wa-primary);
-	margin-bottom: 4px;
+	margin-bottom: 3px;
 	letter-spacing: -0.2px;
 }
 
 .waba-message-received .waba-message-time {
-	font-size: 10px;
+	font-size: 9px;
 	color: var(--wa-text-light);
-	margin-top: 4px;
-	padding-left: 6px;
+	margin-top: 3px;
+	padding-left: 5px;
 	font-weight: 500;
 }
 
 .waba-chat-image {
-	border-radius: 16px;
-	max-width: 240px;
-	max-height: 240px;
+	border-radius: 14px;
+	max-width: 200px;
+	max-height: 200px;
 	object-fit: cover;
 	display: block;
 	cursor: pointer;
@@ -694,21 +692,21 @@
 }
 
 .waba-message-caption {
-	font-size: 12px;
-	padding: 6px 8px 4px;
-	margin-top: 6px;
-	border-radius: 0 0 12px 12px;
+	font-size: 11px;
+	padding: 5px 7px 3px;
+	margin-top: 5px;
+	border-radius: 0 0 10px 10px;
 	background: transparent;
 	color: var(--wa-text-secondary);
-	line-height: 1.4;
+	line-height: 1.3;
 }
 
 .waba-chat-actions {
 	display: flex;
 	align-items: center;
-	padding: 12px 18px;
+	padding: 10px 16px;
 	background: var(--wa-bg-header);
-	gap: 14px;
+	gap: 10px;
 	position: relative;
 	z-index: 1;
 	border-top: 1px solid var(--wa-border);
@@ -717,8 +715,8 @@
 }
 
 .waba-attach-button {
-	width: 44px;
-	height: 44px;
+	width: 40px;
+	height: 40px;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
@@ -737,17 +735,17 @@
 
 .waba-attach-button svg {
 	fill: currentColor;
-	width: 22px;
-	height: 22px;
+	width: 20px;
+	height: 20px;
 }
 
 .waba-type-message {
 	flex: 1;
 	background: var(--wa-bg-search);
 	border: none;
-	border-radius: 28px;
-	padding: 12px 18px;
-	font-size: 14px;
+	border-radius: 24px;
+	padding: 10px 16px;
+	font-size: 13px;
 	color: var(--wa-text-primary);
 	outline: none;
 	line-height: 1.4;
@@ -765,8 +763,8 @@
 }
 
 .waba-send-button {
-	width: 44px;
-	height: 44px;
+	width: 40px;
+	height: 40px;
 	border-radius: 50%;
 	background: var(--wa-primary);
 	display: flex;
@@ -790,8 +788,8 @@
 
 .waba-send-button svg {
 	fill: #ffffff;
-	width: 22px;
-	height: 22px;
+	width: 20px;
+	height: 20px;
 }
 
 .waba-account-switcher-list {
@@ -801,7 +799,7 @@
 .waba-account-switcher-list .waba-account-row {
 	border: 1px solid var(--wa-border) !important;
 	border-radius: var(--wa-radius-md) !important;
-	margin-bottom: 10px !important;
+	margin-bottom: 8px !important;
 	overflow: hidden;
 	transition: all 0.2s;
 	background: var(--wa-bg-sidebar);
@@ -817,15 +815,15 @@
 	cursor: pointer;
 	display: flex !important;
 	align-items: center !important;
-	padding: 14px 16px !important;
+	padding: 12px 14px !important;
 	margin: 0 !important;
 }
 
 .waba-account-radio {
 	accent-color: var(--wa-primary);
-	width: 18px;
-	height: 18px;
-	margin-right: 14px;
+	width: 16px;
+	height: 16px;
+	margin-right: 12px;
 	cursor: pointer;
 }
 
@@ -842,32 +840,32 @@
 
 .waba-chat-form-container {
 	flex: 1;
-	padding: 24px 20px;
+	padding: 20px 16px;
 	overflow-y: auto;
 }
 
 .waba-chat-query-heading {
-	font-size: 14px;
+	font-size: 13px;
 	color: var(--wa-text-secondary);
-	margin-bottom: 24px;
+	margin-bottom: 20px;
 	line-height: 1.5;
 }
 
 .waba-form-label {
-	font-size: 12px;
+	font-size: 11px;
 	font-weight: 600;
 	color: var(--wa-text-secondary);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
-	margin-bottom: 8px;
+	margin-bottom: 6px;
 	display: block;
 }
 
 .waba-form-control {
 	border: 1.5px solid var(--wa-border);
 	border-radius: var(--wa-radius-md);
-	padding: 12px 16px;
-	font-size: 14px;
+	padding: 10px 14px;
+	font-size: 13px;
 	background: var(--wa-bg-sidebar);
 	color: var(--wa-text-primary);
 	width: 100%;
@@ -883,21 +881,21 @@
 
 .waba-chat-message-area {
 	resize: none;
-	height: 110px;
+	height: 100px;
 }
 
 .waba-form-button {
 	background: var(--wa-primary);
 	border: none;
 	border-radius: var(--wa-radius-full);
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 600;
-	padding: 14px;
+	padding: 12px;
 	width: 100%;
 	color: #ffffff;
 	cursor: pointer;
 	transition: all 0.2s;
-	margin-top: 8px;
+	margin-top: 6px;
 	letter-spacing: 0.3px;
 }
 
@@ -916,7 +914,7 @@
 
 .waba-welcome-header {
 	background: linear-gradient(135deg, var(--wa-secondary) 0%, var(--wa-primary) 100%);
-	padding: 48px 28px 120px;
+	padding: 40px 24px 100px;
 	position: relative;
 	overflow: hidden;
 }
@@ -933,34 +931,34 @@
 }
 
 .waba-hero-icon {
-	width: 70px;
-	height: 70px;
+	width: 60px;
+	height: 60px;
 	border-radius: 50%;
 	background: rgba(255, 255, 255, 0.2);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-bottom: 20px;
+	margin-bottom: 16px;
 	backdrop-filter: blur(10px);
 	box-shadow: var(--wa-shadow-md);
 }
 
 .waba-hero-icon svg {
 	fill: #ffffff;
-	width: 32px;
-	height: 32px;
+	width: 28px;
+	height: 28px;
 }
 
 .waba-welcome-header h3 {
-	font-size: 28px;
+	font-size: 24px;
 	font-weight: 700;
 	color: #ffffff;
-	margin-bottom: 12px;
+	margin-bottom: 10px;
 	letter-spacing: -0.5px;
 }
 
 .waba-welcome-header p {
-	font-size: 14px;
+	font-size: 13px;
 	color: rgba(255, 255, 255, 0.9);
 	line-height: 1.5;
 }
@@ -970,26 +968,26 @@
 	bottom: 0;
 	width: 100%;
 	background: var(--wa-bg-sidebar);
-	padding: 28px 24px 20px;
-	border-radius: 28px 28px 0 0;
+	padding: 24px 20px 18px;
+	border-radius: 24px 24px 0 0;
 	box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
-	gap: 6px;
+	gap: 5px;
 }
 
 .waba-status-content {
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 700;
 	color: var(--wa-text-primary);
 	margin: 0;
 }
 
 .waba-hero-content {
-	font-size: 13px;
+	font-size: 12px;
 	color: var(--wa-text-secondary);
-	margin: 0 0 20px;
+	margin: 0 0 16px;
 }
 
 .waba-start-button {
@@ -997,9 +995,9 @@
 	background: var(--wa-primary);
 	border: none;
 	border-radius: var(--wa-radius-full);
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 600;
-	padding: 14px;
+	padding: 12px;
 	color: #ffffff;
 	cursor: pointer;
 	transition: all 0.2s;
@@ -1016,10 +1014,10 @@
 	width: 100%;
 	display: flex;
 	justify-content: center;
-	font-size: 11px;
+	font-size: 10px;
 	color: var(--wa-text-light);
 	text-decoration: none;
-	padding: 12px 0;
+	padding: 10px 0;
 	transition: all 0.2s;
 }
 
@@ -1039,17 +1037,17 @@
 	background: #ff3b30;
 	color: #ffffff;
 	position: absolute;
-	top: -8px;
-	right: -10px;
+	top: -6px;
+	right: -8px;
 	border-radius: 50%;
-	font-size: 10px;
+	font-size: 9px;
 	font-weight: 700;
-	min-width: 18px;
-	height: 18px;
+	min-width: 16px;
+	height: 16px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 0 5px;
+	padding: 0 4px;
 	border: 2px solid var(--wa-bg-header);
 	line-height: 1;
 	box-shadow: var(--wa-shadow-sm);
@@ -1070,17 +1068,17 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 10px 14px;
+	padding: 8px 12px;
 	background: var(--wa-bubble-in);
-	border-radius: 20px;
+	border-radius: 18px;
 	margin-bottom: 8px;
 	width: fit-content;
 	box-shadow: var(--wa-shadow-sm);
 }
 
 .waba-typing-dot {
-	width: 7px;
-	height: 7px;
+	width: 6px;
+	height: 6px;
 	border-radius: 50%;
 	background: var(--wa-primary);
 	animation: waba-typing-animation 1.4s infinite ease-in-out;
@@ -1104,17 +1102,17 @@
 		opacity: 0.4;
 	}
 	30% {
-		transform: translateY(-8px);
+		transform: translateY(-6px);
 		opacity: 1;
 	}
 }
 
 .waba-scroll-to-bottom {
 	position: absolute;
-	bottom: 80px;
-	right: 20px;
-	width: 40px;
-	height: 40px;
+	bottom: 70px;
+	right: 16px;
+	width: 36px;
+	height: 36px;
 	border-radius: 50%;
 	background: var(--wa-primary);
 	display: flex;
@@ -1133,70 +1131,70 @@
 
 .waba-scroll-to-bottom svg {
 	fill: #ffffff;
-	width: 20px;
-	height: 20px;
+	width: 18px;
+	height: 18px;
 }
 
 .waba-last-message {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 13px;
+	font-size: 12px;
 	color: var(--wa-text-secondary);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
 
-	.waba-status-icon {
-		flex-shrink: 0;
-		stroke: var(--wa-text-secondary);
-	}
+.waba-last-message .waba-status-icon {
+	flex-shrink: 0;
+	stroke: var(--wa-text-secondary);
+}
 
-	.waba-status-read {
-		stroke: var(--wa-primary);
-	}
+.waba-last-message .waba-status-read {
+	stroke: var(--wa-primary);
+}
 
-	.waba-status-failed {
-		stroke: #ff3b30;
-	}
+.waba-last-message .waba-status-failed {
+	stroke: #ff3b30;
 }
 
 .waba-message-time {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: 3px;
+}
 
-	.waba-msg-status {
-		flex-shrink: 0;
-		stroke: var(--wa-text-light);
-	}
+.waba-message-time .waba-msg-status {
+	flex-shrink: 0;
+	stroke: var(--wa-text-light);
+}
 
-	.waba-status-read {
-		stroke: var(--wa-primary);
-	}
+.waba-message-time .waba-status-read {
+	stroke: var(--wa-primary);
+}
 
-	.waba-status-failed {
-		stroke: #ff3b30;
-	}
+.waba-message-time .waba-status-failed {
+	stroke: #ff3b30;
 }
 
 .waba-unread-badge {
-	min-width: 20px;
-	height: 20px;
+	min-width: 18px;
+	height: 18px;
 	background: var(--wa-unread);
-	border-radius: 20px;
+	border-radius: 18px;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 11px;
+	font-size: 10px;
 	color: #ffffff;
 	font-weight: 700;
-	padding: 0 6px;
-	margin-left: 8px;
+	padding: 0 5px;
+	margin-left: 6px;
 }
 
 .waba-room-title {
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 500;
 	color: var(--wa-text-primary);
 	overflow: hidden;
@@ -1205,22 +1203,156 @@
 }
 
 .waba-profile-name {
-	font-size: 16px;
+	font-size: 15px;
 	font-weight: 600;
 	color: var(--wa-text-primary);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	max-width: 200px;
+	max-width: 180px;
 }
 
-@media (max-width: 576px) {
-	.waba-profile-name {
-		max-width: 150px;
+@media (min-width: 1400px) {
+	.waba-chat-app {
+		max-width: 480px;
+	}
+
+	.waba-chat-element {
+		height: 720px;
+	}
+
+	.waba-chat-bubble {
+		padding: 14px 24px;
+		font-size: 15px;
+	}
+
+	.waba-chat-bubble svg {
+		width: 22px;
+		height: 22px;
+	}
+
+	.waba-chat-header {
+		padding: 16px 20px;
+		min-height: 68px;
+	}
+
+	.waba-chat-avatar {
+		width: 48px !important;
+		height: 48px !important;
+		font-size: 20px !important;
+		line-height: 48px !important;
+	}
+
+	.waba-chat-profile-name {
+		font-size: 17px;
+	}
+
+	.waba-message-bubble-sent,
+	.waba-message-bubble-received {
+		font-size: 14px;
+		padding: 10px 14px 11px;
+		max-width: 70%;
+	}
+
+	.waba-messages-container {
+		padding: 16px 24px;
+	}
+
+	.waba-chat-actions {
+		padding: 14px 20px;
+	}
+
+	.waba-type-message {
+		font-size: 14px;
+		padding: 12px 18px;
+	}
+
+	.waba-chat-room {
+		padding: 14px 20px;
+	}
+
+	.waba-room-avatar {
+		width: 56px !important;
+		height: 56px !important;
+		font-size: 22px !important;
+		line-height: 56px !important;
+	}
+
+	.waba-room-name {
+		font-size: 16px;
+	}
+
+	.waba-last-message {
+		font-size: 13px;
 	}
 }
 
-@media (max-width: 576px) {
+@media (min-width: 1200px) and (max-width: 1399px) {
+	.waba-chat-app {
+		max-width: 420px;
+	}
+
+	.waba-chat-element {
+		height: 680px;
+	}
+
+	.waba-chat-avatar {
+		width: 44px !important;
+		height: 44px !important;
+		font-size: 18px !important;
+		line-height: 44px !important;
+	}
+}
+
+@media (min-width: 992px) and (max-width: 1199px) {
+	.waba-chat-app {
+		max-width: 400px;
+	}
+
+	.waba-chat-element {
+		height: 640px;
+	}
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+	.waba-chat-app {
+		max-width: 380px;
+	}
+
+	.waba-chat-element {
+		height: 600px;
+	}
+}
+
+@media (min-width: 576px) and (max-width: 767px) {
+	.waba-chat-app {
+		max-width: 360px;
+	}
+
+	.waba-chat-element {
+		height: 560px;
+	}
+
+	.waba-chat-bubble {
+		padding: 10px 18px;
+	}
+}
+
+@media (max-width: 575px) {
+	.waba-chat-app {
+		max-width: 340px;
+	}
+
+	.waba-chat-element {
+		height: 520px;
+	}
+}
+
+@media (max-width: 480px) {
+	.waba-profile-name {
+		max-width: 140px;
+	}
+
 	.waba-chat-app {
 		max-width: 100%;
 		bottom: 0;
@@ -1240,5 +1372,352 @@
 
 	.waba-chat-close-button {
 		background: rgba(0, 0, 0, 0.05);
+	}
+
+	.waba-chat-header {
+		padding: 10px 14px;
+		min-height: 56px;
+	}
+
+	.waba-messages-container {
+		padding: 10px 12px;
+	}
+
+	.waba-message-bubble-sent,
+	.waba-message-bubble-received {
+		max-width: 85%;
+		font-size: 12px;
+		padding: 7px 11px 8px;
+	}
+
+	.waba-chat-actions {
+		padding: 8px 12px;
+	}
+
+	.waba-type-message {
+		font-size: 12px;
+		padding: 8px 14px;
+	}
+
+	.waba-attach-button,
+	.waba-send-button {
+		width: 36px;
+		height: 36px;
+	}
+
+	.waba-attach-button svg,
+	.waba-send-button svg {
+		width: 18px;
+		height: 18px;
+	}
+
+	.waba-chat-room {
+		padding: 10px 14px;
+		gap: 10px;
+	}
+
+	.waba-room-avatar {
+		width: 44px !important;
+		height: 44px !important;
+		font-size: 16px !important;
+		line-height: 44px !important;
+	}
+
+	.waba-room-name {
+		font-size: 13px;
+	}
+
+	.waba-last-message {
+		font-size: 11px;
+	}
+
+	.waba-chat-avatar {
+		width: 36px !important;
+		height: 36px !important;
+		font-size: 14px !important;
+		line-height: 36px !important;
+	}
+
+	.waba-chat-profile-name {
+		font-size: 14px;
+	}
+
+	.waba-chat-profile-status {
+		font-size: 10px;
+	}
+
+	.waba-chat-list-header h3 {
+		font-size: 17px;
+	}
+
+	.waba-chat-list-header {
+		padding: 10px 14px;
+		min-height: 56px;
+	}
+
+	.waba-chat-search {
+		padding: 8px 14px;
+	}
+
+	.waba-chat-search-box {
+		padding: 8px 12px 8px 38px;
+		font-size: 12px;
+	}
+
+	.waba-search-icon {
+		left: 12px;
+	}
+
+	.waba-welcome-header {
+		padding: 32px 20px 90px;
+	}
+
+	.waba-welcome-header h3 {
+		font-size: 22px;
+	}
+
+	.waba-hero-icon {
+		width: 50px;
+		height: 50px;
+	}
+
+	.waba-hero-icon svg {
+		width: 24px;
+		height: 24px;
+	}
+
+	.waba-welcome-footer {
+		padding: 20px 16px 16px;
+	}
+
+	.waba-status-content {
+		font-size: 13px;
+	}
+
+	.waba-start-button {
+		font-size: 13px;
+		padding: 11px;
+	}
+}
+
+@media (max-width: 380px) {
+	.waba-profile-name {
+		max-width: 120px;
+	}
+
+	.waba-chat-element {
+		height: 100dvh;
+	}
+
+	.waba-chat-header-actions {
+		gap: 2px;
+	}
+
+	.waba-header-icon,
+	.waba-chat-back-button,
+	.waba-chat-close-button {
+		width: 32px;
+		height: 32px;
+	}
+
+	.waba-header-icon svg,
+	.waba-chat-back-button svg,
+	.waba-chat-close-button svg {
+		width: 16px;
+		height: 16px;
+	}
+
+	.waba-chat-avatar {
+		width: 32px !important;
+		height: 32px !important;
+		font-size: 12px !important;
+		line-height: 32px !important;
+	}
+
+	.waba-chat-profile-name {
+		font-size: 13px;
+	}
+
+	.waba-switch-account {
+		padding: 4px 10px !important;
+	}
+
+	.waba-switch-account span {
+		font-size: 10px !important;
+	}
+
+	.waba-switch-account svg {
+		width: 12px;
+		height: 12px;
+	}
+
+	.waba-room-avatar {
+		width: 40px !important;
+		height: 40px !important;
+		font-size: 14px !important;
+		line-height: 40px !important;
+	}
+
+	.waba-message-bubble-sent,
+	.waba-message-bubble-received {
+		max-width: 90%;
+		font-size: 11px;
+		padding: 6px 10px 7px;
+	}
+
+	.waba-chat-search-box {
+		font-size: 11px;
+		padding: 7px 10px 7px 36px;
+	}
+
+	.waba-search-icon svg {
+		width: 14px;
+		height: 14px;
+	}
+}
+
+@media (max-height: 700px) and (min-width: 481px) {
+	.waba-chat-element {
+		height: 480px;
+	}
+
+	.waba-messages-container {
+		padding: 8px 12px;
+	}
+
+	.waba-chat-header {
+		min-height: 52px;
+		padding: 8px 14px;
+	}
+
+	.waba-chat-actions {
+		padding: 8px 12px;
+	}
+
+	.waba-chat-room {
+		padding: 8px 14px;
+	}
+
+	.waba-room-avatar {
+		width: 40px !important;
+		height: 40px !important;
+		font-size: 16px !important;
+		line-height: 40px !important;
+	}
+}
+
+@media (max-height: 600px) and (min-width: 481px) {
+	.waba-chat-element {
+		height: 420px;
+	}
+
+	.waba-chat-list-header {
+		min-height: 48px;
+		padding: 8px 14px;
+	}
+
+	.waba-chat-list-header h3 {
+		font-size: 16px;
+	}
+
+	.waba-chat-search {
+		padding: 6px 14px;
+	}
+
+	.waba-messages-container {
+		padding: 6px 12px;
+	}
+
+	.waba-message-bubble-sent,
+	.waba-message-bubble-received {
+		margin-bottom: 2px;
+	}
+}
+
+@media (min-width: 1920px) {
+	.waba-chat-app {
+		max-width: 520px;
+	}
+
+	.waba-chat-element {
+		height: 800px;
+	}
+
+	.waba-chat-bubble {
+		padding: 16px 28px;
+		font-size: 16px;
+	}
+
+	.waba-chat-bubble svg {
+		width: 24px;
+		height: 24px;
+	}
+
+	.waba-chat-header {
+		padding: 18px 24px;
+		min-height: 76px;
+	}
+
+	.waba-chat-avatar {
+		width: 52px !important;
+		height: 52px !important;
+		font-size: 22px !important;
+		line-height: 52px !important;
+	}
+
+	.waba-chat-profile-name {
+		font-size: 18px;
+	}
+
+	.waba-message-bubble-sent,
+	.waba-message-bubble-received {
+		font-size: 15px;
+		padding: 12px 16px 13px;
+		max-width: 65%;
+	}
+
+	.waba-messages-container {
+		padding: 20px 28px;
+	}
+
+	.waba-chat-actions {
+		padding: 16px 24px;
+	}
+
+	.waba-type-message {
+		font-size: 15px;
+		padding: 14px 20px;
+	}
+
+	.waba-attach-button,
+	.waba-send-button {
+		width: 48px;
+		height: 48px;
+	}
+
+	.waba-attach-button svg,
+	.waba-send-button svg {
+		width: 24px;
+		height: 24px;
+	}
+
+	.waba-chat-room {
+		padding: 16px 24px;
+		gap: 16px;
+	}
+
+	.waba-room-avatar {
+		width: 60px !important;
+		height: 60px !important;
+		font-size: 24px !important;
+		line-height: 60px !important;
+	}
+
+	.waba-room-name {
+		font-size: 17px;
+	}
+
+	.waba-last-message {
+		font-size: 14px;
 	}
 }
