@@ -18,6 +18,7 @@
   "content_type",
   "attach",
   "buttons",
+  "file_url",
   "column_break_nubt",
   "whatsapp_session",
   "whatsapp_account",
@@ -344,6 +345,12 @@
    "fieldtype": "Link",
    "label": "Reply To Message",
    "options": "WhatsApp Message"
+  },
+  {
+   "fieldname": "file_url",
+   "fieldtype": "Data",
+   "label": "File Url",
+   "options": "URL"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -354,7 +361,7 @@
    "link_fieldname": "reply_to_message"
   }
  ],
- "modified": "2026-06-08 10:54:02.965975",
+ "modified": "2026-06-10 10:12:36.752223",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Message",
