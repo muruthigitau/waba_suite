@@ -122,9 +122,8 @@ class WhatsAppMessage(Document):
 			},
 		}
 
-		parameters = []
-
 		source_doc = None
+
 		if self.flags.custom_ref_doc:
 			source_doc = self.flags.custom_ref_doc
 		elif self.reference_doctype and self.reference_name:
@@ -136,6 +135,9 @@ class WhatsAppMessage(Document):
 			fields=["idx", "source_type", "field_name", "static_value", "expression"],
 			order_by="idx asc",
 		)
+
+		parameters = []
+		body_values = []
 
 		for row in fields:
 			value = "-"
@@ -150,123 +152,155 @@ class WhatsAppMessage(Document):
 			if value in [None, "", "None"]:
 				value = "-"
 
-			parameters.append({"type": "text", "text": str(value)})
+			value = str(value)
+
+			parameters.append({"type": "text", "text": value})
+			body_values.append(value)
 
 		if parameters:
 			data["template"]["components"].append({"type": "body", "parameters": parameters})
 
-		if template.header_type == "IMAGE" and self.file_url:
-			url = self.get_public_file_url(self.file_url)
-			if url:
-				data["template"]["components"].append(
-					{
-						"type": "header",
-						"parameters": [{"type": "image", "image": {"link": url}}],
-					}
-				)
+		header_html = ""
+		button_html = []
 
-		if template.header_type == "DOCUMENT":
-			if not self.file_url and source_doc:
+		if template.header_type == "IMAGE" and self.file_url:
+			# Use file_url for image
+			url = self.file_url if self.file_url.startswith("http") else frappe.utils.get_url(self.file_url)
+
+			data["template"]["components"].append(
+				{
+					"type": "header",
+					"parameters": [{"type": "image", "image": {"link": url}}],
+				}
+			)
+
+			header_html = f"<div><b>Image:</b> {url}</div>"
+
+		elif template.header_type == "DOCUMENT":
+			file_url = None
+			filename = None
+
+			# Check if file_url exists and is valid
+			if self.file_url:
+				file_url = (
+					self.file_url if self.file_url.startswith("http") else frappe.utils.get_url(self.file_url)
+				)
+				filename = file_url.split("/")[-1]
+
+			# If no file_url, generate from source_doc (similar to first function)
+			elif source_doc:
 				pdf = frappe.attach_print(
 					doctype=source_doc.doctype,
 					name=source_doc.name,
 					doc=source_doc,
-					print_format=self.print_format,
+					print_format=getattr(self, "print_format", None),
 				)
 
-				file_doc = frappe.get_doc(
-					{
-						"doctype": "File",
-						"file_name": f"{source_doc.name}.pdf",
-						"content": pdf,
-						"attached_to_doctype": source_doc.doctype,
-						"attached_to_name": source_doc.name,
-						"is_private": 0,
-					}
-				).insert(ignore_permissions=True)
+				file_name = pdf.get("fname", f"{source_doc.name}.pdf")
+				file_content = pdf.get("fcontent")
 
-				self.file_url = file_doc.file_url
-
-			if self.file_url:
-				url = self.get_public_file_url(self.file_url)
-				if url:
-					filename = self.file_url.split("/")[-1]
-					data["template"]["components"].append(
+				if file_content:
+					file_doc = frappe.get_doc(
 						{
-							"type": "header",
-							"parameters": [
-								{"type": "document", "document": {"link": url, "filename": filename}}
-							],
+							"doctype": "File",
+							"file_name": file_name,
+							"content": file_content,
+							"attached_to_doctype": source_doc.doctype,
+							"attached_to_name": source_doc.name,
+							"is_private": 0,
 						}
+					).insert(ignore_permissions=True)
+
+					file_url = frappe.utils.get_url(file_doc.file_url)
+					filename = file_doc.file_name
+
+					# Update the WhatsApp Message with the file_url
+					frappe.db.set_value(
+						"WhatsApp Message",
+						self.name,
+						"file_url",
+						file_url,
+						update_modified=False,
 					)
+
+			# Use the file_url if available
+			if file_url:
+				data["template"]["components"].append(
+					{
+						"type": "header",
+						"parameters": [
+							{
+								"type": "document",
+								"document": {"link": file_url, "filename": filename},
+							}
+						],
+					}
+				)
+
+				header_html = f"<div><b>Document:</b> {filename}<br>{file_url}</div>"
 
 		if template.buttons:
 			for idx, btn in enumerate(template.buttons):
 				if btn.button_type == "Quick Reply":
-					button_value = btn.button_label
-
-					if btn.url_type == "Dynamic" and source_doc and "{{" in btn.button_label:
-						matches = re.findall(r"\{\{(\d+)\}\}", btn.button_label)
-						for match in matches:
-							param_index = int(match) - 1
-							if param_index < len(parameters):
-								button_value = button_value.replace(
-									f"{{{{{match}}}}}", parameters[param_index]["text"]
-								)
-
 					data["template"]["components"].append(
 						{
 							"type": "button",
 							"sub_type": "quick_reply",
 							"index": str(idx),
-							"parameters": [{"type": "payload", "payload": button_value}],
+							"parameters": [{"type": "payload", "payload": btn.button_label}],
 						}
 					)
 
+					button_html.append(
+						f"<button style='margin:2px;padding:4px 8px'>{btn.button_label}</button>"
+					)
+
 				elif btn.button_type == "Call Phone":
-					phone_number = btn.phone_number
-
-					if btn.url_type == "Dynamic" and source_doc and "{{" in phone_number:
-						matches = re.findall(r"\{\{(\d+)\}\}", phone_number)
-						for match in matches:
-							param_index = int(match) - 1
-							if param_index < len(parameters):
-								phone_number = phone_number.replace(
-									f"{{{{{match}}}}}", parameters[param_index]["text"]
-								)
-
 					data["template"]["components"].append(
 						{
 							"type": "button",
 							"sub_type": "phone_number",
 							"index": str(idx),
-							"parameters": [{"type": "text", "text": phone_number}],
+							"parameters": [{"type": "text", "text": btn.phone_number}],
 						}
 					)
+
+					button_html.append(f"<div>Call: {btn.phone_number}</div>")
 
 				elif btn.button_type == "Visit Website":
 					url = btn.website_url
 
 					if btn.url_type == "Dynamic" and source_doc:
-						if "{{" in url:
-							matches = re.findall(r"\{\{(\d+)\}\}", url)
-							for match in matches:
-								param_index = int(match) - 1
-								if param_index < len(parameters):
-									url = url.replace(f"{{{{{match}}}}}", parameters[param_index]["text"])
-						else:
-							url = source_doc.get_formatted(btn.website_url) or url
-
-					button_text = url if url else "-"
+						url = source_doc.get_formatted(url) or url
 
 					data["template"]["components"].append(
 						{
 							"type": "button",
 							"sub_type": "url",
 							"index": str(idx),
-							"parameters": [{"type": "text", "text": button_text}],
+							"parameters": [{"type": "text", "text": url}],
 						}
 					)
+
+					button_html.append(f"<a href='{url}'>{url}</a>")
+
+		html = f"""
+		<div style="font-family:Arial;border:1px solid #e5e5e5;padding:12px;border-radius:8px">
+			<div style="font-size:14px;font-weight:600">{template.name}</div>
+			<hr>
+			<div><b>Body:</b> {" | ".join(body_values)}</div>
+			{header_html}
+			<div><b>Buttons:</b><br>{"".join(button_html)}</div>
+		</div>
+		"""
+
+		frappe.db.set_value(
+			"WhatsApp Message",
+			self.name,
+			"message",
+			html,
+			update_modified=False,
+		)
 
 		self.notify(data)
 
@@ -381,81 +415,86 @@ class WhatsAppMessage(Document):
 		).insert(ignore_permissions=True)
 
 	def notify(self, data):
-		if not self.whatsapp_account:
-			return
-
-		whatsapp_account = frappe.get_doc("WhatsApp Account", self.whatsapp_account)
-		token = whatsapp_account.get_password("token")
-
-		headers = {
-			"authorization": f"Bearer {token}",
-			"content-type": "application/json",
-		}
-
-		url = f"{whatsapp_account.url}/{whatsapp_account.version}/{whatsapp_account.phone_id}/messages"
-
-		request_description = f"Send WhatsApp {data.get('type', 'message')} to {data.get('to')}"
-		integration_request = self.create_integration_request(url, headers, data, request_description)
-
 		try:
-			response = make_post_request(
-				url,
-				headers=headers,
-				data=json.dumps(data),
+			if not self.whatsapp_account:
+				return
+
+			whatsapp_account = frappe.get_doc("WhatsApp Account", self.whatsapp_account)
+			token = whatsapp_account.get_password("token")
+
+			headers = {
+				"authorization": f"Bearer {token}",
+				"content-type": "application/json",
+			}
+
+			url = f"{whatsapp_account.url}/{whatsapp_account.version}/{whatsapp_account.phone_id}/messages"
+
+			request_description = f"Send WhatsApp {data.get('type', 'message')} to {data.get('to')}"
+			integration_request = self.create_integration_request(url, headers, data, request_description)
+
+			try:
+				response = make_post_request(
+					url,
+					headers=headers,
+					data=json.dumps(data),
+				)
+
+				integration_request.status = "Completed"
+				integration_request.output = (
+					json.dumps(response, indent=2) if isinstance(response, dict) else str(response)
+				)
+				integration_request.save(ignore_permissions=True)
+
+				frappe.get_doc(
+					{
+						"doctype": "WhatsApp Notification Log",
+						"template": self.template,
+						"whatsapp_message": self.name,
+						"whatsapp_account": self.whatsapp_account,
+						"meta_data": {"request": data, "response": response},
+					}
+				).insert(ignore_permissions=True)
+
+				if isinstance(response, dict) and response.get("error"):
+					frappe.throw(response["error"].get("message", "WhatsApp API Error"))
+
+				message_id = None
+				if isinstance(response, dict):
+					messages = response.get("messages", [])
+					if messages and len(messages) > 0:
+						message_id = messages[0].get("id")
+
+				if message_id:
+					frappe.db.set_value("WhatsApp Message", self.name, "message_id", message_id)
+
+			except Exception as api_error:
+				error_response = {"error": str(api_error)}
+
+				if hasattr(api_error, "response") and api_error.response:
+					if hasattr(api_error.response, "text"):
+						error_response["response_text"] = api_error.response.text
+					if hasattr(api_error.response, "status_code"):
+						error_response["status_code"] = api_error.response.status_code
+
+				integration_request.status = "Failed"
+				integration_request.error = json.dumps(error_response, indent=2)
+				integration_request.save(ignore_permissions=True)
+
+				frappe.get_doc(
+					{
+						"doctype": "WhatsApp Notification Log",
+						"template": self.template,
+						"whatsapp_message": self.name,
+						"whatsapp_account": self.whatsapp_account,
+						"meta_data": {"request": data, "response": error_response},
+					}
+				).insert(ignore_permissions=True)
+
+		except Exception as e:
+			frappe.log_error(
+				"WhatsApp Message Notification",
+				f"Failed to send WhatsApp message: {e!s}",
 			)
-
-			integration_request.status = "Completed"
-			integration_request.output = (
-				json.dumps(response, indent=2) if isinstance(response, dict) else str(response)
-			)
-			integration_request.save(ignore_permissions=True)
-
-			frappe.get_doc(
-				{
-					"doctype": "WhatsApp Notification Log",
-					"template": self.template,
-					"whatsapp_message": self.name,
-					"whatsapp_account": self.whatsapp_account,
-					"meta_data": {"request": data, "response": response},
-				}
-			).insert(ignore_permissions=True)
-
-			if isinstance(response, dict) and response.get("error"):
-				frappe.throw(response["error"].get("message", "WhatsApp API Error"))
-
-			message_id = None
-			if isinstance(response, dict):
-				messages = response.get("messages", [])
-				if messages and len(messages) > 0:
-					message_id = messages[0].get("id")
-
-			if message_id:
-				frappe.db.set_value("WhatsApp Message", self.name, "message_id", message_id)
-
-		except Exception as api_error:
-			error_response = {"error": str(api_error)}
-
-			if hasattr(api_error, "response") and api_error.response:
-				if hasattr(api_error.response, "text"):
-					error_response["response_text"] = api_error.response.text
-				if hasattr(api_error.response, "status_code"):
-					error_response["status_code"] = api_error.response.status_code
-
-			integration_request.status = "Failed"
-			integration_request.error = json.dumps(error_response, indent=2)
-			integration_request.save(ignore_permissions=True)
-
-			frappe.get_doc(
-				{
-					"doctype": "WhatsApp Notification Log",
-					"template": self.template,
-					"whatsapp_message": self.name,
-					"whatsapp_account": self.whatsapp_account,
-					"meta_data": {"request": data, "response": error_response},
-				}
-			).insert(ignore_permissions=True)
-
-			raise
 
 	@frappe.whitelist()
 	def send_read_receipt(self):

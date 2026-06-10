@@ -11,7 +11,6 @@ def get_all(room: str, user_no: str, whatsapp_account: str = None):
 		filters = {
 			"to": ["in", [user_no, ""]],
 			"from": ["in", [user_no, ""]],
-			"message_type": ["!=", "Template"],
 		}
 
 		if whatsapp_account:
@@ -45,17 +44,27 @@ def get_all(room: str, user_no: str, whatsapp_account: str = None):
 					pass
 				continue
 
-			if msg.get("content_type") == "text":
+			if msg.get("message_type") == "Template":
 				msg["content"] = msg.get("message", "")
+				msg["content_type"] = "template"
+				msg["caption"] = None
+			elif msg.get("content_type") == "text":
+				msg["content"] = msg.get("message", "")
+				msg["caption"] = None
 			else:
 				msg["content"] = msg.get("attach", msg.get("message", ""))
-
-			msg["caption"] = msg.get("message") if msg.get("content_type") != "text" else None
+				msg["caption"] = msg.get("message") if msg.get("content_type") != "text" else None
 
 			if msg.get("to"):
 				msg["sender_user_no"] = msg.get("to")
 			else:
 				msg["sender_user_no"] = "Administrator"
+
+			if msg.get("message_type") == "Template":
+				msg["template_name"] = msg.get("template")
+				msg["is_template"] = True
+			else:
+				msg["is_template"] = False
 
 			message_dict[msg.get("name")] = msg
 
