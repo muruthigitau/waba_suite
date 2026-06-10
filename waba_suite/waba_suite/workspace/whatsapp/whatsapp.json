@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"Pizdqph9oo\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h3\\\">WhatsApp</span>\",\"col\":12}},{\"id\":\"vzxIL-Tj6e\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"aHs3hHLMxi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Settings\",\"col\":4}},{\"id\":\"SFKOqzRPCa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Account\",\"col\":4}},{\"id\":\"4w0PcgF1sV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Message\",\"col\":4}},{\"id\":\"6OmNDRS7Cp\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}},{\"id\":\"rh0o6HZrVm\",\"type\":\"card\",\"data\":{\"card_name\":\"Messaging\",\"col\":4}},{\"id\":\"uDv3s-sZyh\",\"type\":\"card\",\"data\":{\"card_name\":\"Chatbot\",\"col\":4}}]",
+ "content": "[{\"id\":\"Pizdqph9oo\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h3\\\">WhatsApp</span>\",\"col\":12}},{\"id\":\"vzxIL-Tj6e\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"aHs3hHLMxi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Settings\",\"col\":4}},{\"id\":\"SFKOqzRPCa\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Account\",\"col\":4}},{\"id\":\"4w0PcgF1sV\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Whatsapp Message\",\"col\":4}},{\"id\":\"6OmNDRS7Cp\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":4}},{\"id\":\"rh0o6HZrVm\",\"type\":\"card\",\"data\":{\"card_name\":\"Messaging\",\"col\":4}},{\"id\":\"uDv3s-sZyh\",\"type\":\"card\",\"data\":{\"card_name\":\"Chatbot\",\"col\":4}},{\"id\":\"Pk9RXaYdQk\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":4}}]",
  "creation": "2026-04-02 22:57:03.231182",
  "custom_blocks": [],
  "docstatus": 0,
@@ -209,9 +209,38 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "WhatsApp Conversation Analytics",
+   "link_count": 0,
+   "link_to": "WhatsApp Conversation Analytics",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Bulk WhatsApp Status",
+   "link_count": 0,
+   "link_to": "Bulk WhatsApp Status",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-05-21 13:07:34.147674",
+ "modified": "2026-06-10 13:03:40.234545",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp",
