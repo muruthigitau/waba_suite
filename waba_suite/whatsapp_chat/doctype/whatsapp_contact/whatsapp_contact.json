@@ -9,9 +9,12 @@
   "mobile_no",
   "email",
   "user",
-  "customer",
-  "is_read",
   "column_break_cbhf",
+  "whatsapp_profile",
+  "customer",
+  "contact",
+  "is_read",
+  "section_break_cbxd",
   "last_message"
  ],
  "fields": [
@@ -58,6 +61,22 @@
    "fieldtype": "Link",
    "label": "User",
    "options": "User"
+  },
+  {
+   "fieldname": "whatsapp_profile",
+   "fieldtype": "Link",
+   "label": "WhatsApp Profile",
+   "options": "WhatsApp Profiles"
+  },
+  {
+   "fieldname": "contact",
+   "fieldtype": "Link",
+   "label": "Contact",
+   "options": "Contact"
+  },
+  {
+   "fieldname": "section_break_cbxd",
+   "fieldtype": "Section Break"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -67,7 +86,7 @@
    "link_fieldname": "whatsapp_contact"
   }
  ],
- "modified": "2026-05-21 21:16:06.138606",
+ "modified": "2026-06-10 11:31:34.554985",
  "modified_by": "Administrator",
  "module": "Whatsapp Chat",
  "name": "WhatsApp Contact",
