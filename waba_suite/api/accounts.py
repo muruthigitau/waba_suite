@@ -30,7 +30,7 @@ def get_user_accounts_with_default():
 			user_accounts.append(acc)
 		else:
 			user_link = frappe.get_value(
-				"POS Profile User", {"parent": acc.name, "user": user}, ["name", "default"], as_dict=1
+				"WhatsApp Account User", {"parent": acc.name, "user": user}, ["name", "default"], as_dict=1
 			)
 
 			if user_link:
@@ -57,18 +57,18 @@ def switch_account(account_name):
 	is_admin = user == "Administrator"
 
 	if not is_admin:
-		exists = frappe.db.exists("POS Profile User", {"parent": account_name, "user": user})
+		exists = frappe.db.exists("WhatsApp Account User", {"parent": account_name, "user": user})
 		if not exists:
 			frappe.throw(_("You are not authorized to access this account."))
 
 		linked_profiles = frappe.get_all(
-			"POS Profile User", filters={"user": user, "parenttype": "WhatsApp Account"}
+			"WhatsApp Account User", filters={"user": user, "parenttype": "WhatsApp Account"}
 		)
 
 		for profile in linked_profiles:
-			frappe.db.set_value("POS Profile User", profile.name, "default", 0)
+			frappe.db.set_value("WhatsApp Account User", profile.name, "default", 0)
 
-		frappe.db.set_value("POS Profile User", {"parent": account_name, "user": user}, "default", 1)
+		frappe.db.set_value("WhatsApp Account User", {"parent": account_name, "user": user}, "default", 1)
 
 	account_info = frappe.get_value("WhatsApp Account", account_name, ["name", "account_name"], as_dict=1)
 
@@ -87,7 +87,7 @@ def get_active_account():
 		return fallback_admin[0] if fallback_admin else None
 
 	res = frappe.get_all(
-		"POS Profile User",
+		"WhatsApp Account User",
 		filters={"user": user, "default": 1, "parenttype": "WhatsApp Account"},
 		fields=["parent"],
 	)
@@ -103,7 +103,7 @@ def get_active_account():
 			return account
 
 	fallback_links = frappe.get_all(
-		"POS Profile User", filters={"user": user, "parenttype": "WhatsApp Account"}, fields=["parent"]
+		"WhatsApp Account User", filters={"user": user, "parenttype": "WhatsApp Account"}, fields=["parent"]
 	)
 
 	for link in fallback_links:

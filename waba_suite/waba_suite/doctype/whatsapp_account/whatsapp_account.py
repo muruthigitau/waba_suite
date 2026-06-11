@@ -39,7 +39,7 @@ class WhatsAppAccount(Document):
 				continue
 
 			existing_default = frappe.get_all(
-				"POS Profile User",
+				"WhatsApp Account User",
 				filters={
 					"user": row.user,
 					"default": 1,

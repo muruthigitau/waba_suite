@@ -125,7 +125,7 @@
    "fieldname": "users",
    "fieldtype": "Table",
    "label": "Users",
-   "options": "POS Profile User"
+   "options": "WhatsApp Account User"
   },
   {
    "default": "0",
@@ -169,7 +169,7 @@
    "link_fieldname": "whatsapp_account"
   }
  ],
- "modified": "2026-06-10 11:38:19.137927",
+ "modified": "2026-06-12 00:24:33.638381",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Account",
