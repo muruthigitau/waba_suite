@@ -83,13 +83,22 @@ class WhatsAppMessage(Document):
 					{
 						"doctype": "WhatsApp Contact",
 						"mobile_no": phone_number,
-						"contact_name": phone_number,
+						"contact_name": self.profile_name or phone_number,
 					}
 				)
 				contact.insert(ignore_permissions=True)
 				self.whatsapp_contact = contact.name
 			else:
 				self.whatsapp_contact = contact
+		if self.whatsapp_contact and self.profile_name and self.type == "Incoming":
+			contact = frappe.get_doc("WhatsApp Contact", self.whatsapp_contact)
+			if contact.mobile_no == contact.contact_name:
+				frappe.db.set_value(
+					"WhatsApp Contact",
+					self.whatsapp_contact,
+					"contact_name",
+					self.profile_name or contact.contact_name,
+				)
 
 	@frappe.whitelist()
 	def manual_send(self):
@@ -676,7 +685,6 @@ class WhatsAppMessage(Document):
 			return
 
 		existing_lead = None
-		lead_source = None
 
 		if lead_doctype == "CRM Lead":
 			existing_lead = frappe.db.get_value("CRM Lead", {"mobile_no": whatsapp_contact.mobile_no}, "name")
@@ -684,51 +692,39 @@ class WhatsAppMessage(Document):
 			if not existing_lead and whatsapp_contact.email:
 				existing_lead = frappe.db.get_value("CRM Lead", {"email_id": whatsapp_contact.email}, "name")
 
-			lead_source = frappe.db.exists("CRM Lead Source", "WhatsApp")
-			if not lead_source:
-				lead_source = (
-					frappe.get_doc({"doctype": "CRM Lead Source", "source_name": "WhatsApp"})
-					.insert(ignore_permissions=True)
-					.name
-				)
 		elif lead_doctype == "Lead":
 			existing_lead = frappe.db.get_value("Lead", {"mobile_no": whatsapp_contact.mobile_no}, "name")
 
 			if not existing_lead and whatsapp_contact.email:
 				existing_lead = frappe.db.get_value("Lead", {"email_id": whatsapp_contact.email}, "name")
 
-			lead_source = frappe.db.exists("Lead Source", "WhatsApp")
-			if not lead_source:
-				lead_source = (
-					frappe.get_doc({"doctype": "Lead Source", "source_name": "WhatsApp"})
-					.insert(ignore_permissions=True)
-					.name
-				)
-
 		if existing_lead:
 			return
 
-		lead_doc = frappe.get_doc(
-			{
-				"doctype": lead_doctype,
-				"lead_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-				"company_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-				"first_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-				"mobile_no": whatsapp_contact.mobile_no,
-				"email_id": whatsapp_contact.email,
-				"source": lead_source,
-				"notes": f"Created from WhatsApp message: {self.message[:200] if self.message else 'No message'}",
-			}
-		)
+		lead_data = {
+			"doctype": lead_doctype,
+			"lead_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
+			"company_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
+			"first_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
+			"mobile_no": whatsapp_contact.mobile_no,
+		}
+
+		if whatsapp_contact.email:
+			lead_data["email_id"] = whatsapp_contact.email
+
+		lead_doc = frappe.get_doc(lead_data)
+
 		try:
+			lead_doc.flags.ignore_mandatory = True
+			lead_doc.flags.ignore_validate = True
 			lead_doc.insert(ignore_permissions=True)
+			frappe.db.commit()
 
 		except Exception as e:
 			frappe.log_error(
-				title="Auto Lead Creation Failed",
-				message=f"Failed to create lead for WhatsApp message: {self.name}, Error: {e!s}",
+				title=f"Auto Lead Creation Failed - {lead_doctype}",
+				message=f"Failed to create lead for WhatsApp message: {self.name}\nMobile: {whatsapp_contact.mobile_no}\nError: {e!s}\nTraceback: {frappe.get_traceback()}",
 			)
-		frappe.db.commit()
 
 
 def process_incoming_sync(docname):
