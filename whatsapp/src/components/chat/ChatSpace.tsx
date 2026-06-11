@@ -38,12 +38,16 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 }) => {
   const [messageInput, setMessageInput] = useState("");
   const [replyTo, setReplyTo] = useState<Message | null>(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [globalEmojiPicker, setGlobalEmojiPicker] = useState<{
+    isOpen: boolean;
+    onSelect: (emoji: string) => void;
+  }>({ isOpen: false, onSelect: () => {} });
+
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isSending, setIsSending] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     data: messagesData,
@@ -82,28 +86,73 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     if (!messagesData?.message || !Array.isArray(messagesData.message)) {
       return [];
     }
-    return messagesData.message.map((msg: any) => ({
-      id: msg.name,
-      content: msg.content || msg.message || "",
-      timestamp: new Date(msg.creation).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      fullTimestamp: new Date(msg.creation),
-      isSent: msg.type === "Outgoing",
-      status: msg.status || "sent",
-      type: msg.content_type || "text",
-      isTemplate: msg.use_template === 1 || msg.use_template === true,
-      reactions: msg.reactions,
-      senderName: msg.sender_name || msg.sender,
-      caption: msg.caption,
-      attach: msg.attach,
-      locationData: msg.location_data,
-      contactData: msg.contact_data,
-      buttonData: msg.button_data,
-      interactiveData: msg.interactive_data,
-    }));
-  }, [messagesData]);
+
+    const rawList = messagesData.message;
+
+    return rawList.map((msg: any) => {
+      let reactions = null;
+      if (msg.reactions) {
+        try {
+          reactions =
+            typeof msg.reactions === "string"
+              ? JSON.parse(msg.reactions)
+              : msg.reactions;
+        } catch (e) {
+          console.error("Failed to parse reactions:", e);
+          reactions = null;
+        }
+      }
+
+      let parsedReplyTo = undefined;
+      if (msg.is_reply === 1 && msg.reply_to_message) {
+        const parentMsg = rawList.find((m) => m.name === msg.reply_to_message);
+        if (parentMsg) {
+          parsedReplyTo = {
+            messageId: parentMsg.name,
+            content: parentMsg.content || parentMsg.message || "",
+            sender:
+              parentMsg.type === "Outgoing"
+                ? "You"
+                : parentMsg.sender_name ||
+                  parentMsg.sender ||
+                  chat?.name ||
+                  "Contact",
+            contentType: parentMsg.content_type || "text",
+          };
+        } else {
+          parsedReplyTo = {
+            messageId: msg.reply_to_message,
+            content: "Message",
+            sender: "Reply",
+            contentType: "text",
+          };
+        }
+      }
+
+      return {
+        id: msg.name,
+        content: msg.content || msg.message || "",
+        timestamp: new Date(msg.creation).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        fullTimestamp: new Date(msg.creation),
+        isSent: msg.type === "Outgoing",
+        status: msg.status || "sent",
+        type: msg.content_type || "text",
+        isTemplate: msg.use_template === 1 || msg.use_template === true,
+        reactions: reactions,
+        senderName: msg.sender_name || msg.sender,
+        caption: msg.caption,
+        attach: msg.attach,
+        locationData: msg.location_data,
+        contactData: msg.contact_data,
+        buttonData: msg.button_data,
+        interactiveData: msg.interactive_data,
+        replyTo: parsedReplyTo,
+      };
+    });
+  }, [messagesData, chat]);
 
   useEffect(() => {
     if (formattedMessages.length > 0) {
@@ -152,7 +201,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     async (content: string, replyToMessage?: Message | null) => {
       if (!chat || isSending) return;
 
-      setIsSending(true);
       const messageId = Date.now().toString();
 
       const optimisticMessage: Message = {
@@ -164,7 +212,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         }),
         fullTimestamp: new Date(),
         isSent: true,
-        status: "sent",
+        status: "sending",
         type: "text",
         isTemplate: false,
         replyTo: replyToMessage
@@ -182,34 +230,25 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       setMessages((prev) => [...prev, optimisticMessage]);
       scrollToBottom();
 
-      const frappeUrl = (import.meta.env.VITE_FRAPPE_PATH ||
-        window.location.origin) as string;
-
       try {
-        const response = await fetch(
-          `${frappeUrl}/api/method/waba_suite.api.message.send`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify({
-              content,
-              user: chat.name,
-              room: chat.mobileNo,
-              user_no: "",
-              message_id: messageId,
-              whatsapp_account: chat.whatsappAccount,
-              reply_to_message_id: replyToMessage?.id || null,
-              content_type: "text",
-              use_template: false,
-            }),
-            credentials: "omit",
-          },
-        );
+        const response = await sendMessageCall({
+          content: content,
+          user: chat.name,
+          room: chat.id,
+          user_no: chat.mobileNo,
+          message_id: messageId,
+          whatsapp_account: chat.whatsappAccount || currentAccount,
+          reply_to_message_id: replyToMessage?.id || null,
+          content_type: "text",
+          attachment: null,
+        });
 
-        if (response.ok) {
+        if (response?.message?.status === "ok") {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === messageId ? { ...msg, status: "sent" } : msg,
+            ),
+          );
           await mutateMessages();
         } else {
           setMessages((prev) =>
@@ -217,6 +256,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
               msg.id === messageId ? { ...msg, status: "failed" } : msg,
             ),
           );
+          console.error("Failed to send message:", response?.message);
         }
       } catch (error) {
         console.error("Failed to send message:", error);
@@ -225,11 +265,16 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
             msg.id === messageId ? { ...msg, status: "failed" } : msg,
           ),
         );
-      } finally {
-        setIsSending(false);
       }
     },
-    [chat, mutateMessages, scrollToBottom, isSending],
+    [
+      chat,
+      sendMessageCall,
+      mutateMessages,
+      scrollToBottom,
+      isSending,
+      currentAccount,
+    ],
   );
 
   const handleSend = async () => {

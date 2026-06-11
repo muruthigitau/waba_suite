@@ -212,8 +212,8 @@ export const WhatsAppHome: React.FC = () => {
         await sendMessageCall({
           content,
           user: chat.name,
-          room: chat.mobileNo,
-          user_no: "",
+          room: chat.id,
+          user_no: chat.mobileNo,
           message_id: messageId,
           whatsapp_account: chat.whatsappAccount,
           reply_to_message_id: replyTo?.id || null,
@@ -239,15 +239,11 @@ export const WhatsAppHome: React.FC = () => {
     [sendMessageCall, userSettings.enableMessageTone],
   );
 
-  const handleSwitchAccount = useCallback(
-    async (accountName: string) => {
-      setCurrentAccount(accountName);
-      setSelectedChatId(null);
-      setChats([]);
-      await mutateRooms();
-    },
-    [mutateRooms],
-  );
+  const handleSwitchAccount = useCallback(async (accountName: string) => {
+    setCurrentAccount(accountName);
+    setSelectedChatId(null);
+    setChats([]);
+  }, []);
 
   const selectedChat = useMemo(() => {
     return selectedChatId
