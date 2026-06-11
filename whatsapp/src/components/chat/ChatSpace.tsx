@@ -54,16 +54,23 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   }>(
     "waba_suite.api.message.get_all",
     {
-      room: chat?.mobileNo || "",
+      room: chat?.id || "",
       user_no: chat?.mobileNo || "",
       whatsapp_account: currentAccount,
     },
-    chat ? undefined : { enabled: false },
+    chat ? undefined : { enabled: false, revalidateOnFocus: false },
   );
 
   const { call: markMultipleAsReadCall } = useFrappePostCall(
     "waba_suite.api.message.mark_multiple_as_read",
   );
+
+  const { call: sendMessageCall, loading: isSending } = useFrappePostCall<{
+    message: {
+      status: string;
+      message_id?: string;
+    };
+  }>("waba_suite.api.message.send");
 
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
@@ -115,6 +122,27 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       }).catch(console.error);
     }
   }, [chat, messages, onMarkAsRead, currentAccount, markMultipleAsReadCall]);
+
+  useEffect(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    if (chat) {
+      mutateMessages();
+      pollingIntervalRef.current = setInterval(() => {
+        mutateMessages();
+      }, 5000);
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [chat, mutateMessages]);
 
   useEffect(() => {
     scrollToBottom();

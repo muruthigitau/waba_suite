@@ -1,6 +1,12 @@
 import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
 import { MessageCircle } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ChatList } from "../components/chat/ChatList";
 import { ChatSpace } from "../components/chat/ChatSpace";
 import { useUser } from "../contexts/UserProvider";
@@ -19,6 +25,7 @@ export const WhatsAppHome: React.FC = () => {
     enableNotifications: true,
   });
   const [currentUserName, setCurrentUserName] = useState<string>("User");
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data: accountsData } = useFrappeGetCall<{
     message: { accounts: Account[]; default_account: string };
@@ -44,7 +51,7 @@ export const WhatsAppHome: React.FC = () => {
       email: "",
       whatsapp_account: currentAccount,
     },
-    shouldFetchRooms ? undefined : { enabled: false },
+    shouldFetchRooms ? undefined : { enabled: false, revalidateOnFocus: false },
   );
 
   const { call: sendMessageCall } = useFrappePostCall(
@@ -95,6 +102,27 @@ export const WhatsAppHome: React.FC = () => {
       }
     }
   }, [accountsData]);
+
+  useEffect(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    if (currentAccount) {
+      mutateRooms();
+      pollingIntervalRef.current = setInterval(() => {
+        mutateRooms();
+      }, 5000);
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [currentAccount, mutateRooms]);
 
   const formattedChats = useMemo(() => {
     if (!roomsData?.message) {
