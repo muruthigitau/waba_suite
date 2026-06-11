@@ -56,15 +56,13 @@ def post():
 		messages = value.get("messages", [])
 		phone_id = value.get("metadata", {}).get("phone_number_id")
 
-		sender_profile_name = next(
-			(
-				contact.get("profile", {}).get("name")
-				for entry in data.get("entry", [])
-				for change in entry.get("changes", [])
-				for contact in change.get("value", {}).get("contacts", [])
-			),
-			None,
-		)
+		contacts = value.get("contacts", [])
+		profile_name_map = {}
+		for contact in contacts:
+			wa_id = contact.get("wa_id")
+			profile_name = contact.get("profile", {}).get("name")
+			if wa_id and profile_name:
+				profile_name_map[wa_id] = profile_name
 
 		whatsapp_account = None
 
@@ -79,6 +77,9 @@ def post():
 		if messages and whatsapp_account:
 			for message in messages:
 				try:
+					sender_wa_id = message.get("from")
+					sender_profile_name = profile_name_map.get(sender_wa_id)
+
 					process_message_sync(
 						message=message,
 						sender_profile_name=sender_profile_name,
@@ -103,7 +104,6 @@ def post():
 
 
 def process_message_sync(message, sender_profile_name, whatsapp_account):
-	"""Synchronous processing of webhook messages"""
 	try:
 		account = frappe.get_doc("WhatsApp Account", whatsapp_account)
 
@@ -112,6 +112,8 @@ def process_message_sync(message, sender_profile_name, whatsapp_account):
 		reply_to_message_id = message.get("context", {}).get("id") if is_reply else None
 
 		from_number = message.get("from")
+
+		user_profile_name = message.get("profile", {}).get("name") or sender_profile_name
 
 		phone_lock_key = f"whatsapp_phone_process_{from_number}"
 
@@ -132,44 +134,45 @@ def process_message_sync(message, sender_profile_name, whatsapp_account):
 				return
 
 		try:
-			msg_doc = {
+			msg_dict = {
 				"doctype": "WhatsApp Message",
 				"type": "Incoming",
 				"from": message.get("from"),
 				"message_id": message.get("id"),
 				"reply_to_message_id": reply_to_message_id,
 				"is_reply": is_reply,
-				"profile_name": sender_profile_name,
+				"profile_name": user_profile_name,
 				"whatsapp_account": account.name,
 			}
 
 			if message_type == "text":
-				msg_doc["message"] = message["text"]["body"]
-				msg_doc["content_type"] = "text"
+				msg_dict["message"] = message["text"]["body"]
+				msg_dict["content_type"] = "text"
 
 			elif message_type == "reaction":
-				msg_doc["message"] = message["reaction"]["emoji"]
-				msg_doc["reply_to_message_id"] = message["reaction"]["message_id"]
-				msg_doc["content_type"] = "reaction"
+				msg_dict["message"] = message["reaction"].get("emoji", "")
+				msg_dict["reply_to_message_id"] = message["reaction"].get("message_id")
+				msg_dict["content_type"] = "reaction"
 
 			elif message_type == "interactive":
 				interactive_data = message["interactive"]
 				interactive_type = interactive_data.get("type")
 
 				if interactive_type == "button_reply":
-					msg_doc["message"] = interactive_data["button_reply"]["id"]
-					msg_doc["content_type"] = "button"
+					msg_dict["message"] = interactive_data["button_reply"].get("id", "")
+					msg_dict["content_type"] = "button"
 
 				elif interactive_type == "list_reply":
-					msg_doc["message"] = interactive_data["list_reply"]["id"]
-					msg_doc["content_type"] = "button"
+					msg_dict["message"] = interactive_data["list_reply"].get("id", "")
+					msg_dict["content_type"] = "button"
 
 			elif message_type in ["image", "audio", "video", "document"]:
-				msg_doc["message"] = message[message_type].get("caption", "")
-				msg_doc["content_type"] = message_type
+				msg_dict["message"] = message[message_type].get("caption", "")
+				msg_dict["content_type"] = message_type
 
-				doc = frappe.get_doc(msg_doc)
+				doc = frappe.get_doc(msg_dict)
 				doc.insert(ignore_permissions=True)
+				frappe.db.commit()
 
 				process_media_sync(
 					message_name=doc.name,
@@ -179,23 +182,30 @@ def process_message_sync(message, sender_profile_name, whatsapp_account):
 				return
 
 			else:
-				msg_doc["message"] = str(message.get(message_type, {}))
-				msg_doc["content_type"] = message_type
+				msg_dict["message"] = str(message.get(message_type, {}))
+				msg_dict["content_type"] = message_type
 
-			frappe.get_doc(msg_doc).insert(ignore_permissions=True)
+			doc = frappe.get_doc(msg_dict)
+			doc.insert(ignore_permissions=True)
+			frappe.db.commit()
 
+		except Exception as inner_e:
+			frappe.log_error(
+				title="WhatsApp Message Creation Error",
+				message=f"Failed to create message document: {inner_e!s}\nMessage dict: {msg_dict}\nTraceback: {frappe.get_traceback()}",
+			)
+			raise
 		finally:
 			frappe.cache().delete_value(phone_lock_key)
 
 	except Exception as e:
 		frappe.log_error(
 			title="WhatsApp Webhook Process Message Error",
-			message=f"{e!s}\nMessage: {json.dumps(message)}",
+			message=f"{e!s}\nMessage: {json.dumps(message)}\nTraceback: {frappe.get_traceback()}",
 		)
 
 
 def process_media_sync(message_name, message, whatsapp_account):
-	"""Synchronous media processing"""
 	try:
 		account = frappe.get_doc("WhatsApp Account", whatsapp_account)
 		message_type = message.get("type")
@@ -257,10 +267,10 @@ def process_media_sync(message_name, message, whatsapp_account):
 
 def update_status(data):
 	try:
-		if data.get("field") == "messages":
-			statuses = data.get("value", {}).get("statuses", [])
-			for s in statuses:
-				update_status_sync(status_data=s)
+		value = data.get("value", {})
+		statuses = value.get("statuses", [])
+		for s in statuses:
+			update_status_sync(status_data=s)
 	except Exception:
 		frappe.log_error(
 			title="Update Status Error",
@@ -272,25 +282,18 @@ def update_status_sync(status_data):
 	try:
 		message_id = status_data.get("id")
 		status = status_data.get("status")
-		conversation = status_data.get("conversation", {}).get("id")
+		conversation_id = status_data.get("conversation", {}).get("id")
 
 		name = frappe.db.get_value("WhatsApp Message", {"message_id": message_id})
 
 		if not name:
 			return
 
-		frappe.db.sql(
-			"""
-			UPDATE `tabWhatsApp Message`
-			SET status = %(status)s,
-			    conversation_id = %(conversation)s,
-			    modified = NOW()
-			WHERE name = %(name)s
-			AND (status != %(status)s OR conversation_id != %(conversation)s)
-		""",
-			{"status": status, "conversation": conversation, "name": name},
-		)
+		update_fields = {"status": status}
+		if conversation_id:
+			update_fields["conversation_id"] = conversation_id
 
+		frappe.db.set_value("WhatsApp Message", name, update_fields, update_modified=True)
 		frappe.db.commit()
 
 	except Exception:

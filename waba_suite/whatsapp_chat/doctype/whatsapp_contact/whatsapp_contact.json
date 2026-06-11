@@ -9,9 +9,13 @@
   "mobile_no",
   "email",
   "user",
-  "customer",
-  "is_read",
   "column_break_cbhf",
+  "profile_picture",
+  "whatsapp_profile",
+  "customer",
+  "contact",
+  "is_read",
+  "section_break_cbxd",
   "last_message"
  ],
  "fields": [
@@ -46,9 +50,8 @@
   },
   {
    "fieldname": "customer",
-   "fieldtype": "Link",
-   "label": "Customer",
-   "options": "HD Customer"
+   "fieldtype": "Data",
+   "label": "Customer"
   },
   {
    "fieldname": "column_break_cbhf",
@@ -59,11 +62,38 @@
    "fieldtype": "Link",
    "label": "User",
    "options": "User"
+  },
+  {
+   "fieldname": "whatsapp_profile",
+   "fieldtype": "Link",
+   "label": "WhatsApp Profile",
+   "options": "WhatsApp Profiles"
+  },
+  {
+   "fieldname": "contact",
+   "fieldtype": "Link",
+   "label": "Contact",
+   "options": "Contact"
+  },
+  {
+   "fieldname": "section_break_cbxd",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "profile_picture",
+   "fieldtype": "Attach Image",
+   "label": "Profile Picture"
   }
  ],
+ "image_field": "profile_picture",
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-05-05 21:02:54.815673",
+ "links": [
+  {
+   "link_doctype": "WhatsApp Message",
+   "link_fieldname": "whatsapp_contact"
+  }
+ ],
+ "modified": "2026-06-11 08:00:42.127931",
  "modified_by": "Administrator",
  "module": "Whatsapp Chat",
  "name": "WhatsApp Contact",

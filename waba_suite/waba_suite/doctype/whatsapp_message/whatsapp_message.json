@@ -18,9 +18,11 @@
   "content_type",
   "attach",
   "buttons",
+  "file_url",
   "column_break_nubt",
   "whatsapp_session",
   "whatsapp_account",
+  "whatsapp_contact",
   "to",
   "from",
   "message_content_section",
@@ -46,6 +48,7 @@
   "column_break_fhhs",
   "is_reply",
   "reply_to_message_id",
+  "reply_to_message",
   "section_break_dhba",
   "reference_doctype",
   "bulk_message_reference",
@@ -72,10 +75,9 @@
   {
    "default": "draft",
    "fieldname": "status",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Status",
-   "options": "draft\nsent\nread\ndelivered\nfailed\nmarked as read",
    "read_only": 1
   },
   {
@@ -229,7 +231,8 @@
    "fieldname": "whatsapp_account",
    "fieldtype": "Link",
    "label": "WhatsApp Account",
-   "options": "WhatsApp Account"
+   "options": "WhatsApp Account",
+   "search_index": 1
   },
   {
    "collapsible": 1,
@@ -329,11 +332,36 @@
    "label": "WhatsApp Session",
    "options": "WhatsApp Session",
    "search_index": 1
+  },
+  {
+   "fieldname": "whatsapp_contact",
+   "fieldtype": "Link",
+   "label": "WhatsApp Contact",
+   "options": "WhatsApp Contact",
+   "search_index": 1
+  },
+  {
+   "fieldname": "reply_to_message",
+   "fieldtype": "Link",
+   "label": "Reply To Message",
+   "options": "WhatsApp Message"
+  },
+  {
+   "fieldname": "file_url",
+   "fieldtype": "Data",
+   "label": "File Url",
+   "options": "URL"
   }
  ],
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-04-06 18:52:40.737373",
+ "links": [
+  {
+   "group": "Replies",
+   "link_doctype": "WhatsApp Message",
+   "link_fieldname": "reply_to_message"
+  }
+ ],
+ "modified": "2026-06-10 10:12:36.752223",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Message",

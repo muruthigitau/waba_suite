@@ -10,7 +10,7 @@ app_license = "agpl-3.0"
 # Apps
 # ------------------
 
-required_apps = ["helpdesk"]
+# required_apps = ["helpdesk"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -28,7 +28,7 @@ required_apps = ["helpdesk"]
 
 # include js, css files in header of desk.html
 app_include_css = ["whatsapp_chat.bundle.css"]
-app_include_js = ["whatsapp_chat.bundle.js", "/assets/waba_suite/js/waba_suite.js"]
+app_include_js = ["whatsapp_chat.bundle.js", "/assets/waba_suite/js/waba_suite_js.js"]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/waba_suite/css/waba_suite.css"
@@ -295,4 +295,8 @@ sounds = [
 		"src": "/assets/frappe/sounds/alert.mp3",
 		"volume": 0.5,
 	},
+]
+
+website_route_rules = [
+	{"from_route": "/whatsapp/<path:app_path>", "to_route": "whatsapp"},
 ]

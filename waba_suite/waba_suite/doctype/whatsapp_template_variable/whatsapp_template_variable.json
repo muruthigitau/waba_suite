@@ -1,0 +1,80 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-10 07:25:42.507629",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "source_type",
+  "column_break_lxmu",
+  "field_name",
+  "static_value",
+  "expression"
+ ],
+ "fields": [
+  {
+   "fieldname": "source_type",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Source Type",
+   "options": "DocField\nStatic\nComputed",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_lxmu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval: doc.source_type == \"DocField\"",
+   "fieldname": "field_name",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Field Name",
+   "mandatory_depends_on": "eval: doc.source_type == \"DocField\""
+  },
+  {
+   "depends_on": "eval: doc.source_type == \"Static\"",
+   "fieldname": "static_value",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Static Value",
+   "mandatory_depends_on": "eval: doc.source_type == \"Static\""
+  },
+  {
+   "depends_on": "eval: doc.source_type == \"Computed\"",
+   "fieldname": "expression",
+   "fieldtype": "Code",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Expression",
+   "mandatory_depends_on": "eval: doc.source_type == \"Computed\""
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-10 07:31:19.994040",
+ "modified_by": "Administrator",
+ "module": "WABA Suite",
+ "name": "WhatsApp Template Variable",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

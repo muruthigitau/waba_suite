@@ -1,0 +1,16 @@
+{
+  "name": "waba_suite",
+  "version": "1.0.0",
+  "description": "A comprehensive, all-in-one WhatsApp Business API (WABA) integration for the Frappe Framework",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "cd whatsapp && yarn install",
+    "dev": "cd whatsapp && yarn dev",
+    "build": "cd whatsapp && yarn build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

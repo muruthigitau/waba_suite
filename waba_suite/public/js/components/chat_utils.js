@@ -45,29 +45,67 @@ function is_image(filename) {
 	return true;
 }
 
-async function get_rooms(email) {
+async function get_rooms(email, whatsapp_account) {
 	const res = await frappe.call({
 		type: "GET",
 		method: "waba_suite.api.contacts.get",
 		args: {
 			email: email,
+			whatsapp_account: whatsapp_account,
 		},
 	});
-	return await res.message;
+
+	let rooms = await res.message;
+
+	rooms = rooms.sort((a, b) => {
+		let dateA = null;
+		let dateB = null;
+
+		if (a.last_message && a.last_message.creation) {
+			dateA = new Date(a.last_message.creation);
+		} else if (a.modified) {
+			dateA = new Date(a.modified);
+		} else {
+			dateA = new Date(0);
+		}
+
+		if (b.last_message && b.last_message.creation) {
+			dateB = new Date(b.last_message.creation);
+		} else if (b.modified) {
+			dateB = new Date(b.modified);
+		} else {
+			dateB = new Date(0);
+		}
+
+		return dateB - dateA;
+	});
+
+	return rooms;
 }
 
-async function get_messages(room, user_no) {
+async function get_messages(room, user_no, whatsapp_account) {
 	const res = await frappe.call({
 		method: "waba_suite.api.message.get_all",
 		args: {
 			room: room,
 			user_no: user_no,
+			whatsapp_account: whatsapp_account,
 		},
 	});
 	return await res.message;
 }
 
-async function send_message(content, user, room, user_no, attachment) {
+async function send_message(
+	content,
+	user,
+	room,
+	user_no,
+	attachment,
+	messageId,
+	whatsapp_account,
+	reply_to_message_id = null,
+	content_type = "text",
+) {
 	try {
 		await frappe.call({
 			method: "waba_suite.api.message.send",
@@ -77,6 +115,10 @@ async function send_message(content, user, room, user_no, attachment) {
 				room: room,
 				user_no: user_no,
 				attachment: attachment,
+				message_id: messageId,
+				whatsapp_account: whatsapp_account,
+				reply_to_message_id: reply_to_message_id,
+				content_type: content_type,
 			},
 		});
 	} catch (error) {
@@ -98,17 +140,16 @@ async function get_settings(token) {
 	return await res.message;
 }
 
-async function mark_message_read(room) {
+async function mark_message_read(room, whatsapp_account) {
 	try {
 		await frappe.call({
 			method: "waba_suite.api.message.mark_as_read",
 			args: {
 				room: room,
+				whatsapp_account: whatsapp_account,
 			},
 		});
-	} catch (error) {
-		//pass
-	}
+	} catch (error) {}
 }
 
 async function create_guest({ email, full_name, message }) {
@@ -123,29 +164,14 @@ async function create_guest({ email, full_name, message }) {
 	return await res.message;
 }
 
-async function set_typing(room, user, is_typing, is_guest) {
-	try {
-		await frappe.call({
-			method: "waba_suite.api.message.set_typing",
-			args: {
-				room: room,
-				user: user,
-				is_typing: is_typing,
-				is_guest: is_guest,
-			},
-		});
-	} catch (error) {
-		//pass
-	}
-}
-
-async function create_private_room(contact_name, mobile_no, email) {
+async function create_private_room(contact_name, mobile_no, email, whatsapp_account) {
 	await frappe.call({
 		method: "waba_suite.api.contacts.create",
 		args: {
 			contact_name: contact_name,
 			mobile_no: mobile_no,
 			email: email,
+			whatsapp_account: whatsapp_account,
 		},
 	});
 }
@@ -159,34 +185,94 @@ async function set_user_settings(settings) {
 	});
 }
 
-function get_avatar_html(room_type, user_email, room_name) {
-	let avatar_html;
-	if (room_type === "Direct" && "desk" in frappe) {
-		avatar_html = frappe.avatar(user_email, "avatar-medium");
-	} else {
-		avatar_html = frappe.get_avatar("avatar-medium", room_name);
+function get_avatar_html(room_type, email, name, profile_picture = null) {
+	if (profile_picture && profile_picture !== "null" && profile_picture !== "") {
+		return `
+            <div class='waba-avatar' style="
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                overflow: hidden;
+                flex-shrink: 0;
+            ">
+                <img src="${profile_picture}" alt="${__(name)}" style="
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                " onerror="this.onerror=null; this.parentElement.innerHTML=this.getFallbackAvatar('${room_type}', '${email}', '${name}')">
+            </div>
+        `;
 	}
-	return avatar_html;
+
+	let initial = name ? name.charAt(0).toUpperCase() : "?";
+	if (room_type === "Group") {
+		initial = "👥";
+	}
+
+	const colors = ["#25D366", "#075E54", "#128C7E", "#34B7F1", "#1DA1F2", "#E1306C"];
+	const colorIndex = (email?.length || 0) % colors.length;
+
+	return `
+        <div class='waba-avatar' style="
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: ${colors[colorIndex]};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        ">
+            ${initial}
+        </div>
+    `;
 }
 
-function set_notification_count(type) {
-	const current_count = frappe.Chat.settings.unread_count;
-	if (type === "increment") {
-		$("#chat-notification-count").text(current_count + 1);
-		frappe.Chat.settings.unread_count += 1;
-	} else {
-		if (current_count - 1 === 0) {
-			$("#chat-notification-count").text("");
+function set_notification_count(value) {
+	if (typeof value === "number") {
+		frappe.Chat.settings.unread_count = value;
+		if (value === 0) {
+			$("#waba-chat-notification-count").text("");
+			$("#waba-chat-notification-count").hide();
 		} else {
-			$("#chat-notification-count").text(current_count - 1);
+			const displayCount = value > 99 ? "99+" : value;
+			$("#waba-chat-notification-count").text(displayCount);
+			$("#waba-chat-notification-count").show();
 		}
-		frappe.Chat.settings.unread_count -= 1;
+	} else if (value === "increment") {
+		const new_count = (frappe.Chat.settings.unread_count || 0) + 1;
+		frappe.Chat.settings.unread_count = new_count;
+		const displayCount = new_count > 99 ? "99+" : new_count;
+		$("#waba-chat-notification-count").text(displayCount);
+		$("#waba-chat-notification-count").show();
+	} else if (value === "decrement") {
+		const new_count = Math.max(0, (frappe.Chat.settings.unread_count || 0) - 1);
+		frappe.Chat.settings.unread_count = new_count;
+		if (new_count === 0) {
+			$("#waba-chat-notification-count").text("");
+			$("#waba-chat-notification-count").hide();
+		} else {
+			const displayCount = new_count > 99 ? "99+" : new_count;
+			$("#waba-chat-notification-count").text(displayCount);
+		}
 	}
+}
+
+async function get_active_account() {
+	const res = await frappe.call({
+		method: "waba_suite.api.accounts.get_active_account",
+		args: {},
+	});
+	return res.message;
 }
 
 export {
 	create_guest,
 	create_private_room,
+	get_active_account,
 	get_avatar_html,
 	get_date_from_now,
 	get_messages,
@@ -199,6 +285,5 @@ export {
 	scroll_to_bottom,
 	send_message,
 	set_notification_count,
-	set_typing,
 	set_user_settings,
 };
