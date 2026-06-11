@@ -12,6 +12,7 @@ import { Loader } from "../common/Loader";
 import { MessageBubble } from "../common/MessageBubble";
 import { ChatHeader } from "../layout/ChatHeader";
 import { TemplateMessage } from "../messages/TemplateMessage";
+import { EmojiPicker } from "../modals/EmojiPicker";
 
 interface ChatSpaceProps {
   chat: Chat | null;
@@ -301,6 +302,13 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     }
   };
 
+  const openInputEmojiPicker = () => {
+    setGlobalEmojiPicker({
+      isOpen: true,
+      onSelect: (emoji) => setMessageInput((prev) => prev + emoji),
+    });
+  };
+
   if (!chat) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#0b141a] h-full">
@@ -318,7 +326,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-hidden">
+    <div className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-hidden relative">
       <ChatHeader
         chat={chat}
         onBack={onBack}
@@ -383,6 +391,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
                   onReply={handleReply}
                   onReact={handleReact}
                   isGroup={chat.isGroup}
+                  setGlobalEmojiPicker={setGlobalEmojiPicker}
                 />
               );
             })}
@@ -413,10 +422,10 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         </div>
       )}
 
-      <div className="p-3 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0">
+      <div className="p-3 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0 relative">
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            onClick={openInputEmojiPicker}
             className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
           >
             <Smile className="w-5 h-5" />
@@ -450,6 +459,15 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
           </button>
         </div>
       </div>
+
+      {globalEmojiPicker.isOpen && (
+        <EmojiPicker
+          onEmojiSelect={globalEmojiPicker.onSelect}
+          onClose={() =>
+            setGlobalEmojiPicker((prev) => ({ ...prev, isOpen: false }))
+          }
+        />
+      )}
     </div>
   );
 };
