@@ -10,6 +10,7 @@
   "email",
   "user",
   "column_break_cbhf",
+  "profile_picture",
   "whatsapp_profile",
   "customer",
   "contact",
@@ -77,8 +78,14 @@
   {
    "fieldname": "section_break_cbxd",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "profile_picture",
+   "fieldtype": "Attach Image",
+   "label": "Profile Picture"
   }
  ],
+ "image_field": "profile_picture",
  "index_web_pages_for_search": 1,
  "links": [
   {
@@ -86,7 +93,7 @@
    "link_fieldname": "whatsapp_contact"
   }
  ],
- "modified": "2026-06-10 11:31:34.554985",
+ "modified": "2026-06-11 08:00:42.127931",
  "modified_by": "Administrator",
  "module": "Whatsapp Chat",
  "name": "WhatsApp Contact",
