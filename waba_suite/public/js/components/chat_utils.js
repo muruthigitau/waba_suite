@@ -185,15 +185,50 @@ async function set_user_settings(settings) {
 	});
 }
 
-function get_avatar_html(room_type, user_email, room_name) {
-	let avatar_html;
-	if (room_type === "Direct" && "desk" in frappe) {
-		avatar_html = frappe.avatar(user_email, "avatar-medium");
-		avatar_html = $(avatar_html).addClass("waba-chat-avatar").prop("outerHTML");
-	} else {
-		avatar_html = `<div class="waba-chat-avatar">${room_name.charAt(0).toUpperCase()}</div>`;
+function get_avatar_html(room_type, email, name, profile_picture = null) {
+	if (profile_picture && profile_picture !== "null" && profile_picture !== "") {
+		return `
+            <div class='waba-avatar' style="
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                overflow: hidden;
+                flex-shrink: 0;
+            ">
+                <img src="${profile_picture}" alt="${__(name)}" style="
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                " onerror="this.onerror=null; this.parentElement.innerHTML=this.getFallbackAvatar('${room_type}', '${email}', '${name}')">
+            </div>
+        `;
 	}
-	return avatar_html;
+
+	let initial = name ? name.charAt(0).toUpperCase() : "?";
+	if (room_type === "Group") {
+		initial = "👥";
+	}
+
+	const colors = ["#25D366", "#075E54", "#128C7E", "#34B7F1", "#1DA1F2", "#E1306C"];
+	const colorIndex = (email?.length || 0) % colors.length;
+
+	return `
+        <div class='waba-avatar' style="
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: ${colors[colorIndex]};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        ">
+            ${initial}
+        </div>
+    `;
 }
 
 function set_notification_count(value) {

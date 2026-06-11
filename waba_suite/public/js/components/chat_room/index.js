@@ -41,6 +41,7 @@ export default class ChatRoom {
 			this.profile.room_type,
 			this.profile.opposite_person_email,
 			this.profile.room_name,
+			this.profile.profile_picture,
 		);
 
 		const unread_count = this.profile.unread_incoming || 0;

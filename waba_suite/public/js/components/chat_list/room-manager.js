@@ -35,6 +35,7 @@ export class RoomManager {
 				unread_incoming: unreadCount,
 				contact_name: roomData.contact_name,
 				mobile_no: roomData.mobile_no,
+				profile_picture: roomData.profile_picture || null,
 			};
 
 			let chatRoom;
@@ -74,7 +75,6 @@ export class RoomManager {
 		const chatRoom = this.createChatRoom(profile);
 		const roomEntry = { profile, chatRoom };
 
-		// Insert at correct position based on date
 		const newRoomDate = RoomSorter.getLastMessageDate(profile);
 		let insertPosition = this.getInsertPosition(newRoomDate);
 
