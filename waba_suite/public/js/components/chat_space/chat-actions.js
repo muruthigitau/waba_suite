@@ -1,24 +1,28 @@
 import { get_time, scroll_to_bottom, send_message } from "../chat_utils.js";
+import EmojiPicker from "../emoji-picker.js";
 import MessageRenderer from "./message-renderer.js";
 
 export default class ChatActions {
 	constructor(chatSpace) {
 		this.chatSpace = chatSpace;
 		this.$element = null;
-		this.file = null;
 		this.reply_to_message = null;
 		this.messageRenderer = new MessageRenderer(chatSpace);
+		this.emojiPickerInstance = null;
+		this.quickEmojis = ["😀", "😂", "❤️", "👍", "🎉", "🙏"];
 	}
 
 	render() {
 		const html = `
-			<div class='waba-chat-actions'>
-				<div class='waba-attach-button' title='${__("Attach file")}'>
+			<div class='waba-chat-actions' style="position: relative;">
+				<div class='waba-emoji-button' title='${__("Send Emoji")}'>
 					<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+						<circle cx="12" cy="12" r="10"/>
+						<path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+						<line x1="9" y1="9" x2="9.01" y2="9"/>
+						<line x1="15" y1="9" x2="15.01" y2="9"/>
 					</svg>
 				</div>
-				<input type='file' id='waba-file-uploader' accept='image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain' style='display: none;'>
 				<div class='waba-type-wrapper' style='flex: 1; position: relative;'>
 					<div class='waba-reply-preview' style='display: none; position: absolute; bottom: 100%; left: 0; right: 0; background: var(--wa-bg-sidebar); border-radius: 12px; margin-bottom: 8px; padding: 8px 12px; box-shadow: var(--wa-shadow-md); z-index: 10; border-left: 3px solid var(--wa-primary);'>
 						<div class='waba-reply-preview-content' style='display: flex; align-items: flex-start; gap: 10px;'>
@@ -47,34 +51,21 @@ export default class ChatActions {
 		const me = this;
 
 		this.$element.find(".waba-send-button").on("click", () => {
-			if (this.file) this.handleUploadFile(this.file);
-			else this.handleSendMessage();
+			this.handleSendMessage();
 		});
 
-		this.$element.find(".waba-type-message").keydown(function (e) {
+		this.$element.find(".waba-type-message").on("keydown", function (e) {
 			if (e.which === 13 && !e.shiftKey) {
 				e.preventDefault();
-				if (me.file) me.handleUploadFile(me.file);
-				else me.handleSendMessage();
+				me.handleSendMessage();
 			}
 		});
 
-		this.$element.find(".waba-type-message").on("keydown", (e) => {
-			if (e.key === "Escape") {
-				this.hideReplyPreview();
-				this.chatSpace.dismissAllPopups();
-			}
-		});
-
-		this.$element.find(".waba-attach-button").on("click", () => {
-			$("#waba-file-uploader").click();
-		});
-
-		$("#waba-file-uploader").on("change", (e) => {
-			if (e.target.files.length > 0) {
-				this.file = { file_obj: e.target.files[0], name: e.target.files[0].name };
-				this.showFilePreview(this.file);
-			}
+		this.$element.find(".waba-emoji-button").on("click", (e) => {
+			e.stopPropagation();
+			this.showSmallEmojiPicker((emoji) => {
+				this.sendEmojiMessage(emoji);
+			});
 		});
 
 		this.$element.find(".waba-reply-preview-remove").on("click", () => {
@@ -82,10 +73,161 @@ export default class ChatActions {
 		});
 	}
 
+	showSmallEmojiPicker(onSelect) {
+		$(".waba-small-emoji-picker-popup").remove();
+		if (this.emojiPickerInstance) {
+			this.emojiPickerInstance.destroy();
+		}
+
+		const pickerHtml = `
+			<div class="waba-small-emoji-picker-popup" style="
+				position: absolute;
+				bottom: 60px;
+				left: 10px;
+				background: var(--wa-bg-sidebar, #fff);
+				border-radius: 24px;
+				padding: 6px 10px;
+				box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+				display: flex;
+				gap: 4px;
+				align-items: center;
+				z-index: 1100;
+				border: 1px solid var(--wa-border);
+			">
+				${this.quickEmojis
+					.map(
+						(e) => `
+					<span class="waba-quick-emoji-option" data-emoji="${e}" style="
+						font-size: 22px;
+						cursor: pointer;
+						padding: 4px;
+						border-radius: 50%;
+						display: inline-block;
+						transition: transform 0.12s;
+					">${e}</span>
+				`,
+					)
+					.join("")}
+				<span class="waba-expand-emoji-picker" style="
+					font-size: 18px;
+					cursor: pointer;
+					padding: 4px;
+					border-radius: 50%;
+					display: inline-block;
+					transition: transform 0.12s;
+				">➕</span>
+			</div>
+		`;
+
+		const $picker = $(pickerHtml);
+
+		$picker
+			.find(".waba-quick-emoji-option")
+			.on("mouseenter", function () {
+				$(this).css("transform", "scale(1.25)");
+			})
+			.on("mouseleave", function () {
+				$(this).css("transform", "scale(1)");
+			})
+			.on("click", function (e) {
+				e.stopPropagation();
+				const emoji = $(this).data("emoji");
+				onSelect(emoji);
+				$picker.remove();
+			});
+
+		$picker.find(".waba-expand-emoji-picker").on("click", (e) => {
+			e.stopPropagation();
+			$picker.remove();
+
+			this.emojiPickerInstance = new EmojiPicker((emoji) => {
+				onSelect(emoji);
+			});
+
+			this.emojiPickerInstance.init().then(() => {
+				this.emojiPickerInstance.show();
+			});
+		});
+
+		this.$element.append($picker);
+
+		const dismissPicker = (e) => {
+			if (
+				!$(e.target).closest(
+					".waba-small-emoji-picker-popup, .waba-emoji-button, .waba-action-react, .waba-emoji-full-picker",
+				).length
+			) {
+				$picker.remove();
+				$(document).off("click", dismissPicker);
+			}
+		};
+
+		setTimeout(() => {
+			$(document).on("click", dismissPicker);
+		}, 100);
+	}
+
+	sendReactionToMessage(messageId, emoji) {
+		send_message(
+			emoji,
+			this.chatSpace.profile.user,
+			this.chatSpace.profile.room,
+			this.chatSpace.profile.user_email,
+			null,
+			Date.now().toString(),
+			this.chatSpace.profile.whatsapp_account,
+			messageId,
+			"reaction",
+		);
+	}
+
+	sendEmojiMessage(emoji) {
+		if (!emoji) return;
+
+		const messageId = Date.now().toString();
+		const replyToMessageId = this.reply_to_message ? this.reply_to_message.name : null;
+		const repliedMessage = this.reply_to_message
+			? this.messageRenderer.getRepliedMessage(
+					this.reply_to_message.name,
+					this.chatSpace.messagesContainer.messages,
+				)
+			: null;
+
+		const $message = this.messageRenderer.makeMessage(
+			emoji,
+			get_time(),
+			"recipient",
+			this.chatSpace.profile.user,
+			null,
+			"sent",
+			"Outgoing",
+			messageId,
+			repliedMessage,
+			replyToMessageId,
+			"text",
+		);
+
+		this.chatSpace.messagesContainer.getContainer().append($message);
+		scroll_to_bottom(this.chatSpace.messagesContainer.getContainer());
+
+		send_message(
+			emoji,
+			this.chatSpace.profile.user,
+			this.chatSpace.profile.room,
+			this.chatSpace.profile.user_email,
+			null,
+			messageId,
+			this.chatSpace.profile.whatsapp_account,
+			replyToMessageId,
+		);
+
+		this.hideReplyPreview();
+	}
+
 	showReplyPreview(message) {
-		const $preview = $(".waba-reply-preview");
-		const $sender = $(".waba-reply-preview-sender");
-		const $text = $(".waba-reply-preview-text");
+		const $preview = this.$element.find(".waba-reply-preview");
+		const $sender = $preview.find(".waba-reply-preview-sender");
+		const $text = $preview.find(".waba-reply-preview-text");
 
 		let senderName = message.sender_user_no || message.from || "Unknown";
 		if (senderName === this.chatSpace.profile.user_email) {
@@ -98,91 +240,29 @@ export default class ChatActions {
 
 		let replyText = this.messageRenderer.getRepliedContent(message);
 		$sender.text(__("Replying to {0}", [senderName]));
+
+		if (replyText.length > 100) {
+			replyText = replyText.substring(0, 100) + "...";
+		}
 		$text.text(replyText);
 		$preview.show();
 	}
 
 	hideReplyPreview() {
-		$(".waba-reply-preview").hide();
-		$(".waba-reply-preview-sender").text("");
-		$(".waba-reply-preview-text").text("");
+		const $preview = this.$element.find(".waba-reply-preview");
+		$preview.hide();
+		$preview.find(".waba-reply-preview-sender").text("");
+		$preview.find(".waba-reply-preview-text").text("");
 		this.reply_to_message = null;
 	}
 
-	showFilePreview(file) {
-		const $preview = $(".waba-file-preview");
-		const $previewName = $(".waba-file-preview-name");
-		const maxNameLength = 30;
-		let fileName = file.name;
-		if (fileName.length > maxNameLength)
-			fileName = fileName.substring(0, maxNameLength) + "...";
-		$previewName.text(fileName);
-		$preview.show();
-	}
+	handleSendMessage() {
+		const $type_message = this.$element.find(".waba-type-message");
+		let content = $type_message.val();
 
-	hideFilePreview() {
-		$(".waba-file-preview").hide();
-		$(".waba-file-preview-name").text("");
-		this.file = null;
-		$("#waba-file-uploader").val("");
-	}
-
-	async handleUploadFile(file) {
-		return new Promise((resolve, reject) => {
-			let xhr = new XMLHttpRequest();
-
-			xhr.upload.addEventListener("load", () => resolve());
-			xhr.addEventListener("error", () => reject(frappe.throw(__("Internal Server Error"))));
-
-			xhr.onreadystatechange = () => {
-				if (xhr.readyState === XMLHttpRequest.DONE) {
-					if (xhr.status === 200) {
-						let r = null,
-							file_doc = null;
-						try {
-							r = JSON.parse(xhr.responseText);
-							if (r.message.doctype === "File") file_doc = r.message;
-						} catch (e) {
-							r = xhr.responseText;
-						}
-						try {
-							if (file_doc === null) reject(frappe.throw(__("File upload failed!")));
-							this.handleSendMessage(file_doc.file_url);
-						} catch (error) {
-							reject(error);
-						}
-					} else {
-						try {
-							const error = JSON.parse(xhr.responseText);
-							const messages = JSON.parse(error._server_messages);
-							const errorObj = JSON.parse(messages[0]);
-							reject(frappe.throw(__(errorObj.message)));
-						} catch (e) {
-							reject(frappe.throw(__("File upload failed!")));
-						}
-					}
-				}
-			};
-
-			xhr.open("POST", "/api/method/upload_file", true);
-			xhr.setRequestHeader("Accept", "application/json");
-			xhr.setRequestHeader("X-Frappe-CSRF-Token", frappe.csrf_token);
-
-			let form_data = new FormData();
-			form_data.append("file", file.file_obj, file.name);
-			form_data.append("is_private", false);
-			form_data.append("doctype", "WhatsApp Contact");
-			form_data.append("docname", this.chatSpace.profile.room);
-			form_data.append("optimize", true);
-			xhr.send(form_data);
-		});
-	}
-
-	handleSendMessage(attachment) {
-		const $type_message = $(".waba-type-message");
-		let content = attachment || $type_message.val();
-
-		if ((!content || content.trim().length === 0) && !attachment) return;
+		if (!content || content.trim().length === 0) {
+			return;
+		}
 
 		const messageId = Date.now().toString();
 		const replyToMessageId = this.reply_to_message ? this.reply_to_message.name : null;
@@ -193,23 +273,21 @@ export default class ChatActions {
 				)
 			: null;
 
-		if (content && content.trim().length > 0 && !attachment) {
-			const $message = this.messageRenderer.makeMessage(
-				content,
-				get_time(),
-				"recipient",
-				this.chatSpace.profile.user,
-				null,
-				"sent",
-				"Outgoing",
-				messageId,
-				repliedMessage,
-				replyToMessageId,
-			);
-			this.chatSpace.messagesContainer.getContainer().append($message);
-			$type_message.val("");
-		}
+		const $message = this.messageRenderer.makeMessage(
+			content,
+			get_time(),
+			"recipient",
+			this.chatSpace.profile.user,
+			null,
+			"sent",
+			"Outgoing",
+			messageId,
+			repliedMessage,
+			replyToMessageId,
+		);
 
+		this.chatSpace.messagesContainer.getContainer().append($message);
+		$type_message.val("");
 		scroll_to_bottom(this.chatSpace.messagesContainer.getContainer());
 
 		send_message(
@@ -217,46 +295,12 @@ export default class ChatActions {
 			this.chatSpace.profile.user,
 			this.chatSpace.profile.room,
 			this.chatSpace.profile.user_email,
-			attachment,
+			null,
 			messageId,
 			this.chatSpace.profile.whatsapp_account,
 			replyToMessageId,
 		);
 
-		if (attachment) this.hideFilePreview();
 		this.hideReplyPreview();
-	}
-
-	async sendReaction(messageId, emoji) {
-		const reactionMessageId = Date.now().toString();
-
-		const $message = this.messageRenderer.makeMessage(
-			emoji,
-			get_time(),
-			"recipient",
-			this.chatSpace.profile.user,
-			null,
-			"sent",
-			"Outgoing",
-			reactionMessageId,
-			null,
-			messageId,
-			"reaction",
-		);
-
-		this.chatSpace.messagesContainer.getContainer().append($message);
-		scroll_to_bottom(this.chatSpace.messagesContainer.getContainer());
-
-		send_message(
-			emoji,
-			this.chatSpace.profile.user,
-			this.chatSpace.profile.room,
-			this.chatSpace.profile.user_email,
-			null,
-			reactionMessageId,
-			this.chatSpace.profile.whatsapp_account,
-			messageId,
-			"reaction",
-		);
 	}
 }

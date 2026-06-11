@@ -37,9 +37,23 @@ export default class ChatSpace {
 		this.$chat_space.append(this.chatActions.render());
 		this.$wrapper.html(this.$chat_space);
 
+		const MessageActions = (await import("./message-actions.js")).default;
+		this.messageActions = new MessageActions(this, this.chatActions);
+		this.messagesContainer.setupMessageClickHandler(this.messageActions);
+
 		await this.fetchAndSetupMessages();
 		this.setupEvents();
 		scroll_to_bottom(this.messagesContainer.getContainer());
+	}
+
+	dismissAllPopups() {
+		if (this.messageActions) {
+			this.messageActions.dismissAllPopups();
+		} else {
+			$(".waba-msg-action-popup").remove();
+			$(".waba-small-emoji-picker-popup").remove();
+			$(".waba-emoji-full-picker").remove();
+		}
 	}
 
 	async fetchAndSetupMessages() {
@@ -77,8 +91,6 @@ export default class ChatSpace {
 	}
 
 	setupEvents() {
-		const me = this;
-
 		$(document).on("click", ".waba-chat-back-button", () => {
 			this.stopAutoRefresh();
 			this.realtimeHandler.destroy();
@@ -98,17 +110,12 @@ export default class ChatSpace {
 		$(document).on("click", (e) => {
 			if (
 				!$(e.target).closest(
-					".waba-msg-action-popup, .waba-message-received, .waba-message-sent",
+					".waba-msg-action-popup, .waba-message-received, .waba-message-sent, .waba-small-emoji-picker-popup, .waba-emoji-full-picker, .waba-emoji-button",
 				).length
 			) {
 				this.dismissAllPopups();
 			}
 		});
-	}
-
-	dismissAllPopups() {
-		$(".waba-msg-action-popup").remove();
-		$(".waba-reaction-picker-popup").hide();
 	}
 
 	async refreshSpace() {

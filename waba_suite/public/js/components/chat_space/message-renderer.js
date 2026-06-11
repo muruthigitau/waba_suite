@@ -169,11 +169,11 @@ export default class MessageRenderer {
 
 		const statusIcon = this.getMessageStatusIcon(status, messageType);
 		$message_element.append(`
-			<div class="waba-message-meta" style="display: flex; align-items: center; justify-content: flex-end; gap: 3px; margin-top: 3px;">
-				<span style="font-size: 11px; color: var(--wa-text-light);">${__(time)}</span>
-				${statusIcon}
-			</div>
-		`);
+            <div class="waba-message-meta" style="display: flex; align-items: center; justify-content: flex-end; gap: 3px; margin-top: 3px;">
+                <span style="font-size: 11px; color: var(--wa-text-light);">${__(time)}</span>
+                ${statusIcon}
+            </div>
+        `);
 
 		const reactionsHtml = this.buildReactionBubblesHtml(reactions, type);
 		if (reactionsHtml) {
@@ -210,11 +210,11 @@ export default class MessageRenderer {
 		}
 
 		return $(`
-			<div class="waba-reply-indicator" style="background: var(--wa-bg-search); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; border-left: 3px solid var(--wa-primary); font-size: 12px;">
-				<div style="font-weight: 600; color: var(--wa-primary); margin-bottom: 2px; font-size: 11px;">${__("Replying to {0}", [repliedMessage.sender])}</div>
-				<div style="color: var(--wa-text-secondary); word-break: break-word; font-size: 12px;">${replyContent}</div>
-			</div>
-		`);
+            <div class="waba-reply-indicator" style="background: var(--wa-bg-search); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; border-left: 3px solid var(--wa-primary); font-size: 12px;">
+                <div style="font-weight: 600; color: var(--wa-primary); margin-bottom: 2px; font-size: 11px;">${__("Replying to {0}", [repliedMessage.sender])}</div>
+                <div style="color: var(--wa-text-secondary); word-break: break-word; font-size: 12px;">${replyContent}</div>
+            </div>
+        `);
 	}
 
 	makeContent(
@@ -238,14 +238,14 @@ export default class MessageRenderer {
 
 			if (!templateData || templateData === "null" || templateData === null) {
 				$content.html(`
-					<div class="waba-template-placeholder" style="padding: 12px; background: var(--wa-bg-sidebar); border-radius: 8px;">
-						<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-							<span style="font-size: 20px;">📨</span>
-							<span style="font-weight: 600;">${__("Template Message")}</span>
-						</div>
-						<div style="font-size: 12px; color: var(--wa-text-secondary);">${templateName ? __("Template: {0}", [templateName]) : __("Loading...")}</div>
-					</div>
-				`);
+                    <div class="waba-template-placeholder" style="padding: 12px; background: var(--wa-bg-sidebar); border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <span style="font-size: 20px;">📨</span>
+                            <span style="font-weight: 600;">${__("Template Message")}</span>
+                        </div>
+                        <div style="font-size: 12px; color: var(--wa-text-secondary);">${templateName ? __("Template: {0}", [templateName]) : __("Loading...")}</div>
+                    </div>
+                `);
 			} else {
 				try {
 					const templateElement = this.templateRenderer.render(templateData);
@@ -253,50 +253,59 @@ export default class MessageRenderer {
 				} catch (error) {
 					console.error("Failed to render template:", error);
 					$content.html(`
-						<div class="waba-template-error" style="padding: 12px; background: var(--wa-bg-sidebar); border-radius: 8px; color: #FF3B30;">
-							${__("Failed to load template")}
-						</div>
-					`);
+                        <div class="waba-template-error" style="padding: 12px; background: var(--wa-bg-sidebar); border-radius: 8px; color: #FF3B30;">
+                            ${__("Failed to load template")}
+                        </div>
+                    `);
 				}
 			}
 			return $content;
 		}
 
+		const fileUrl = attach || content;
+
 		switch (contentType) {
 			case "image":
 				$content.html(`
-					<img src='${attach || content}' class='waba-chat-image' style='max-width: 250px; max-height: 250px; border-radius: 12px; cursor: pointer;' onclick='window.open("${attach || content}", "_blank")'>
-					${caption ? `<div class='waba-message-caption'>${__(caption)}</div>` : ""}
-				`);
+                    <div class='waba-image-wrapper' style='display: flex; flex-direction: column; gap: 6px;'>
+                        <img src='${fileUrl}' class='waba-chat-image' style='max-width: 250px; max-height: 250px; border-radius: 12px;'>
+                        ${caption ? `<div class='waba-message-caption'>${__(caption)}</div>` : ""}
+                    </div>
+                `);
 				break;
 			case "video":
 				$content.html(`
-					<video controls style='max-width: 250px; max-height: 250px; border-radius: 12px;'>
-						<source src='${attach || content}' type='video/mp4'>
-					</video>
-					${caption ? `<div class='waba-message-caption'>${__(caption)}</div>` : ""}
-				`);
+                    <div class='waba-video-wrapper' style='display: flex; flex-direction: column; gap: 6px;'>
+                        <video controls style='max-width: 250px; max-height: 250px; border-radius: 12px;'>
+                            <source src='${fileUrl}' type='video/mp4'>
+                        </video>
+                        ${caption ? `<div class='waba-message-caption'>${__(caption)}</div>` : ""}
+                    </div>
+                `);
 				break;
 			case "audio":
 				$content.html(`
-					<audio controls style='width: 200px;'>
-						<source src='${attach || content}'>
-					</audio>
-					${caption ? `<div class='waba-message-caption'>${__(caption)}</div>` : ""}
-				`);
+                    <div class='waba-audio-wrapper' style='display: flex; flex-direction: column; gap: 6px;'>
+                        <audio controls style='width: 200px;'>
+                            <source src='${fileUrl}'>
+                        </audio>
+                        ${caption ? `<div class='waba-message-caption'>${__(caption)}</div>` : ""}
+                    </div>
+                `);
 				break;
 			case "document":
 				const fileName = content?.split("/").pop() || __("Document");
 				$content.html(`
-					<div class='waba-file-message' style='display: flex; align-items: center; gap: 10px;'>
-						<span style='font-size: 24px;'>📄</span>
-						<div style='flex: 1;'>
-							<div style='font-weight: 500; margin-bottom: 2px;'>${__(fileName)}</div>
-							<a href='${attach || content}' target='_blank' style='color: var(--wa-primary); text-decoration: none; font-size: 12px;'>${__("Download")}</a>
-						</div>
-					</div>
-					${caption ? `<div class='waba-message-caption'>${__(caption)}</div>` : ""}
-				`);
+                    <div class='waba-file-message' style='display: flex; flex-direction: column; gap: 6px;'>
+                        <div style='display: flex; align-items: center; gap: 10px;'>
+                            <span style='font-size: 24px;'>📄</span>
+                            <div style='flex: 1;'>
+                                <div style='font-weight: 500; margin-bottom: 2px;'>${__(fileName)}</div>
+                            </div>
+                        </div>
+                        ${caption ? `<div class='waba-message-caption'>${__(caption)}</div>` : ""}
+                    </div>
+                `);
 				break;
 			case "location":
 				$content.html(this.renderLocationMessage(locationData || content));
@@ -314,22 +323,25 @@ export default class MessageRenderer {
 				break;
 			default:
 				if (content?.startsWith("/files/")) {
-					const fileName = content.split("/").pop();
-					if (this.isImageFile(fileName)) {
-						$content.html(
-							`<img src='${content}' class='waba-chat-image' style='max-width: 250px; max-height: 250px; border-radius: 12px; cursor: pointer;' onclick='window.open("${content}", "_blank")'>`,
-						);
-					} else {
-						const fileIcon = this.getFileIcon(fileName);
+					const fallbackName = content.split("/").pop();
+					if (this.isImageFile(fallbackName)) {
 						$content.html(`
-							<div class='waba-file-message' style='display: flex; align-items: center; gap: 10px;'>
-								<span style='font-size: 24px;'>${fileIcon}</span>
-								<div style='flex: 1;'>
-									<div style='font-weight: 500; margin-bottom: 2px;'>${__(fileName)}</div>
-									<a href='${content}' target='_blank' style='color: var(--wa-primary); text-decoration: none; font-size: 12px;'>${__("Download")}</a>
-								</div>
-							</div>
-						`);
+                            <div class='waba-image-wrapper' style='display: flex; flex-direction: column; gap: 6px;'>
+                                <img src='${content}' class='waba-chat-image' style='max-width: 250px; max-height: 250px; border-radius: 12px;'>
+                            </div>
+                        `);
+					} else {
+						const fileIcon = this.getFileIcon(fallbackName);
+						$content.html(`
+                            <div class='waba-file-message' style='display: flex; flex-direction: column; gap: 6px;'>
+                                <div style='display: flex; align-items: center; gap: 10px;'>
+                                    <span style='font-size: 24px;'>${fileIcon}</span>
+                                    <div style='flex: 1;'>
+                                        <div style='font-weight: 500; margin-bottom: 2px;'>${__(fallbackName)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `);
 					}
 				} else {
 					$content.text(content || "");
@@ -347,15 +359,15 @@ export default class MessageRenderer {
 				typeof locationData === "string" ? JSON.parse(locationData) : locationData;
 			const mapsUrl = `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
 			return `
-				<div class='waba-location-message' style='display: flex; align-items: flex-start; gap: 12px;'>
-					<span style='font-size: 24px;'>📍</span>
-					<div style='flex: 1;'>
-						<div style='font-weight: 500; margin-bottom: 4px;'>${__("Location")}</div>
-						<div style='font-size: 12px; color: var(--wa-text-secondary); margin-bottom: 8px;'>${location.name || ""}</div>
-						<a href='${mapsUrl}' target='_blank' style='color: var(--wa-primary); text-decoration: none; font-size: 12px;'>${__("View on Map")}</a>
-					</div>
-				</div>
-			`;
+                <div class='waba-location-message' style='display: flex; align-items: flex-start; gap: 12px;'>
+                    <span style='font-size: 24px;'>📍</span>
+                    <div style='flex: 1;'>
+                        <div style='font-weight: 500; margin-bottom: 4px;'>${__("Location")}</div>
+                        <div style='font-size: 12px; color: var(--wa-text-secondary); margin-bottom: 8px;'>${location.name || ""}</div>
+                        <a href='${mapsUrl}' target='_blank' style='color: var(--wa-primary); text-decoration: none; font-size: 12px;'>${__("View on Map")}</a>
+                    </div>
+                </div>
+            `;
 		} catch (e) {
 			return `<div>${__("Location shared")}</div>`;
 		}
@@ -367,15 +379,15 @@ export default class MessageRenderer {
 			const contact =
 				typeof contactData === "string" ? JSON.parse(contactData) : contactData;
 			return `
-				<div class='waba-contact-message' style='display: flex; align-items: flex-start; gap: 12px;'>
-					<span style='font-size: 24px;'>👤</span>
-					<div style='flex: 1;'>
-						<div style='font-weight: 500; margin-bottom: 4px;'>${contact.name || ""}</div>
-						${contact.phones ? contact.phones.map((phone) => `<div style='font-size: 12px; color: var(--wa-text-secondary); margin-bottom: 4px;'>${phone.phone} ${phone.type ? `(${phone.type})` : ""}</div>`).join("") : ""}
-						${contact.emails ? contact.emails.map((email) => `<div style='font-size: 12px; color: var(--wa-text-secondary);'>${email.email} ${email.type ? `(${email.type})` : ""}</div>`).join("") : ""}
-					</div>
-				</div>
-			`;
+                <div class='waba-contact-message' style='display: flex; align-items: flex-start; gap: 12px;'>
+                    <span style='font-size: 24px;'>👤</span>
+                    <div style='flex: 1;'>
+                        <div style='font-weight: 500; margin-bottom: 4px;'>${contact.name || ""}</div>
+                        ${contact.phones ? contact.phones.map((phone) => `<div style='font-size: 12px; color: var(--wa-text-secondary); margin-bottom: 4px;'>${phone.phone} ${phone.type ? `(${phone.type})` : ""}</div>`).join("") : ""}
+                        ${contact.emails ? contact.emails.map((email) => `<div style='font-size: 12px; color: var(--wa-text-secondary);'>${email.email} ${email.type ? `(${email.type})` : ""}</div>`).join("") : ""}
+                    </div>
+                </div>
+            `;
 		} catch (e) {
 			return `<div>${__("Contact shared")}</div>`;
 		}
@@ -386,16 +398,16 @@ export default class MessageRenderer {
 		try {
 			const buttons = typeof buttonData === "string" ? JSON.parse(buttonData) : buttonData;
 			return `
-				<div class='waba-buttons-message' style='margin-top: 8px;'>
-					${buttons
+                <div class='waba-buttons-message' style='margin-top: 8px;'>
+                    ${buttons
 						.map(
 							(button) => `
-						<button class='waba-interactive-button' data-button-id='${button.id}' style='display: block; width: 100%; margin-top: 8px; padding: 8px 12px; background: var(--wa-primary-light); border: none; border-radius: 8px; color: var(--wa-primary); font-weight: 500; cursor: pointer; text-align: center;'>${button.text}</button>
-					`,
+                        <button class='waba-interactive-button' data-button-id='${button.id}' style='display: block; width: 100%; margin-top: 8px; padding: 8px 12px; background: var(--wa-primary-light); border: none; border-radius: 8px; color: var(--wa-primary); font-weight: 500; cursor: pointer; text-align: center;'>${button.text}</button>
+                    `,
 						)
 						.join("")}
-				</div>
-			`;
+                </div>
+            `;
 		} catch (e) {
 			return null;
 		}
@@ -417,8 +429,8 @@ export default class MessageRenderer {
 				html += `<div style='font-size: 11px; color: var(--wa-text-light); margin-bottom: 12px;'>${interactive.footer}</div>`;
 			if (interactive.buttons?.length) {
 				html += `<div class='waba-interactive-buttons' style='margin-top: 8px;'>
-					${interactive.buttons.map((button) => `<button class='waba-interactive-button' data-button-id='${button.id}' style='display: block; width: 100%; margin-top: 8px; padding: 8px 12px; background: var(--wa-primary-light); border: none; border-radius: 8px; color: var(--wa-primary); font-weight: 500; cursor: pointer; text-align: center;'>${button.text}</button>`).join("")}
-				</div>`;
+                    ${interactive.buttons.map((button) => `<button class='waba-interactive-button' data-button-id='${button.id}' style='display: block; width: 100%; margin-top: 8px; padding: 8px 12px; background: var(--wa-primary-light); border: none; border-radius: 8px; color: var(--wa-primary); font-weight: 500; cursor: pointer; text-align: center;'>${button.text}</button>`).join("")}
+                </div>`;
 			}
 			html += `</div>`;
 			return html;
@@ -438,11 +450,11 @@ export default class MessageRenderer {
 				const emoji = reaction.emoji;
 				const count = reaction.count || 1;
 				bubblesHtml += `
-					<div class="waba-reaction-bubble" style="position: absolute; bottom: -12px; ${isSent ? "left: 8px;" : "right: 8px;"} background: var(--wa-bg-sidebar, #fff); border: 1px solid rgba(0,0,0,0.09); border-radius: 20px; padding: 1px 6px 1px 4px; display: inline-flex; align-items: center; gap: 2px; box-shadow: 0 1px 4px rgba(0,0,0,0.13); font-size: 14px; z-index: 3; cursor: default; white-space: nowrap; min-width: 28px; justify-content: center;">
-						<span class="waba-reaction-bubble-emoji">${emoji}</span>
-						<span class="waba-reaction-bubble-count" data-count="${count}" style="font-size: 11px; color: var(--wa-text-secondary, #667781); line-height: 1;">${count > 1 ? count : ""}</span>
-					</div>
-				`;
+                    <div class="waba-reaction-bubble" style="position: absolute; bottom: -12px; ${isSent ? "left: 8px;" : "right: 8px;"} background: var(--wa-bg-sidebar, #fff); border: 1px solid rgba(0,0,0,0.09); border-radius: 20px; padding: 1px 6px 1px 4px; display: inline-flex; align-items: center; gap: 2px; box-shadow: 0 1px 4px rgba(0,0,0,0.13); font-size: 14px; z-index: 3; cursor: default; white-space: nowrap; min-width: 28px; justify-content: center;">
+                        <span class="waba-reaction-bubble-emoji">${emoji}</span>
+                        <span class="waba-reaction-bubble-count" data-count="${count}" style="font-size: 11px; color: var(--wa-text-secondary, #667781); line-height: 1;">${count > 1 ? count : ""}</span>
+                    </div>
+                `;
 			}
 		});
 

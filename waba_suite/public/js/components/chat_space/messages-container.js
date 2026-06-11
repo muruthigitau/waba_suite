@@ -158,4 +158,29 @@ export default class MessagesContainer {
 	getMessageRenderer() {
 		return this.messageRenderer;
 	}
+
+	setupMessageClickHandler(messageActions) {
+		this.$container.on("click", ".waba-message-received, .waba-message-sent", (e) => {
+			const $target = $(e.target);
+			if (
+				$target.closest(".waba-msg-action-popup").length ||
+				$target.closest(".waba-reaction-bubble").length
+			) {
+				return;
+			}
+
+			const $row = $(e.currentTarget);
+			const messageId = $row.data("message-id");
+			if (!messageId) return;
+
+			const existingPopup = $row.find(".waba-msg-action-popup");
+			if (existingPopup.length) {
+				messageActions.dismissAllPopups();
+				return;
+			}
+
+			const message = this.messages.find((m) => m.name === messageId);
+			messageActions.showMessageActionPopup($row, messageId, message);
+		});
+	}
 }
