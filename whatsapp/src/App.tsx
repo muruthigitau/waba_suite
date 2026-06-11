@@ -1,12 +1,15 @@
 import { FrappeProvider } from "frappe-react-sdk";
 import { Outlet } from "react-router-dom";
 import "./App.css";
+import { UserProvider } from "./contexts/UserProvider";
 
 function App() {
   return (
     <div className="App">
       <FrappeProvider>
-        <Outlet />
+        <UserProvider>
+          <Outlet />
+        </UserProvider>
       </FrappeProvider>
     </div>
   );

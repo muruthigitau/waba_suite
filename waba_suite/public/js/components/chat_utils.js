@@ -185,15 +185,50 @@ async function set_user_settings(settings) {
 	});
 }
 
-function get_avatar_html(room_type, user_email, room_name) {
-	let avatar_html;
-	if (room_type === "Direct" && "desk" in frappe) {
-		avatar_html = frappe.avatar(user_email, "avatar-medium");
-		avatar_html = $(avatar_html).addClass("waba-chat-avatar").prop("outerHTML");
-	} else {
-		avatar_html = `<div class="waba-chat-avatar">${room_name.charAt(0).toUpperCase()}</div>`;
+function get_avatar_html(room_type, email, name, profile_picture = null) {
+	if (profile_picture && profile_picture !== "null" && profile_picture !== "") {
+		return `
+            <div class='waba-avatar' style="
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                overflow: hidden;
+                flex-shrink: 0;
+            ">
+                <img src="${profile_picture}" alt="${__(name)}" style="
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                " onerror="this.onerror=null; this.parentElement.innerHTML=this.getFallbackAvatar('${room_type}', '${email}', '${name}')">
+            </div>
+        `;
 	}
-	return avatar_html;
+
+	let initial = name ? name.charAt(0).toUpperCase() : "?";
+	if (room_type === "Group") {
+		initial = "👥";
+	}
+
+	const colors = ["#25D366", "#075E54", "#128C7E", "#34B7F1", "#1DA1F2", "#E1306C"];
+	const colorIndex = (email?.length || 0) % colors.length;
+
+	return `
+        <div class='waba-avatar' style="
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: ${colors[colorIndex]};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        ">
+            ${initial}
+        </div>
+    `;
 }
 
 function set_notification_count(value) {
@@ -233,84 +268,13 @@ async function get_active_account() {
 	});
 	return res.message;
 }
-function get_message_display_text(last_message) {
-	if (!last_message) {
-		return {
-			text: "",
-			status: "",
-			type: "",
-			date: null,
-			is_template: false,
-			content_type: "text",
-		};
-	}
 
-	let messageObj = last_message;
-	if (typeof last_message === "string") {
-		try {
-			messageObj = JSON.parse(last_message);
-		} catch (e) {
-			messageObj = {
-				message: last_message,
-				type: "Incoming",
-				status: "sent",
-				content_type: "text",
-				is_template: false,
-			};
-		}
-	}
-
-	let display_text = "";
-
-	if (messageObj.is_template) {
-		display_text = "📨 Template Message";
-	} else if (messageObj.content_type === "image") {
-		display_text = "📷 Image";
-	} else if (messageObj.content_type === "video") {
-		display_text = "🎥 Video";
-	} else if (messageObj.content_type === "audio") {
-		display_text = "🎵 Audio";
-	} else if (messageObj.content_type === "document") {
-		display_text = "📄 Document";
-	} else if (messageObj.content_type === "location") {
-		display_text = "📍 Location";
-	} else if (messageObj.content_type === "contact") {
-		display_text = "👤 Contact";
-	} else if (messageObj.content_type === "reaction") {
-		display_text = "😊 Reaction";
-	} else if (messageObj.content_type === "flow") {
-		display_text = "📋 Form";
-	} else if (messageObj.content_type === "button") {
-		display_text = "🔘 Button";
-	} else if (messageObj.content_type === "interactive") {
-		display_text = "💬 Interactive Message";
-	} else {
-		let raw_message = messageObj.message || messageObj.content || "";
-		if (raw_message && raw_message.includes("<")) {
-			const tempDiv = document.createElement("div");
-			tempDiv.innerHTML = raw_message;
-			display_text = tempDiv.textContent || tempDiv.innerText || "";
-		} else {
-			display_text = raw_message;
-		}
-	}
-
-	return {
-		text: display_text,
-		status: messageObj.status || "sent",
-		type: messageObj.type || "Incoming",
-		date: messageObj.creation,
-		is_template: messageObj.is_template || false,
-		content_type: messageObj.content_type || "text",
-	};
-}
 export {
 	create_guest,
 	create_private_room,
 	get_active_account,
 	get_avatar_html,
 	get_date_from_now,
-	get_message_display_text,
 	get_messages,
 	get_rooms,
 	get_settings,

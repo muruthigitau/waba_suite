@@ -4,6 +4,7 @@ export interface Chat {
   name: string;
   mobileNo: string;
   avatar: string;
+  profilePicture?: string;
   lastMessage: string;
   lastMessageType?: string;
   lastMessageStatus?: string;
@@ -54,6 +55,7 @@ export interface Message {
   contactData?: any;
   buttonData?: any;
   interactiveData?: any;
+  isTemplate?: boolean;
 }
 
 export interface UserSettings {

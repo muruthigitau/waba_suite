@@ -1,4 +1,12 @@
-import { Check, CheckCheck, Clock, MoreHorizontal, Reply } from "lucide-react";
+import {
+  Check,
+  CheckCheck,
+  Clock,
+  CornerUpLeft,
+  DownloadCloud,
+  Eye,
+  SmilePlus,
+} from "lucide-react";
 import React, { useState } from "react";
 import type { Message } from "../../types";
 import { ContactMessage } from "../messages/ContactMessage";
@@ -6,6 +14,7 @@ import { DocumentMessage } from "../messages/DocumentMessage";
 import { ImageMessage } from "../messages/ImageMessage";
 import { LocationMessage } from "../messages/LocationMessage";
 import { ReactionMessage } from "../messages/ReactionMessage";
+import { TemplateMessage } from "../messages/TemplateMessage";
 import { VideoMessage } from "../messages/VideoMessage";
 
 interface MessageBubbleProps {
@@ -14,9 +23,20 @@ interface MessageBubbleProps {
   onReact?: (messageId: string, emoji: string) => void;
   onDelete?: (messageId: string) => void;
   isGroup?: boolean;
+  setGlobalEmojiPicker: React.Dispatch<
+    React.SetStateAction<{
+      isOpen: boolean;
+      onSelect: (emoji: string) => void;
+    }>
+  >;
 }
 
-const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+const stripHtml = (html: string) => {
+  if (!html) return "";
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+  return temp.textContent || temp.innerText || "";
+};
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -24,9 +44,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReact,
   onDelete,
   isGroup = false,
+  setGlobalEmojiPicker,
 }) => {
   const [showActions, setShowActions] = useState(false);
-  const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   const getStatusIcon = () => {
     if (!message.isSent) return null;
@@ -48,6 +68,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
+
+  const handleDownloadFile = (url: string, defaultName: string) => {
+    if (!url) return;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = defaultName || "download";
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleViewFile = (url: string) => {
+    if (url) window.open(url, "_blank");
+  };
+
+  const fileUrl = message.attach || message.content;
+  const isMediaFile = ["image", "video", "document"].includes(
+    message.type || "",
+  );
 
   const renderContent = () => {
     switch (message.type) {
@@ -79,8 +119,29 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       case "reaction":
         return <ReactionMessage emoji={message.content} />;
       default:
+        const isTemplate = /<div[^>]*style="font-family:Arial[^>]*>/.test(
+          message.content,
+        );
+        if (isTemplate) {
+          return <TemplateMessage content={message.content} />;
+        }
+        const isHtml = /<[a-z][\s\S]*>/i.test(message.content);
+        if (isHtml) {
+          const temp = document.createElement("div");
+          temp.innerHTML = message.content;
+          const scripts = temp.getElementsByTagName("script");
+          for (let i = scripts.length - 1; i >= 0; i--) {
+            scripts[i].remove();
+          }
+          return (
+            <div
+              className="text-sm leading-relaxed break-words"
+              dangerouslySetInnerHTML={{ __html: temp.innerHTML }}
+            />
+          );
+        }
         return (
-          <p className="text-sm leading-relaxed break-words">
+          <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
             {message.content}
           </p>
         );
@@ -91,26 +152,40 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     if (onReact) {
       onReact(message.id, emoji);
     }
-    setShowReactionPicker(false);
+  };
+
+  const userReactionMap = React.useMemo(() => {
+    if (!message.reactions || !Array.isArray(message.reactions)) return {};
+    return message.reactions.reduce((acc: Record<string, boolean>, r: any) => {
+      if (r.user_reacted || r.is_self) {
+        acc[r.emoji] = true;
+      }
+      return acc;
+    }, {});
+  }, [message.reactions]);
+
+  const openBubbleEmojiPicker = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setGlobalEmojiPicker({
+      isOpen: true,
+      onSelect: handleReaction,
+    });
   };
 
   return (
     <div
-      className={`flex ${message.isSent ? "justify-end" : "justify-start"} group relative`}
+      className={`flex ${message.isSent ? "justify-end" : "justify-start"} group relative mb-2`}
       onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => {
-        setShowActions(false);
-        setShowReactionPicker(false);
-      }}
+      onMouseLeave={() => setShowActions(false)}
     >
-      <div className={`max-w-[65%] relative`}>
+      <div className="max-w-[70%] relative">
         {message.replyTo && (
           <div className="mb-1.5 p-1.5 bg-black bg-opacity-20 rounded text-xs border-l-2 border-[#25D366]">
             <p className="font-semibold text-[#25D366] text-[11px]">
               {message.replyTo.sender}
             </p>
             <p className="text-[11px] text-[#d1d7db] truncate">
-              {message.replyTo.content}
+              {stripHtml(message.replyTo.content).substring(0, 80)}
             </p>
           </div>
         )}
@@ -140,54 +215,72 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {message.reactions && message.reactions.length > 0 && (
           <div
-            className={`absolute -bottom-3 ${message.isSent ? "left-0" : "right-0"} flex space-x-0.5`}
+            className={`absolute -bottom-3 ${message.isSent ? "left-0" : "right-0"} flex space-x-0.5 z-20`}
           >
-            {message.reactions.slice(0, 3).map((reaction, idx) => (
-              <div
-                key={idx}
-                className="bg-[#202c33] rounded-full px-1.5 py-0.5 text-xs border border-[#2a3942] shadow-sm"
-              >
-                {reaction.emoji}{" "}
-                {reaction.count > 1 && (
-                  <span className="text-[10px]">{reaction.count}</span>
-                )}
-              </div>
-            ))}
+            {message.reactions.slice(0, 3).map((reaction, idx) => {
+              const isSelected = userReactionMap[reaction.emoji];
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleReaction(reaction.emoji)}
+                  className={`rounded-full px-1.5 py-0.5 text-xs border shadow-sm transition ${
+                    isSelected
+                      ? "bg-[#005c4b] border-[#25D366] text-white"
+                      : "bg-[#202c33] border-[#2a3942] text-[#aebac1] hover:bg-[#2a3942]"
+                  }`}
+                >
+                  {reaction.emoji}{" "}
+                  {reaction.count > 1 && (
+                    <span className="text-[10px] ml-0.5">{reaction.count}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
-        {showActions && onReply && (
+        {showActions && (
           <div
-            className={`absolute top-1/2 transform -translate-y-1/2 flex space-x-1 ${message.isSent ? "-left-12" : "-right-12"}`}
+            className={`absolute top-1/2 -translate-y-1/2 flex items-center gap-1 p-1 bg-[#202c33] border border-[#2a3942] rounded-full shadow-xl transition-all duration-150 ${
+              message.isSent ? "-left-28" : "-right-28"
+            } z-30`}
           >
             <button
-              onClick={() => setShowReactionPicker(!showReactionPicker)}
-              className="p-1.5 bg-[#2a3942] rounded-full hover:bg-[#3b4a54] transition shadow-lg"
+              onClick={openBubbleEmojiPicker}
+              className="p-1.5 text-[#aebac1] hover:text-white hover:bg-[#2a3942] rounded-full transition"
+              title="Add Reaction"
             >
-              <MoreHorizontal className="w-3.5 h-3.5 text-[#aebac1]" />
+              <SmilePlus className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => onReply(message)}
-              className="p-1.5 bg-[#2a3942] rounded-full hover:bg-[#3b4a54] transition shadow-lg"
-            >
-              <Reply className="w-3.5 h-3.5 text-[#aebac1]" />
-            </button>
-          </div>
-        )}
-
-        {showReactionPicker && (
-          <div
-            className={`absolute bottom-full mb-2 flex space-x-1 bg-[#202c33] rounded-full p-1.5 shadow-xl border border-[#2a3942] z-10 ${message.isSent ? "right-0" : "left-0"}`}
-          >
-            {EMOJIS.map((emoji) => (
+            {onReply && (
               <button
-                key={emoji}
-                onClick={() => handleReaction(emoji)}
-                className="w-7 h-7 hover:bg-[#2a3942] rounded-full transition text-lg flex items-center justify-center"
+                onClick={() => onReply(message)}
+                className="p-1.5 text-[#aebac1] hover:text-white hover:bg-[#2a3942] rounded-full transition"
+                title="Reply"
               >
-                {emoji}
+                <CornerUpLeft className="w-4 h-4" />
               </button>
-            ))}
+            )}
+            {isMediaFile && fileUrl && (
+              <>
+                <button
+                  onClick={() =>
+                    handleDownloadFile(fileUrl, message.content || "attachment")
+                  }
+                  className="p-1.5 text-[#aebac1] hover:text-white hover:bg-[#2a3942] rounded-full transition"
+                  title="Download"
+                >
+                  <DownloadCloud className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleViewFile(fileUrl)}
+                  className="p-1.5 text-[#aebac1] hover:text-white hover:bg-[#2a3942] rounded-full transition"
+                  title="View"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

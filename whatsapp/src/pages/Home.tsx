@@ -1,11 +1,19 @@
 import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
 import { MessageCircle } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ChatList } from "../components/chat/ChatList";
 import { ChatSpace } from "../components/chat/ChatSpace";
+import { useUser } from "../contexts/UserProvider";
 import type { Account, Chat, Message, UserSettings } from "../types";
 
 export const WhatsAppHome: React.FC = () => {
+  const { logout } = useUser();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
@@ -17,6 +25,7 @@ export const WhatsAppHome: React.FC = () => {
     enableNotifications: true,
   });
   const [currentUserName, setCurrentUserName] = useState<string>("User");
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data: accountsData } = useFrappeGetCall<{
     message: { accounts: Account[]; default_account: string };
@@ -42,7 +51,7 @@ export const WhatsAppHome: React.FC = () => {
       email: "",
       whatsapp_account: currentAccount,
     },
-    shouldFetchRooms ? undefined : { enabled: false },
+    shouldFetchRooms ? undefined : { enabled: false, revalidateOnFocus: false },
   );
 
   const { call: sendMessageCall } = useFrappePostCall(
@@ -94,6 +103,27 @@ export const WhatsAppHome: React.FC = () => {
     }
   }, [accountsData]);
 
+  useEffect(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    if (currentAccount) {
+      mutateRooms();
+      pollingIntervalRef.current = setInterval(() => {
+        mutateRooms();
+      }, 5000);
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [currentAccount, mutateRooms]);
+
   const formattedChats = useMemo(() => {
     if (!roomsData?.message) {
       return [];
@@ -126,6 +156,7 @@ export const WhatsAppHome: React.FC = () => {
         avatar:
           (room.contact_name || room.mobile_no)?.charAt(0)?.toUpperCase() ||
           "?",
+        profilePicture: room.profile_picture || null,
         lastMessage: lastMessageContent,
         lastMessageType: lastMessageType,
         lastMessageStatus: lastMessageStatus,
@@ -181,8 +212,8 @@ export const WhatsAppHome: React.FC = () => {
         await sendMessageCall({
           content,
           user: chat.name,
-          room: chat.mobileNo,
-          user_no: "",
+          room: chat.id,
+          user_no: chat.mobileNo,
           message_id: messageId,
           whatsapp_account: chat.whatsappAccount,
           reply_to_message_id: replyTo?.id || null,
@@ -208,15 +239,11 @@ export const WhatsAppHome: React.FC = () => {
     [sendMessageCall, userSettings.enableMessageTone],
   );
 
-  const handleSwitchAccount = useCallback(
-    async (accountName: string) => {
-      setCurrentAccount(accountName);
-      setSelectedChatId(null);
-      setChats([]);
-      await mutateRooms();
-    },
-    [mutateRooms],
-  );
+  const handleSwitchAccount = useCallback(async (accountName: string) => {
+    setCurrentAccount(accountName);
+    setSelectedChatId(null);
+    setChats([]);
+  }, []);
 
   const selectedChat = useMemo(() => {
     return selectedChatId
@@ -236,6 +263,10 @@ export const WhatsAppHome: React.FC = () => {
     setShowSidebar(true);
   }, []);
 
+  const handleLogout = useCallback(async () => {
+    await logout();
+  }, [logout]);
+
   return (
     <div className="flex h-screen bg-[#111b21]">
       <div
@@ -254,6 +285,7 @@ export const WhatsAppHome: React.FC = () => {
           onSwitchAccount={handleSwitchAccount}
           userSettings={userSettings}
           currentUserName={currentUserName}
+          onLogout={handleLogout}
         />
       </div>
 

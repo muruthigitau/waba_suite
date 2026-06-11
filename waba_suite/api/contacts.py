@@ -44,6 +44,7 @@ def get(email, whatsapp_account=None):
 			"mobile_no",
 			"last_message",
 			"is_read",
+			"profile_picture",
 		],
 	)
 
@@ -61,6 +62,7 @@ def get(email, whatsapp_account=None):
 				"status",
 				"creation",
 				"whatsapp_account",
+				"use_template",
 				"to",
 				"from",
 			],

@@ -276,12 +276,12 @@
 .waba-chat-header-actions {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: 2px;
 }
 
 .waba-header-icon {
-	width: 36px;
-	height: 36px;
+	width: 20px;
+	height: 20px;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
@@ -299,13 +299,13 @@
 
 .waba-header-icon svg {
 	fill: currentColor;
-	width: 18px;
-	height: 18px;
+	width: 12px;
+	height: 12px;
 }
 
 .waba-account-header {
 	background: var(--wa-primary-light) !important;
-	padding: 10px 16px !important;
+	padding: 8px 12px !important;
 	border-bottom: 1px solid var(--wa-border) !important;
 	display: flex !important;
 	justify-content: space-between !important;

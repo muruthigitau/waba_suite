@@ -15,10 +15,15 @@ from waba_suite.utils import format_number, get_whatsapp_account
 class WhatsAppMessage(Document):
 	def validate(self):
 		self.set_whatsapp_account()
+		self.ensure_absolute_file_url()
 		self.restyle_message_content()
 
 	def after_insert(self):
 		self.handle_whatsapp_insertion()
+
+	def ensure_absolute_file_url(self):
+		if self.file_url and self.file_url.startswith("/"):
+			self.file_url = frappe.utils.get_url(self.file_url)
 
 	def update_profile_name(self):
 		number = self.get("from")
@@ -78,13 +83,22 @@ class WhatsAppMessage(Document):
 					{
 						"doctype": "WhatsApp Contact",
 						"mobile_no": phone_number,
-						"contact_name": phone_number,
+						"contact_name": self.profile_name or phone_number,
 					}
 				)
 				contact.insert(ignore_permissions=True)
 				self.whatsapp_contact = contact.name
 			else:
 				self.whatsapp_contact = contact
+		if self.whatsapp_contact and self.profile_name and self.type == "Incoming":
+			contact = frappe.get_doc("WhatsApp Contact", self.whatsapp_contact)
+			if contact.mobile_no == contact.contact_name:
+				frappe.db.set_value(
+					"WhatsApp Contact",
+					self.whatsapp_contact,
+					"contact_name",
+					self.profile_name or contact.contact_name,
+				)
 
 	@frappe.whitelist()
 	def manual_send(self):
@@ -102,11 +116,9 @@ class WhatsAppMessage(Document):
 			file_doc = frappe.get_doc("File", {"file_url": file_path})
 			file_doc.is_private = 0
 			file_doc.save(ignore_permissions=True)
-			return file_doc.file_url
+			return frappe.utils.get_url(file_doc.file_url)
 
-		base_url = frappe.utils.get_url().rstrip("/")
-		attach_path = file_path.lstrip("/")
-		return f"{base_url}/{attach_path}"
+		return frappe.utils.get_url(file_path)
 
 	def send_template(self):
 		template = frappe.get_doc("WhatsApp Templates", self.template)
@@ -160,8 +172,8 @@ class WhatsAppMessage(Document):
 		if parameters:
 			data["template"]["components"].append({"type": "body", "parameters": parameters})
 
-		header_html = ""
-		button_html = []
+		header_meta = {}
+		button_meta = []
 
 		if template.header_type == "IMAGE" and self.file_url:
 			url = self.file_url if self.file_url.startswith("http") else frappe.utils.get_url(self.file_url)
@@ -173,7 +185,7 @@ class WhatsAppMessage(Document):
 				}
 			)
 
-			header_html = f"<div><b>Image:</b> {url}</div>"
+			header_meta = {"type": "IMAGE", "url": url}
 
 		elif template.header_type == "DOCUMENT":
 			file_url = None
@@ -232,7 +244,7 @@ class WhatsAppMessage(Document):
 					}
 				)
 
-				header_html = f"<div><b>Document:</b> {filename}<br>{file_url}</div>"
+				header_meta = {"type": "DOCUMENT", "filename": filename, "url": file_url}
 
 		if template.buttons:
 			for idx, btn in enumerate(template.buttons):
@@ -246,9 +258,7 @@ class WhatsAppMessage(Document):
 						}
 					)
 
-					button_html.append(
-						f"<button style='margin:2px;padding:4px 8px'>{btn.button_label}</button>"
-					)
+					button_meta.append({"button_type": btn.button_type, "button_label": btn.button_label})
 
 				elif btn.button_type == "Call Phone":
 					data["template"]["components"].append(
@@ -260,7 +270,13 @@ class WhatsAppMessage(Document):
 						}
 					)
 
-					button_html.append(f"<div>Call: {btn.phone_number}</div>")
+					button_meta.append(
+						{
+							"button_type": btn.button_type,
+							"button_label": btn.button_label,
+							"phone_number": btn.phone_number,
+						}
+					)
 
 				elif btn.button_type == "Visit Website":
 					url = btn.website_url
@@ -277,23 +293,30 @@ class WhatsAppMessage(Document):
 						}
 					)
 
-					button_html.append(f"<a href='{url}'>{url}</a>")
+					button_meta.append(
+						{
+							"button_type": btn.button_type,
+							"button_label": btn.button_label,
+							"url_type": btn.url_type,
+							"url": url,
+						}
+					)
 
-		html = f"""
-		<div style="font-family:Arial;border:1px solid #e5e5e5;padding:12px;border-radius:8px">
-			<div style="font-size:14px;font-weight:600">{template.name}</div>
-			<hr>
-			<div><b>Body:</b> {" | ".join(body_values)}</div>
-			{header_html}
-			<div><b>Buttons:</b><br>{"".join(button_html)}</div>
-		</div>
-		"""
+				elif btn.button_type == "Flow":
+					button_meta.append({"button_type": btn.button_type, "button_label": btn.button_label})
+
+		message_json = {
+			"template_name": template.name,
+			"body_values": body_values,
+			"header": header_meta,
+			"buttons": button_meta,
+		}
 
 		frappe.db.set_value(
 			"WhatsApp Message",
 			self.name,
 			"message",
-			html,
+			json.dumps(message_json, indent=2),
 			update_modified=False,
 		)
 
@@ -662,7 +685,6 @@ class WhatsAppMessage(Document):
 			return
 
 		existing_lead = None
-		lead_source = None
 
 		if lead_doctype == "CRM Lead":
 			existing_lead = frappe.db.get_value("CRM Lead", {"mobile_no": whatsapp_contact.mobile_no}, "name")
@@ -670,51 +692,39 @@ class WhatsAppMessage(Document):
 			if not existing_lead and whatsapp_contact.email:
 				existing_lead = frappe.db.get_value("CRM Lead", {"email_id": whatsapp_contact.email}, "name")
 
-			lead_source = frappe.db.exists("CRM Lead Source", "WhatsApp")
-			if not lead_source:
-				lead_source = (
-					frappe.get_doc({"doctype": "CRM Lead Source", "source_name": "WhatsApp"})
-					.insert(ignore_permissions=True)
-					.name
-				)
 		elif lead_doctype == "Lead":
 			existing_lead = frappe.db.get_value("Lead", {"mobile_no": whatsapp_contact.mobile_no}, "name")
 
 			if not existing_lead and whatsapp_contact.email:
 				existing_lead = frappe.db.get_value("Lead", {"email_id": whatsapp_contact.email}, "name")
 
-			lead_source = frappe.db.exists("Lead Source", "WhatsApp")
-			if not lead_source:
-				lead_source = (
-					frappe.get_doc({"doctype": "Lead Source", "source_name": "WhatsApp"})
-					.insert(ignore_permissions=True)
-					.name
-				)
-
 		if existing_lead:
 			return
 
-		lead_doc = frappe.get_doc(
-			{
-				"doctype": lead_doctype,
-				"lead_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-				"company_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-				"first_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-				"mobile_no": whatsapp_contact.mobile_no,
-				"email_id": whatsapp_contact.email,
-				"source": lead_source,
-				"notes": f"Created from WhatsApp message: {self.message[:200] if self.message else 'No message'}",
-			}
-		)
+		lead_data = {
+			"doctype": lead_doctype,
+			"lead_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
+			"company_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
+			"first_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
+			"mobile_no": whatsapp_contact.mobile_no,
+		}
+
+		if whatsapp_contact.email:
+			lead_data["email_id"] = whatsapp_contact.email
+
+		lead_doc = frappe.get_doc(lead_data)
+
 		try:
+			lead_doc.flags.ignore_mandatory = True
+			lead_doc.flags.ignore_validate = True
 			lead_doc.insert(ignore_permissions=True)
+			frappe.db.commit()
 
 		except Exception as e:
 			frappe.log_error(
-				title="Auto Lead Creation Failed",
-				message=f"Failed to create lead for WhatsApp message: {self.name}, Error: {e!s}",
+				title=f"Auto Lead Creation Failed - {lead_doctype}",
+				message=f"Failed to create lead for WhatsApp message: {self.name}\nMobile: {whatsapp_contact.mobile_no}\nError: {e!s}\nTraceback: {frappe.get_traceback()}",
 			)
-		frappe.db.commit()
 
 
 def process_incoming_sync(docname):
@@ -793,7 +803,7 @@ def send_template(to, reference_doctype, reference_name, template, whatsapp_acco
 				}
 			).insert(ignore_permissions=True)
 
-			file_url = file_doc.file_url
+			file_url = frappe.utils.get_url(file_doc.file_url)
 
 	doc = frappe.get_doc(
 		{
@@ -856,6 +866,9 @@ def send_document(
 	if not document_url:
 		frappe.throw("Document URL is required")
 
+	if document_url.startswith("/"):
+		document_url = frappe.utils.get_url(document_url)
+
 	doc = frappe.get_doc(
 		{
 			"doctype": "WhatsApp Message",
@@ -882,6 +895,9 @@ def send_image(
 ):
 	if not image_url:
 		frappe.throw("Image URL is required")
+
+	if image_url.startswith("/"):
+		image_url = frappe.utils.get_url(image_url)
 
 	doc = frappe.get_doc(
 		{
