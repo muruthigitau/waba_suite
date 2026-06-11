@@ -1,5 +1,6 @@
 import {
   Archive,
+  LogOut,
   MessageCircle,
   MoreVertical,
   Settings,
@@ -28,6 +29,7 @@ interface ChatListProps {
     enableNotifications: boolean;
   };
   currentUserName?: string;
+  onLogout: () => Promise<void>;
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
@@ -41,11 +43,14 @@ export const ChatList: React.FC<ChatListProps> = ({
   onSwitchAccount,
   userSettings,
   currentUserName = "User",
+  onLogout,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const filteredChats = useMemo(() => {
     if (!searchQuery.trim()) return chats;
@@ -98,6 +103,18 @@ export const ChatList: React.FC<ChatListProps> = ({
     },
     [onSwitchAccount],
   );
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutConfirm(false);
+    }
+  };
 
   return (
     <>
@@ -203,6 +220,15 @@ export const ChatList: React.FC<ChatListProps> = ({
                 Settings
               </span>
             </button>
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex flex-col items-center space-y-1 p-2 hover:bg-[#2a3942] rounded-lg transition flex-1 group"
+            >
+              <LogOut className="w-5 h-5 text-[#aebac1] group-hover:text-red-500 transition" />
+              <span className="text-[10px] text-[#aebac1] group-hover:text-red-500 transition">
+                Logout
+              </span>
+            </button>
           </div>
         </div>
       </div>
@@ -226,6 +252,36 @@ export const ChatList: React.FC<ChatListProps> = ({
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
       />
+
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-[#202c33] rounded-lg shadow-xl w-80 max-w-full">
+            <div className="p-4 border-b border-[#2a3942]">
+              <h3 className="text-lg font-semibold text-white">Logout</h3>
+            </div>
+            <div className="p-4">
+              <p className="text-[#d1d7db] text-sm">
+                Are you sure you want to logout?
+              </p>
+            </div>
+            <div className="p-4 border-t border-[#2a3942] flex justify-end space-x-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="px-4 py-2 text-sm text-[#aebac1] hover:bg-[#2a3942] rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoggingOut ? "Logging out..." : "Logout"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

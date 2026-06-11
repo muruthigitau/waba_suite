@@ -6,6 +6,7 @@ import { DocumentMessage } from "../messages/DocumentMessage";
 import { ImageMessage } from "../messages/ImageMessage";
 import { LocationMessage } from "../messages/LocationMessage";
 import { ReactionMessage } from "../messages/ReactionMessage";
+import { TemplateMessage } from "../messages/TemplateMessage";
 import { VideoMessage } from "../messages/VideoMessage";
 
 interface MessageBubbleProps {
@@ -17,6 +18,13 @@ interface MessageBubbleProps {
 }
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+const stripHtml = (html: string) => {
+  if (!html) return "";
+  const temp = document.createElement("div");
+  temp.innerHTML = html;
+  return temp.textContent || temp.innerText || "";
+};
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -79,8 +87,29 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       case "reaction":
         return <ReactionMessage emoji={message.content} />;
       default:
+        const isTemplate = /<div[^>]*style="font-family:Arial[^>]*>/.test(
+          message.content,
+        );
+        if (isTemplate) {
+          return <TemplateMessage content={message.content} />;
+        }
+        const isHtml = /<[a-z][\s\S]*>/i.test(message.content);
+        if (isHtml) {
+          const temp = document.createElement("div");
+          temp.innerHTML = message.content;
+          const scripts = temp.getElementsByTagName("script");
+          for (let i = scripts.length - 1; i >= 0; i--) {
+            scripts[i].remove();
+          }
+          return (
+            <div
+              className="text-sm leading-relaxed break-words"
+              dangerouslySetInnerHTML={{ __html: temp.innerHTML }}
+            />
+          );
+        }
         return (
-          <p className="text-sm leading-relaxed break-words">
+          <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
             {message.content}
           </p>
         );
@@ -93,7 +122,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
     setShowReactionPicker(false);
   };
-
   return (
     <div
       className={`flex ${message.isSent ? "justify-end" : "justify-start"} group relative`}
@@ -103,14 +131,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         setShowReactionPicker(false);
       }}
     >
-      <div className={`max-w-[65%] relative`}>
+      <div className={`max-w-[70%] relative`}>
         {message.replyTo && (
           <div className="mb-1.5 p-1.5 bg-black bg-opacity-20 rounded text-xs border-l-2 border-[#25D366]">
             <p className="font-semibold text-[#25D366] text-[11px]">
               {message.replyTo.sender}
             </p>
             <p className="text-[11px] text-[#d1d7db] truncate">
-              {message.replyTo.content}
+              {stripHtml(message.replyTo.content).substring(0, 80)}
             </p>
           </div>
         )}

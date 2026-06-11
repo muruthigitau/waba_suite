@@ -33,18 +33,31 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <ChevronLeft className="w-5 h-5 text-[#aebac1]" />
           </button>
         )}
-        <Avatar name={chat.name} size="md" online={chat.online} />
+        <Avatar
+          name={chat.name}
+          size="md"
+          online={chat.online}
+          src={chat.profilePicture}
+        />
         <div>
           <h3 className="font-semibold text-white text-sm">{chat.name}</h3>
-          <p className="text-xs text-[#8696a0]">
-            {chat.typing ? (
-              <span className="text-[#25D366]">Typing...</span>
-            ) : chat.online ? (
-              "Online"
-            ) : (
-              "Offline"
+          <div className="flex items-center space-x-2">
+            <p className="text-xs text-[#8696a0]">
+              {chat.typing ? (
+                <span className="text-[#25D366]">Typing...</span>
+              ) : chat.online ? (
+                "Online"
+              ) : (
+                "Offline"
+              )}
+            </p>
+            {chat.mobileNo && (
+              <>
+                <span className="text-xs text-[#8696a0]">•</span>
+                <p className="text-xs text-[#8696a0]">{chat.mobileNo}</p>
+              </>
             )}
-          </p>
+          </div>
         </div>
       </div>
       <div className="flex items-center space-x-4">

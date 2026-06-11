@@ -3,9 +3,11 @@ import { MessageCircle } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatList } from "../components/chat/ChatList";
 import { ChatSpace } from "../components/chat/ChatSpace";
+import { useUser } from "../contexts/UserProvider";
 import type { Account, Chat, Message, UserSettings } from "../types";
 
 export const WhatsAppHome: React.FC = () => {
+  const { logout } = useUser();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
@@ -126,6 +128,7 @@ export const WhatsAppHome: React.FC = () => {
         avatar:
           (room.contact_name || room.mobile_no)?.charAt(0)?.toUpperCase() ||
           "?",
+        profilePicture: room.profile_picture || null,
         lastMessage: lastMessageContent,
         lastMessageType: lastMessageType,
         lastMessageStatus: lastMessageStatus,
@@ -236,6 +239,10 @@ export const WhatsAppHome: React.FC = () => {
     setShowSidebar(true);
   }, []);
 
+  const handleLogout = useCallback(async () => {
+    await logout();
+  }, [logout]);
+
   return (
     <div className="flex h-screen bg-[#111b21]">
       <div
@@ -254,6 +261,7 @@ export const WhatsAppHome: React.FC = () => {
           onSwitchAccount={handleSwitchAccount}
           userSettings={userSettings}
           currentUserName={currentUserName}
+          onLogout={handleLogout}
         />
       </div>
 

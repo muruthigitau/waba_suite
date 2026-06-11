@@ -11,6 +11,7 @@ import type { Chat, Message } from "../../types";
 import { Loader } from "../common/Loader";
 import { MessageBubble } from "../common/MessageBubble";
 import { ChatHeader } from "../layout/ChatHeader";
+import { TemplateMessage } from "../messages/TemplateMessage";
 
 interface ChatSpaceProps {
   chat: Chat | null;
@@ -40,7 +41,9 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSending, setIsSending] = useState(false);
 
   const {
     data: messagesData,
@@ -52,21 +55,20 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     "waba_suite.api.message.get_all",
     {
       room: chat?.mobileNo || "",
-      user_no: "",
+      user_no: chat?.mobileNo || "",
       whatsapp_account: currentAccount,
     },
     chat ? undefined : { enabled: false },
   );
 
-  const { call: sendMessageCall } = useFrappePostCall(
-    "waba_suite.api.message.send",
-  );
   const { call: markMultipleAsReadCall } = useFrappePostCall(
     "waba_suite.api.message.mark_multiple_as_read",
   );
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, []);
 
   const formattedMessages = useMemo(() => {
@@ -84,6 +86,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       isSent: msg.type === "Outgoing",
       status: msg.status || "sent",
       type: msg.content_type || "text",
+      isTemplate: msg.use_template === 1 || msg.use_template === true,
       reactions: msg.reactions,
       senderName: msg.sender_name || msg.sender,
       caption: msg.caption,
@@ -111,19 +114,101 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         whatsapp_account: currentAccount,
       }).catch(console.error);
     }
-  }, [chat, messages]);
+  }, [chat, messages, onMarkAsRead, currentAccount, markMultipleAsReadCall]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  const sendMessageDirect = useCallback(
+    async (content: string, replyToMessage?: Message | null) => {
+      if (!chat || isSending) return;
+
+      setIsSending(true);
+      const messageId = Date.now().toString();
+
+      const optimisticMessage: Message = {
+        id: messageId,
+        content,
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        fullTimestamp: new Date(),
+        isSent: true,
+        status: "sent",
+        type: "text",
+        isTemplate: false,
+        replyTo: replyToMessage
+          ? {
+              content: replyToMessage.content,
+              sender: replyToMessage.isSent
+                ? "You"
+                : replyToMessage.senderName || chat.name,
+              messageId: replyToMessage.id,
+              contentType: replyToMessage.type,
+            }
+          : undefined,
+      };
+
+      setMessages((prev) => [...prev, optimisticMessage]);
+      scrollToBottom();
+
+      const frappeUrl = (import.meta.env.VITE_FRAPPE_PATH ||
+        window.location.origin) as string;
+
+      try {
+        const response = await fetch(
+          `${frappeUrl}/api/method/waba_suite.api.message.send`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              content,
+              user: chat.name,
+              room: chat.mobileNo,
+              user_no: "",
+              message_id: messageId,
+              whatsapp_account: chat.whatsappAccount,
+              reply_to_message_id: replyToMessage?.id || null,
+              content_type: "text",
+              use_template: false,
+            }),
+            credentials: "omit",
+          },
+        );
+
+        if (response.ok) {
+          await mutateMessages();
+        } else {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === messageId ? { ...msg, status: "failed" } : msg,
+            ),
+          );
+        }
+      } catch (error) {
+        console.error("Failed to send message:", error);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId ? { ...msg, status: "failed" } : msg,
+          ),
+        );
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [chat, mutateMessages, scrollToBottom, isSending],
+  );
+
   const handleSend = async () => {
-    if (!messageInput.trim() || !chat) return;
-    await onSendMessage(messageInput, replyTo || undefined, chat);
+    if (!messageInput.trim() || !chat || isSending) return;
+    await sendMessageDirect(messageInput, replyTo);
     setMessageInput("");
     setReplyTo(null);
-    await mutateMessages();
-    scrollToBottom();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -145,7 +230,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
   if (!chat) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-[#0b141a]">
+      <div className="flex-1 flex items-center justify-center bg-[#0b141a] h-full">
         <div className="text-center">
           <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-[#202c33] flex items-center justify-center">
             <MessageCircleCheck className="w-12 h-12 text-[#aebac1]" />
@@ -160,7 +245,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#0b141a]">
+    <div className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-hidden">
       <ChatHeader
         chat={chat}
         onBack={onBack}
@@ -170,13 +255,20 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         onMenu={() => {}}
       />
 
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-[#0b141a] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIHZpZXdCb3g9IjAgMCA4IDgiPjxwYXRoIGQ9Ik0wIDBoNHY0SDB6bTQgNGg0djRINHoiIGZpbGw9IiMxYzI5MzAiLz48L3N2Zz4=')] bg-repeat">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-[#0b141a] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIHZpZXdCb3g9IjAgMCA4IDgiPjxwYXRoIGQ9Ik0wIDBoNHY0SDB6bTQgNGg0djRINHoiIGZpbGw9IiMxYzI5MzAiLz48L3N2Zz4=')] bg-repeat"
+        style={{
+          overflowY: "auto",
+          scrollBehavior: "smooth",
+        }}
+      >
         {isLoading ? (
           <div className="flex justify-center py-8">
             <Loader />
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
+          <div className="flex flex-col items-center justify-center h-full text-center min-h-[400px]">
             <div className="w-16 h-16 rounded-full bg-[#202c33] flex items-center justify-center mb-3">
               <MessageCircleCheck className="w-8 h-8 text-[#8696a0]" />
             </div>
@@ -187,22 +279,47 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
           </div>
         ) : (
           <>
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                onReply={handleReply}
-                onReact={handleReact}
-                isGroup={chat.isGroup}
-              />
-            ))}
+            {messages.map((message) => {
+              if (message.isTemplate) {
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.isSent ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[70%] ${
+                        message.isSent
+                          ? "bg-[#005c4b] text-white"
+                          : "bg-[#202c33] text-white"
+                      } rounded-lg px-3 py-1.5 shadow-sm`}
+                    >
+                      <TemplateMessage content={message.content} />
+                      <div className="flex items-center justify-end space-x-1 mt-1">
+                        <span className="text-[10px] text-[#8696a0]">
+                          {message.timestamp}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  onReply={handleReply}
+                  onReact={handleReact}
+                  isGroup={chat.isGroup}
+                />
+              );
+            })}
             <div ref={messagesEndRef} />
           </>
         )}
       </div>
 
       {replyTo && (
-        <div className="px-4 pt-2 bg-[#202c33] border-t border-[#2a3942]">
+        <div className="px-4 pt-2 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0">
           <div className="flex items-center justify-between bg-[#2a3942] rounded-lg p-2 text-sm">
             <div className="flex-1 min-w-0">
               <span className="font-semibold text-[#25D366] text-xs">
@@ -215,7 +332,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
             </div>
             <button
               onClick={() => setReplyTo(null)}
-              className="p-1 hover:bg-[#202c33] rounded ml-2"
+              className="p-1 hover:bg-[#202c33] rounded ml-2 flex-shrink-0"
             >
               <X className="w-4 h-4 text-[#aebac1]" />
             </button>
@@ -223,17 +340,17 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         </div>
       )}
 
-      <div className="p-3 bg-[#202c33] border-t border-[#2a3942]">
+      <div className="p-3 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0">
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1]"
+            className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
           >
             <Smile className="w-5 h-5" />
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1]"
+            className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
           >
             <Paperclip className="w-5 h-5" />
           </button>
@@ -244,14 +361,19 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
             onChange={(e) => setMessageInput(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Type a message"
-            className="flex-1 px-4 py-2 bg-[#2a3942] rounded-full text-sm text-white placeholder:text-[#8696a0] focus:outline-none focus:ring-1 focus:ring-[#25D366]"
+            className="flex-1 px-4 py-2 bg-[#2a3942] rounded-full text-sm text-white placeholder:text-[#8696a0] focus:outline-none focus:ring-1 focus:ring-[#25D366] min-w-0"
+            disabled={isSending}
           />
           <button
             onClick={handleSend}
-            disabled={!messageInput.trim()}
-            className="p-2 bg-[#25D366] hover:bg-[#20b859] rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!messageInput.trim() || isSending}
+            className="p-2 bg-[#25D366] hover:bg-[#20b859] rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
           >
-            <Send className="w-5 h-5 text-white" />
+            {isSending ? (
+              <Loader size="sm" color="white" />
+            ) : (
+              <Send className="w-5 h-5 text-white" />
+            )}
           </button>
         </div>
       </div>
