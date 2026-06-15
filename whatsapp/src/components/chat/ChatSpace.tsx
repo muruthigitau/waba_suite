@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import type { Chat, Message } from "../../types";
+import { FileUploadField } from "../common/FileUploadField";
 import { Loader } from "../common/Loader";
 import { MessageBubble } from "../common/MessageBubble";
 import { ChatHeader } from "../layout/ChatHeader";
@@ -43,12 +44,18 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     isOpen: boolean;
     onSelect: (emoji: string) => void;
   }>({ isOpen: false, onSelect: () => {} });
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
+  const [uploadedFileData, setUploadedFileData] = useState<any>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const fileUploadRef = useRef<{
+    openSelector: () => void;
+    uploadDirectFile: (file: File) => Promise<void>;
+  } | null>(null);
 
   const {
     data: messagesData,
@@ -198,15 +205,45 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      if (!chat) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === "file") {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            setShowFileUpload(true);
+            setTimeout(() => {
+              if (fileUploadRef.current) {
+                fileUploadRef.current.uploadDirectFile(file);
+              }
+            }, 50);
+            break;
+          }
+        }
+      }
+    },
+    [chat],
+  );
+
   const sendMessageDirect = useCallback(
-    async (content: string, replyToMessage?: Message | null) => {
+    async (
+      content: string,
+      replyToMessage?: Message | null,
+      fileUrl?: string | null,
+      fileData?: any,
+    ) => {
       if (!chat || isSending) return;
 
       const messageId = Date.now().toString();
 
       const optimisticMessage: Message = {
         id: messageId,
-        content,
+        content: content || fileData?.file_name || "File",
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -214,7 +251,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         fullTimestamp: new Date(),
         isSent: true,
         status: "sending",
-        type: "text",
+        type: fileData?.content_type || "text",
         isTemplate: false,
         replyTo: replyToMessage
           ? {
@@ -226,6 +263,8 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
               contentType: replyToMessage.type,
             }
           : undefined,
+        attach: fileUrl || undefined,
+        caption: fileData?.caption,
       };
 
       setMessages((prev) => [...prev, optimisticMessage]);
@@ -233,15 +272,16 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
       try {
         const response = await sendMessageCall({
-          content: content,
+          content: content || fileData?.file_name || "File",
           user: chat.name,
           room: chat.id,
           user_no: chat.mobileNo,
           message_id: messageId,
           whatsapp_account: chat.whatsappAccount || currentAccount,
           reply_to_message_id: replyToMessage?.id || null,
-          content_type: "text",
-          attachment: null,
+          content_type: fileData?.content_type || "text",
+          attachment: fileUrl,
+          caption: fileData?.caption,
         });
 
         if (response?.message?.status === "ok") {
@@ -279,10 +319,25 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   );
 
   const handleSend = async () => {
-    if (!messageInput.trim() || !chat || isSending) return;
-    await sendMessageDirect(messageInput, replyTo);
-    setMessageInput("");
-    setReplyTo(null);
+    if (!chat || isSending) return;
+
+    if (uploadedFileUrl) {
+      await sendMessageDirect(
+        messageInput,
+        replyTo,
+        uploadedFileUrl,
+        uploadedFileData,
+      );
+      setUploadedFileUrl(null);
+      setUploadedFileData(null);
+      setMessageInput("");
+      setReplyTo(null);
+      setShowFileUpload(false);
+    } else if (messageInput.trim()) {
+      await sendMessageDirect(messageInput, replyTo);
+      setMessageInput("");
+      setReplyTo(null);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -309,6 +364,28 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     });
   };
 
+  const handleFileUploadComplete = (fileUrl: string | null, fileData?: any) => {
+    if (fileUrl) {
+      setUploadedFileUrl(fileUrl);
+      setUploadedFileData(fileData);
+    } else {
+      setShowFileUpload(false);
+      setUploadedFileUrl(null);
+      setUploadedFileData(null);
+    }
+  };
+
+  const handlePaperclipClick = () => {
+    if (showFileUpload) {
+      fileUploadRef.current?.openSelector();
+    } else {
+      setShowFileUpload(true);
+      setTimeout(() => {
+        fileUploadRef.current?.openSelector();
+      }, 50);
+    }
+  };
+
   if (!chat) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#0b141a] h-full">
@@ -326,7 +403,10 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-hidden relative">
+    <div
+      className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-hidden relative"
+      onPaste={handlePaste}
+    >
       <ChatHeader
         chat={chat}
         onBack={onBack}
@@ -422,6 +502,47 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         </div>
       )}
 
+      {showFileUpload && (
+        <div className="p-3 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0">
+          <FileUploadField
+            ref={fileUploadRef}
+            value={uploadedFileUrl || undefined}
+            onChange={handleFileUploadComplete}
+            doctype="WhatsApp Contact"
+            docname={chat.id}
+            fieldname="attachment"
+            isPrivate={false}
+            accept=".pdf,.png,.jpg,.jpeg,.mp4,.mp3,.doc,.docx,.xls,.xlsx,.txt"
+          />
+          <div className="flex justify-end gap-2 mt-3">
+            <button
+              onClick={() => {
+                setShowFileUpload(false);
+                setUploadedFileUrl(null);
+                setUploadedFileData(null);
+              }}
+              className="px-4 py-2 rounded-lg bg-[#2a3942] text-white hover:bg-[#3b4a54] transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={!uploadedFileUrl || isSending}
+              className="px-4 py-2 rounded-lg bg-[#25D366] hover:bg-[#20b859] text-white transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isSending ? (
+                <Loader size="sm" color="white" />
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Send File
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="p-3 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0 relative">
         <div className="flex items-center space-x-3">
           <button
@@ -431,12 +552,11 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
             <Smile className="w-5 h-5" />
           </button>
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={handlePaperclipClick}
             className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
           >
             <Paperclip className="w-5 h-5" />
           </button>
-          <input type="file" ref={fileInputRef} className="hidden" multiple />
           <input
             type="text"
             value={messageInput}
