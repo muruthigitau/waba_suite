@@ -208,7 +208,7 @@ def send(
 				"to": user_no,
 				"type": "Outgoing",
 				"attach": attachment if attachment else None,
-				"message": content if not attachment else None,
+				"message": content,
 				"content_type": content_type,
 				"status": "sent",
 				"whatsapp_account": whatsapp_account or contact.whatsapp_account,

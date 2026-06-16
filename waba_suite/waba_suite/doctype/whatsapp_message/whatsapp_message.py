@@ -3,6 +3,7 @@
 import html
 import json
 import re
+from urllib.parse import urlparse
 
 import frappe
 from frappe import _, throw
@@ -17,6 +18,7 @@ class WhatsAppMessage(Document):
 		self.set_whatsapp_account()
 		self.ensure_absolute_file_url()
 		self.restyle_message_content()
+		self.set_file_url_from_attach()
 
 	def after_insert(self):
 		self.handle_whatsapp_insertion()
@@ -24,6 +26,103 @@ class WhatsAppMessage(Document):
 	def ensure_absolute_file_url(self):
 		if self.file_url and self.file_url.startswith("/"):
 			self.file_url = frappe.utils.get_url(self.file_url)
+
+	def set_file_url_from_attach(self):
+		if self.file_url:
+			return
+
+		if not self.attach:
+			return
+
+		file_doc = None
+
+		if isinstance(self.attach, str):
+			if self.attach.startswith("/files/") or self.attach.startswith("/private/"):
+				file_doc = frappe.db.get_value(
+					"File",
+					{"file_url": self.attach},
+					["name", "file_url", "file_name", "is_private"],
+					as_dict=True,
+				)
+			else:
+				file_doc = frappe.db.get_value(
+					"File",
+					{"name": self.attach},
+					["name", "file_url", "file_name", "is_private"],
+					as_dict=True,
+				)
+
+		elif isinstance(self.attach, str) and frappe.db.exists("File", self.attach):
+			file_doc = frappe.db.get_value(
+				"File", self.attach, ["name", "file_url", "file_name", "is_private"], as_dict=True
+			)
+
+		if not file_doc and self.reference_doctype and self.reference_name:
+			file_doc = frappe.db.get_value(
+				"File",
+				{
+					"attached_to_doctype": self.reference_doctype,
+					"attached_to_name": self.reference_name,
+				},
+				["name", "file_url", "file_name", "is_private"],
+				as_dict=True,
+			)
+
+		if file_doc:
+			if file_doc.is_private:
+				file = frappe.get_doc("File", file_doc.name)
+				file.is_private = 0
+				file.save(ignore_permissions=True)
+
+			self.file_url = self.build_file_url(file_doc.file_url)
+
+			if not self.content_type or self.content_type == "text":
+				self.content_type = self.get_content_type_from_filename(file_doc.file_name)
+
+	def build_file_url(self, file_url):
+		if not file_url:
+			return None
+
+		if file_url.startswith("http://") or file_url.startswith("https://"):
+			return file_url
+
+		base_url = frappe.utils.get_url()
+
+		parsed_url = urlparse(base_url)
+
+		if parsed_url.hostname:
+			if not (
+				parsed_url.hostname == "localhost"
+				or parsed_url.hostname == "127.0.0.1"
+				or parsed_url.hostname.replace(".", "").isdigit()
+			):
+				base_url = f"{parsed_url.scheme}://{parsed_url.hostname}"
+
+		if not file_url.startswith("/"):
+			file_url = f"/{file_url}"
+
+		# base_url = "https://ac4a-105-161-155-97.ngrok-free.app"
+
+		return f"{base_url}{file_url}"
+
+	def get_content_type_from_filename(self, filename):
+		if not filename:
+			return "text"
+
+		filename_lower = filename.lower()
+
+		if filename_lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg")):
+			return "image"
+		elif filename_lower.endswith((".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm")):
+			return "video"
+		elif filename_lower.endswith((".mp3", ".wav", ".ogg", ".aac", ".flac", ".m4a")):
+			return "audio"
+		elif filename_lower.endswith(
+			(".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv")
+		):
+			return "document"
+		else:
+			return "document"
 
 	def update_profile_name(self):
 		number = self.get("from")
@@ -881,6 +980,7 @@ def send_document(
 			"file_url": document_url,
 			"reference_doctype": reference_doctype,
 			"reference_name": reference_name,
+			"attach": document_url,
 			"whatsapp_account": whatsapp_account,
 		}
 	)
@@ -911,6 +1011,7 @@ def send_image(
 			"file_url": image_url,
 			"reference_doctype": reference_doctype,
 			"reference_name": reference_name,
+			"attach": image_url,
 			"whatsapp_account": whatsapp_account,
 		}
 	)
