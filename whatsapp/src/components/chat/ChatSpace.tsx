@@ -240,10 +240,11 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       if (!chat || isSending) return;
 
       const messageId = Date.now().toString();
+      const messageContent = content.trim() || fileData?.file_name || "File";
 
       const optimisticMessage: Message = {
         id: messageId,
-        content: content || fileData?.file_name || "File",
+        content: messageContent,
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -264,7 +265,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
             }
           : undefined,
         attach: fileUrl || undefined,
-        caption: fileData?.caption,
+        caption: content.trim() ? content.trim() : fileData?.caption,
       };
 
       setMessages((prev) => [...prev, optimisticMessage]);
@@ -272,7 +273,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
       try {
         const response = await sendMessageCall({
-          content: content || fileData?.file_name || "File",
+          content: messageContent,
           user: chat.name,
           room: chat.id,
           user_no: chat.mobileNo,
@@ -281,7 +282,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
           reply_to_message_id: replyToMessage?.id || null,
           content_type: fileData?.content_type || "text",
           attachment: fileUrl,
-          caption: fileData?.caption,
+          caption: content.trim() ? content.trim() : fileData?.caption,
         });
 
         if (response?.message?.status === "ok") {
@@ -351,9 +352,28 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     setReplyTo(message);
   };
 
-  const handleReact = (messageId: string, emoji: string) => {
+  const handleReact = async (messageId: string, emoji: string) => {
+    if (!chat) return;
+
     if (onReact) {
       onReact(messageId, emoji);
+    }
+
+    try {
+      await sendMessageCall({
+        content: emoji,
+        user: chat.name,
+        room: chat.id,
+        user_no: chat.mobileNo,
+        attachment: null,
+        message_id: Date.now().toString(),
+        whatsapp_account: chat.whatsappAccount || currentAccount,
+        reply_to_message_id: messageId,
+        content_type: "reaction",
+      });
+      await mutateMessages();
+    } catch (error) {
+      console.error("Failed to sync reaction status:", error);
     }
   };
 
@@ -514,6 +534,14 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
             isPrivate={false}
             accept=".pdf,.png,.jpg,.jpeg,.mp4,.mp3,.doc,.docx,.xls,.xlsx,.txt"
           />
+          {uploadedFileUrl && (
+            <div className="mt-2 text-xs text-[#25D366] flex items-center gap-1">
+              <span>
+                File uploaded successfully. Type a message below to send as
+                caption.
+              </span>
+            </div>
+          )}
           <div className="flex justify-end gap-2 mt-3">
             <button
               onClick={() => {
@@ -524,20 +552,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
               className="px-4 py-2 rounded-lg bg-[#2a3942] text-white hover:bg-[#3b4a54] transition"
             >
               Cancel
-            </button>
-            <button
-              onClick={handleSend}
-              disabled={!uploadedFileUrl || isSending}
-              className="px-4 py-2 rounded-lg bg-[#25D366] hover:bg-[#20b859] text-white transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isSending ? (
-                <Loader size="sm" color="white" />
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  Send File
-                </>
-              )}
             </button>
           </div>
         </div>
@@ -562,13 +576,17 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
             value={messageInput}
             onChange={(e) => setMessageInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Type a message"
+            placeholder={
+              uploadedFileUrl
+                ? "Add a caption to your file..."
+                : "Type a message"
+            }
             className="flex-1 px-4 py-2 bg-[#2a3942] rounded-full text-sm text-white placeholder:text-[#8696a0] focus:outline-none focus:ring-1 focus:ring-[#25D366] min-w-0"
             disabled={isSending}
           />
           <button
             onClick={handleSend}
-            disabled={!messageInput.trim() || isSending}
+            disabled={isSending || (!uploadedFileUrl && !messageInput.trim())}
             className="p-2 bg-[#25D366] hover:bg-[#20b859] rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
           >
             {isSending ? (

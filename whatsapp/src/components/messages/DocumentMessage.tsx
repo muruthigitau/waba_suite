@@ -7,11 +7,13 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 interface DocumentMessageProps {
   fileUrl: string;
   fileName: string;
+  caption?: string;
 }
 
 export const DocumentMessage: React.FC<DocumentMessageProps> = ({
   fileUrl,
   fileName,
+  caption,
 }) => {
   const ext = fileName.split(".").pop()?.toLowerCase();
   const isPdf = ext === "pdf";
@@ -97,6 +99,12 @@ export const DocumentMessage: React.FC<DocumentMessageProps> = ({
           <Download className="h-4 w-4" />
         </button>
       </a>
+
+      {caption && (
+        <p className="text-sm mt-1 text-[#d1d7db] break-words whitespace-pre-wrap">
+          {caption}
+        </p>
+      )}
     </div>
   );
 };

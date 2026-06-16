@@ -90,19 +90,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   );
 
   const renderContent = () => {
+    const captionText = message.caption || message.content;
+    const hasCaption =
+      message.caption ||
+      (message.content && message.content !== message.attach);
+
     switch (message.type) {
       case "image":
         return (
           <ImageMessage
             src={message.attach || message.content}
-            caption={message.caption}
+            caption={hasCaption ? captionText : undefined}
           />
         );
       case "video":
         return (
           <VideoMessage
             src={message.attach || message.content}
-            caption={message.caption}
+            caption={hasCaption ? captionText : undefined}
           />
         );
       case "document":
@@ -110,6 +115,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <DocumentMessage
             fileUrl={message.attach || message.content}
             fileName={message.content}
+            caption={hasCaption ? captionText : undefined}
           />
         );
       case "location":
@@ -174,7 +180,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div
-      className={`flex ${message.isSent ? "justify-end" : "justify-start"} group relative mb-2`}
+      className={`flex ${message.isSent ? "justify-end pr-2" : "justify-start pl-2"} group relative mb-3`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
@@ -191,11 +197,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
 
         <div
-          className={`${
+          className={`relative rounded-lg px-3 py-1.5 shadow-sm ${
             message.isSent
-              ? "bg-[#005c4b] text-white"
-              : "bg-[#202c33] text-white"
-          } rounded-lg px-3 py-1.5 shadow-sm relative`}
+              ? "bg-[#005c4b] text-white rounded-tr-none after:content-[''] after:absolute after:top-0 after:right-[-8px] after:w-0 after:height-0 after:border-t-[8px] after:border-t-[#005c4b] after:border-r-[8px] after:border-r-transparent"
+              : "bg-[#202c33] text-white rounded-tl-none after:content-[''] after:absolute after:top-0 after:left-[-8px] after:w-0 after:height-0 after:border-t-[8px] after:border-t-[#202c33] after:border-l-[8px] after:border-l-transparent"
+          }`}
         >
           {isGroup && !message.isSent && message.senderName && (
             <div className="text-xs font-semibold text-[#25D366] mb-1">
@@ -215,7 +221,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {message.reactions && message.reactions.length > 0 && (
           <div
-            className={`absolute -bottom-3 ${message.isSent ? "left-0" : "right-0"} flex space-x-0.5 z-20`}
+            className={`absolute -bottom-3 ${message.isSent ? "left-2" : "right-2"} flex space-x-0.5 z-20`}
           >
             {message.reactions.slice(0, 3).map((reaction, idx) => {
               const isSelected = userReactionMap[reaction.emoji];
@@ -242,7 +248,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {showActions && (
           <div
             className={`absolute top-1/2 -translate-y-1/2 flex items-center gap-1 p-1 bg-[#202c33] border border-[#2a3942] rounded-full shadow-xl transition-all duration-150 ${
-              message.isSent ? "-left-28" : "-right-28"
+              message.isSent ? "-left-32" : "-right-32"
             } z-30`}
           >
             <button

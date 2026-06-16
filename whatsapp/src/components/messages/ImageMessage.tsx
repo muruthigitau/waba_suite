@@ -18,7 +18,11 @@ export const ImageMessage: React.FC<ImageMessageProps> = ({ src, caption }) => {
           className="max-w-[250px] max-h-[250px] rounded-lg cursor-pointer object-cover"
           onClick={() => setIsFullscreen(true)}
         />
-        {caption && <p className="text-sm mt-1 text-[#d1d7db]">{caption}</p>}
+        {caption && (
+          <p className="text-sm mt-1 text-[#d1d7db] break-words whitespace-pre-wrap">
+            {caption}
+          </p>
+        )}
       </div>
 
       {isFullscreen && (
