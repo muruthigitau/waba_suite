@@ -23,7 +23,7 @@
   "language_code",
   "whatsapp_account",
   "section_break_scxf",
-  "fields",
+  "variables",
   "section_break_lupb",
   "header_type",
   "header",
@@ -172,7 +172,7 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "fields",
+   "fieldname": "variables",
    "fieldtype": "Table",
    "label": "Fields",
    "options": "WhatsApp Template Variable"
@@ -181,7 +181,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-10 07:31:55.110800",
+ "modified": "2026-07-30 09:12:50.352740",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Templates",
