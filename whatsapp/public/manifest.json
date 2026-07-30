@@ -1,0 +1,36 @@
+{
+  "name": "WhatsApp Web",
+  "short_name": "WhatsApp",
+  "display": "standalone",
+  "background_color": "#111b21",
+  "theme_color": "#111b21",
+  "start_url": "/whatsapp",
+  "scope": "/whatsapp",
+  "description": "WhatsApp Chat Application",
+  "categories": ["social", "communication"],
+  "orientation": "portrait-primary",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "edge_side_panel": {},
+  "protocol_handlers": [],
+  "icons": [
+    {
+      "src": "/assets/waba_suite/whatsapp/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/waba_suite/whatsapp/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "services": [
+    {
+      "src": "/assets/waba_suite/whatsapp/sw.js",
+      "scope": "/whatsapp"
+    }
+  ]
+}

@@ -28,7 +28,7 @@ app_license = "agpl-3.0"
 
 # include js, css files in header of desk.html
 app_include_css = ["whatsapp_chat.bundle.css"]
-app_include_js = ["whatsapp_chat.bundle.js", "/assets/waba_suite/js/waba_suite_js.js"]
+app_include_js = ["whatsapp_chat.bundle.js", "/assets/waba_suite/js/waba_js.js"]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/waba_suite/css/waba_suite.css"
