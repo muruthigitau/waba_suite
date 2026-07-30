@@ -1,5 +1,5 @@
 import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
-import { MessageCircleCheck, Paperclip, Send, Smile, X } from "lucide-react";
+import { FileText, MessageCircleCheck, Paperclip, Send, Smile, X } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -14,6 +14,7 @@ import { MessageBubble } from "../common/MessageBubble";
 import { ChatHeader } from "../layout/ChatHeader";
 import { TemplateMessage } from "../messages/TemplateMessage";
 import { EmojiPicker } from "../modals/EmojiPicker";
+import { TemplateModal } from "../modals/TemplateModal";
 
 interface ChatSpaceProps {
   chat: Chat | null;
@@ -27,6 +28,9 @@ interface ChatSpaceProps {
   onReact?: (messageId: string, emoji: string) => void;
   onBack?: () => void;
   isMobile?: boolean;
+  onTogglePin?: (chatId: string) => void;
+  onToggleStar?: (chatId: string) => void;
+  onToggleArchive?: (chatId: string) => void;
 }
 
 export const ChatSpace: React.FC<ChatSpaceProps> = ({
@@ -37,6 +41,9 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   onReact,
   onBack,
   isMobile = false,
+  onTogglePin,
+  onToggleStar,
+  onToggleArchive,
 }) => {
   const [messageInput, setMessageInput] = useState("");
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -47,6 +54,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [uploadedFileData, setUploadedFileData] = useState<any>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -137,9 +145,13 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         }
       }
 
+      // For template messages, use the message field (JSON) for TemplateMessage component
+      // Also pass raw template definition fields for proper rendering
+      const templateContent = msg.use_template ? (msg.message || msg.content || "") : (msg.content || msg.message || "");
+      
       return {
         id: msg.name,
-        content: msg.content || msg.message || "",
+        content: templateContent,
         timestamp: new Date(msg.creation).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -158,6 +170,11 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         buttonData: msg.button_data,
         interactiveData: msg.interactive_data,
         replyTo: parsedReplyTo,
+        templateRaw: msg.use_template ? {
+          header: msg.template_header_raw || "",
+          body: msg.template_body_raw || "",
+          footer: msg.template_footer_raw || "",
+        } : undefined,
       };
     });
   }, [messagesData, chat]);
@@ -431,9 +448,9 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         chat={chat}
         onBack={onBack}
         isMobile={isMobile}
-        onVoiceCall={() => {}}
-        onVideoCall={() => {}}
-        onMenu={() => {}}
+        onTogglePin={onTogglePin}
+        onToggleStar={onToggleStar}
+        onToggleArchive={onToggleArchive}
       />
 
       <div
@@ -533,6 +550,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
             fieldname="attachment"
             isPrivate={false}
             accept=".pdf,.png,.jpg,.jpeg,.mp4,.mp3,.doc,.docx,.xls,.xlsx,.txt"
+            isMobile={isMobile}
           />
           {uploadedFileUrl && (
             <div className="mt-2 text-xs text-[#25D366] flex items-center gap-1">
@@ -571,6 +589,13 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
           >
             <Paperclip className="w-5 h-5" />
           </button>
+          <button
+            onClick={() => setShowTemplateModal(true)}
+            className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
+            title="Send template message"
+          >
+            <FileText className="w-5 h-5" />
+          </button>
           <input
             type="text"
             value={messageInput}
@@ -606,6 +631,14 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
           }
         />
       )}
+
+      <TemplateModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        chat={chat}
+        currentAccount={currentAccount}
+        onSent={() => mutateMessages()}
+      />
     </div>
   );
 };
