@@ -1,5 +1,4 @@
 import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
-import { MessageCircle } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -9,7 +8,10 @@ import React, {
 } from "react";
 import { ChatList } from "../components/chat/ChatList";
 import { ChatSpace } from "../components/chat/ChatSpace";
+import { SyncStatusBar } from "../components/common/SyncStatusBar";
+import { useCache } from "../contexts/CacheContext";
 import { useUser } from "../contexts/UserProvider";
+import syncEngine from "../services/syncEngine";
 import type { Account, Chat, Message, UserSettings } from "../types";
 
 export const WhatsAppHome: React.FC = () => {
@@ -25,11 +27,38 @@ export const WhatsAppHome: React.FC = () => {
     enableNotifications: true,
   });
   const [currentUserName, setCurrentUserName] = useState<string>("User");
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const {
+    isReady,
+    hydrateChats,
+    cacheChats,
+    cacheRoute,
+    restoreRoute,
+    restoreAccounts,
+    cacheAccounts,
+    cacheUserSettings,
+    restoreUserSettings,
+  } = useCache();
 
   const { data: accountsData } = useFrappeGetCall<{
     message: { accounts: Account[]; default_account: string };
-  }>("waba_suite.api.accounts.get_user_accounts_with_default", {}, undefined);
+  }>(
+    "waba_suite.api.accounts.get_user_accounts_with_default",
+    {},
+    isReady ? undefined : { enabled: false },
+  );
+
+  // Cache accounts when data arrives
+  useEffect(() => {
+    if (accountsData?.message) {
+      const { accounts: accs, default_account } = accountsData.message;
+      if (accs && Array.isArray(accs) && accs.length > 0) {
+        cacheAccounts(accs, default_account);
+      }
+    }
+  }, [accountsData, cacheAccounts]);
 
   const { data: userSettingsData } = useFrappeGetCall<{
     message: {
@@ -37,12 +66,30 @@ export const WhatsAppHome: React.FC = () => {
       enable_notifications: number;
       full_name: string;
     };
-  }>("waba_suite.api.config.get_user_settings", {}, undefined);
+  }>(
+    "waba_suite.api.config.get_user_settings",
+    {},
+    isReady ? undefined : { enabled: false },
+  );
+
+  // Cache user settings when data arrives
+  useEffect(() => {
+    if (userSettingsData?.message) {
+      cacheUserSettings({
+        enableMessageTone:
+          userSettingsData.message.enable_message_tone === 1,
+        enableNotifications:
+          userSettingsData.message.enable_notifications === 1,
+        fullName: userSettingsData.message.full_name || "User",
+      });
+    }
+  }, [userSettingsData, cacheUserSettings]);
 
   const shouldFetchRooms = useMemo(() => {
     return !!currentAccount;
   }, [currentAccount]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: roomsData, mutate: mutateRooms } = useFrappeGetCall<{
     message: any[];
   }>(
@@ -51,7 +98,9 @@ export const WhatsAppHome: React.FC = () => {
       email: "",
       whatsapp_account: currentAccount,
     },
-    shouldFetchRooms ? undefined : { enabled: false, revalidateOnFocus: false },
+    shouldFetchRooms
+      ? undefined
+      : { enabled: false, revalidateOnFocus: false },
   );
 
   const { call: sendMessageCall } = useFrappePostCall(
@@ -60,22 +109,53 @@ export const WhatsAppHome: React.FC = () => {
   const { call: markMultipleAsReadCall } = useFrappePostCall(
     "waba_suite.api.message.mark_multiple_as_read",
   );
+  const { call: togglePinCall } = useFrappePostCall(
+    "waba_suite.api.chat_preferences.toggle_pin",
+  );
+  const { call: toggleStarCall } = useFrappePostCall(
+    "waba_suite.api.chat_preferences.toggle_star",
+  );
+  const { call: toggleArchiveCall } = useFrappePostCall(
+    "waba_suite.api.chat_preferences.toggle_archive",
+  );
 
   useEffect(() => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (mobile) setShowSidebar(true);
+      if (mobile && selectedChatId) {
+        setShowSidebar(false);
+      } else {
+        setShowSidebar(true);
+      }
     };
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [selectedChatId]);
+
+  // Hydrate settings from cache first
+  useEffect(() => {
+    const hydrate = async () => {
+      const cached = await restoreUserSettings();
+      if (cached) {
+        setUserSettings({
+          enableMessageTone: cached.enableMessageTone,
+          enableNotifications: cached.enableNotifications,
+        });
+        if (cached.fullName) {
+          setCurrentUserName(cached.fullName);
+        }
+      }
+    };
+    if (!isReady) hydrate();
+  }, [isReady, restoreUserSettings]);
 
   useEffect(() => {
     if (userSettingsData?.message) {
       setUserSettings({
-        enableMessageTone: userSettingsData.message.enable_message_tone === 1,
+        enableMessageTone:
+          userSettingsData.message.enable_message_tone === 1,
         enableNotifications:
           userSettingsData.message.enable_notifications === 1,
       });
@@ -85,19 +165,77 @@ export const WhatsAppHome: React.FC = () => {
     }
   }, [userSettingsData]);
 
+  // Hydrate accounts from cache on mount, restore route
+  useEffect(() => {
+    const init = async () => {
+      if (!isReady) return;
+
+      // 1. Restore previous route FIRST — it has the most recent user state
+      const route = await restoreRoute();
+      if (route && route.currentAccount) {
+        setCurrentAccount(route.currentAccount);
+        const cachedChats = await hydrateChats(route.currentAccount);
+        if (cachedChats.length > 0) {
+          setChats(cachedChats);
+        }
+        if (route.selectedChatId) {
+          setSelectedChatId(route.selectedChatId);
+        }
+        return; // Route takes priority over cached accounts
+      }
+
+      // 2. No stored route — fall back to cached accounts
+      const cachedAccounts = await restoreAccounts();
+      if (cachedAccounts && cachedAccounts.length > 0) {
+        setAccounts(
+          cachedAccounts.map(
+            (a: {
+              name: string;
+              accountName: string;
+              phoneId: string;
+              unreadCount: number;
+              isDefault: boolean;
+            }) => ({
+              name: a.name,
+              account_name: a.accountName,
+              phone_id: a.phoneId,
+              unread_count: a.unreadCount,
+              is_default: a.isDefault,
+            }),
+          ),
+        );
+
+        const defaultAcc = cachedAccounts.find(
+          (a: { isDefault: boolean }) => a.isDefault,
+        );
+        if (defaultAcc) {
+          setCurrentAccount(defaultAcc.name);
+        }
+
+        // Hydrate chats from cache
+        const defaultName =
+          defaultAcc?.name || cachedAccounts[0].name;
+        const cachedChats = await hydrateChats(defaultName);
+        if (cachedChats.length > 0) {
+          setChats(cachedChats);
+        }
+      }
+    };
+    init();
+  }, [isReady, hydrateChats, restoreRoute, restoreAccounts]);
+
   useEffect(() => {
     if (accountsData?.message) {
       const { accounts: accs, default_account } = accountsData.message;
       if (accs && Array.isArray(accs)) {
         setAccounts(accs);
-        let defaultAccName = default_account;
-        if (!defaultAccName && accs.length > 0) {
-          defaultAccName = accs[0].name;
-        }
-        if (defaultAccName && typeof defaultAccName === "string") {
+        const defaultAccName = (() => {
+          if (typeof default_account === "string" && default_account) return default_account;
+          if (default_account && typeof default_account === "object" && "name" in default_account) return (default_account as {name: string}).name;
+          return accs.length > 0 ? accs[0].name : "";
+        })();
+        if (defaultAccName) {
           setCurrentAccount(defaultAccName);
-        } else if (defaultAccName && typeof defaultAccName === "object") {
-          setCurrentAccount(defaultAccName.name);
         }
       }
     }
@@ -124,6 +262,7 @@ export const WhatsAppHome: React.FC = () => {
     };
   }, [currentAccount, mutateRooms]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formattedChats = useMemo(() => {
     if (!roomsData?.message) {
       return [];
@@ -168,15 +307,48 @@ export const WhatsAppHome: React.FC = () => {
         whatsappAccount: room.whatsapp_account,
         roomType: room.type,
         contactName: room.contact_name,
+        isPinned: room.is_pinned === true || room.is_pinned === 1,
+        isStarred: room.is_starred === true || room.is_starred === 1,
+        isArchived: room.is_archived === true || room.is_archived === 1,
       };
     });
   }, [roomsData]);
 
+  // Merge server chats with preferences from API. The backend now returns
+  // is_pinned/is_starred/is_archived with each contact, so we use those as source of truth.
   useEffect(() => {
     if (formattedChats.length > 0) {
-      setChats(formattedChats);
+      setChats((prev) => {
+        const prevMap = new Map(prev.map((c) => [c.id, c]));
+        return formattedChats.map((fc) => {
+          const existing = prevMap.get(fc.id);
+          // Prefer server prefs, but preserve any local toggle that happened since last poll
+          if (existing) {
+            return {
+              ...fc,
+              // Use the server values as base, but if the user just toggled locally
+              // within the last polling cycle, preserve that
+              isPinned: fc.isPinned,
+              isStarred: fc.isStarred,
+              isArchived: fc.isArchived,
+            };
+          }
+          return fc;
+        });
+      });
     }
   }, [formattedChats]);
+
+  // Cache chats when rooms data comes from server
+  useEffect(() => {
+    if (
+      roomsData?.message &&
+      Array.isArray(roomsData.message) &&
+      currentAccount
+    ) {
+      cacheChats(roomsData.message, currentAccount);
+    }
+  }, [roomsData, currentAccount, cacheChats]);
 
   const handleMarkAsRead = useCallback(
     async (chat: Chat) => {
@@ -187,7 +359,9 @@ export const WhatsAppHome: React.FC = () => {
             whatsapp_account: chat.whatsappAccount,
           });
           setChats((prev) =>
-            prev.map((c) => (c.id === chat.id ? { ...c, unreadCount: 0 } : c)),
+            prev.map((c) =>
+              c.id === chat.id ? { ...c, unreadCount: 0 } : c,
+            ),
           );
         } catch (error) {
           console.error("Failed to mark as read:", error);
@@ -239,11 +413,16 @@ export const WhatsAppHome: React.FC = () => {
     [sendMessageCall, userSettings.enableMessageTone],
   );
 
-  const handleSwitchAccount = useCallback(async (accountName: string) => {
-    setCurrentAccount(accountName);
-    setSelectedChatId(null);
-    setChats([]);
-  }, []);
+  const handleSwitchAccount = useCallback(
+    async (accountName: string) => {
+      setCurrentAccount(accountName);
+      setSelectedChatId(null);
+      setChats([]);
+      // Cache route with new account
+      cacheRoute(null, accountName);
+    },
+    [cacheRoute],
+  );
 
   const selectedChat = useMemo(() => {
     return selectedChatId
@@ -251,12 +430,82 @@ export const WhatsAppHome: React.FC = () => {
       : null;
   }, [chats, selectedChatId]);
 
+  const handleTogglePin = useCallback(
+    async (chatId: string) => {
+      const chat = chats.find((c) => c.id === chatId);
+      if (!chat) return;
+      try {
+        const res = await togglePinCall({
+          // Use chat.id (the WhatsApp Contact doc name) as the primary identifier
+          // This matches how contacts.get() returns rooms (name = doc name)
+          whatsapp_contact: chat.id,
+          mobile_no: chat.mobileNo,
+          contact_name: chat.name,
+          whatsapp_account: chat.whatsappAccount || currentAccount,
+        }) as { message?: { is_pinned?: boolean } };
+        const isPinned = res?.message?.is_pinned ?? !chat.isPinned;
+        setChats((prev) =>
+          prev.map((c) => (c.id === chatId ? { ...c, isPinned } : c)),
+        );
+      } catch (error) {
+        console.error("Failed to toggle pin:", error);
+      }
+    },
+    [chats, currentAccount, togglePinCall],
+  );
+
+  const handleToggleStar = useCallback(
+    async (chatId: string) => {
+      const chat = chats.find((c) => c.id === chatId);
+      if (!chat) return;
+      try {
+        const res = await toggleStarCall({
+          whatsapp_contact: chat.id,
+          mobile_no: chat.mobileNo,
+          contact_name: chat.name,
+          whatsapp_account: chat.whatsappAccount || currentAccount,
+        }) as { message?: { is_starred?: boolean } };
+        const isStarred = res?.message?.is_starred ?? !chat.isStarred;
+        setChats((prev) =>
+          prev.map((c) => (c.id === chatId ? { ...c, isStarred } : c)),
+        );
+      } catch (error) {
+        console.error("Failed to toggle star:", error);
+      }
+    },
+    [chats, currentAccount, toggleStarCall],
+  );
+
+  const handleToggleArchive = useCallback(
+    async (chatId: string) => {
+      const chat = chats.find((c) => c.id === chatId);
+      if (!chat) return;
+      try {
+        const res = await toggleArchiveCall({
+          whatsapp_contact: chat.id,
+          mobile_no: chat.mobileNo,
+          contact_name: chat.name,
+          whatsapp_account: chat.whatsappAccount || currentAccount,
+        }) as { message?: { is_archived?: boolean } };
+        const isArchived = res?.message?.is_archived ?? !chat.isArchived;
+        setChats((prev) =>
+          prev.map((c) => (c.id === chatId ? { ...c, isArchived } : c)),
+        );
+      } catch (error) {
+        console.error("Failed to toggle archive:", error);
+      }
+    },
+    [chats, currentAccount, toggleArchiveCall],
+  );
+
   const handleSelectChat = useCallback(
     (id: string) => {
       setSelectedChatId(id);
       if (isMobile) setShowSidebar(false);
+      // Cache the current route
+      cacheRoute(id, currentAccount);
     },
-    [isMobile],
+    [isMobile, currentAccount, cacheRoute],
   );
 
   const handleBack = useCallback(() => {
@@ -267,29 +516,53 @@ export const WhatsAppHome: React.FC = () => {
     await logout();
   }, [logout]);
 
+  // Setup sync engine with actual API callbacks when available
+  useEffect(() => {
+    syncEngine.setApiCallbacks({
+      sendMessage: sendMessageCall,
+      markAsRead: markMultipleAsReadCall,
+    });
+  }, [sendMessageCall, markMultipleAsReadCall]);
+
   return (
-    <div className="flex h-screen bg-[#111b21]">
+    <div className="flex w-full h-dvh bg-[#111b21] overflow-hidden" style={{ height: '100dvh' }}>
+      {/* Chat List Sidebar - takes full screen on mobile when shown */}
       <div
         className={`${
           showSidebar ? "flex" : "hidden"
-        } ${isMobile ? "absolute inset-0 z-20" : "relative w-[400px]"} flex-col`}
+        } ${
+          isMobile
+            ? "absolute inset-0 z-20 w-full"
+            : "relative w-full max-w-[400px] min-w-[300px] flex-shrink-0"
+        } flex-col overflow-hidden`}
       >
-        <ChatList
-          chats={chats}
-          selectedChatId={selectedChatId}
-          onSelectChat={handleSelectChat}
-          onClose={handleBack}
-          isMobile={isMobile}
-          currentAccount={currentAccount}
-          accounts={accounts}
-          onSwitchAccount={handleSwitchAccount}
-          userSettings={userSettings}
-          currentUserName={currentUserName}
-          onLogout={handleLogout}
-        />
+        <SyncStatusBar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <ChatList
+            chats={chats}
+            selectedChatId={selectedChatId}
+            onSelectChat={handleSelectChat}
+            onClose={handleBack}
+            isMobile={isMobile}
+            currentAccount={currentAccount}
+            accounts={accounts}
+            onSwitchAccount={handleSwitchAccount}
+            userSettings={userSettings}
+            currentUserName={currentUserName}
+            onLogout={handleLogout}
+            onTogglePin={handleTogglePin}
+            onToggleStar={handleToggleStar}
+            onToggleArchive={handleToggleArchive}
+          />
+        </div>
       </div>
 
-      <div className="flex-1 flex flex-col">
+      {/* Chat Space - takes full screen on mobile when sidebar is hidden */}
+      <div
+        className={`flex-1 flex flex-col min-w-0 ${
+          isMobile && showSidebar ? "hidden" : "flex"
+        }`}
+      >
         <ChatSpace
           chat={selectedChat}
           currentAccount={currentAccount}
@@ -297,17 +570,11 @@ export const WhatsAppHome: React.FC = () => {
           onMarkAsRead={handleMarkAsRead}
           onBack={handleBack}
           isMobile={isMobile}
+          onTogglePin={handleTogglePin}
+          onToggleStar={handleToggleStar}
+          onToggleArchive={handleToggleArchive}
         />
       </div>
-
-      {isMobile && !showSidebar && (
-        <button
-          onClick={handleBack}
-          className="fixed bottom-4 left-4 p-3 bg-[#25D366] text-white rounded-full shadow-lg hover:bg-[#20b859] transition"
-        >
-          <MessageCircle className="w-6 h-6" />
-        </button>
-      )}
     </div>
   );
 };
