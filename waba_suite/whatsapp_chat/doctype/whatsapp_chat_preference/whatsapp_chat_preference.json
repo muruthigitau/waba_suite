@@ -1,0 +1,160 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:user_contact_key",
+ "creation": "2026-07-30 06:15:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user_contact_key",
+  "user",
+  "whatsapp_contact",
+  "whatsapp_contact_name",
+  "column_break_xxyy",
+  "whatsapp_account",
+  "mobile_no",
+  "is_pinned",
+  "is_starred",
+  "is_archived",
+  "section_break_zzww",
+  "pinned_at",
+  "column_break_aabb",
+  "starred_at",
+  "column_break_ccdd",
+  "archived_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "user_contact_key",
+   "fieldtype": "Data",
+   "label": "User Contact Key",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "whatsapp_contact",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "WhatsApp Contact",
+   "options": "WhatsApp Contact",
+   "reqd": 1
+  },
+  {
+   "fieldname": "whatsapp_contact_name",
+   "fieldtype": "Data",
+   "label": "Contact Name"
+  },
+  {
+   "fieldname": "column_break_xxyy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "whatsapp_account",
+   "fieldtype": "Data",
+   "label": "WhatsApp Account",
+   "search_index": 1
+  },
+  {
+   "fieldname": "mobile_no",
+   "fieldtype": "Data",
+   "label": "Mobile No",
+   "search_index": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_pinned",
+   "fieldtype": "Check",
+   "label": "Is Pinned"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_starred",
+   "fieldtype": "Check",
+   "label": "Is Starred"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_archived",
+   "fieldtype": "Check",
+   "label": "Is Archived"
+  },
+  {
+   "fieldname": "section_break_zzww",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "pinned_at",
+   "fieldtype": "Datetime",
+   "label": "Pinned At"
+  },
+  {
+   "fieldname": "column_break_aabb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "starred_at",
+   "fieldtype": "Datetime",
+   "label": "Starred At"
+  },
+  {
+   "fieldname": "column_break_ccdd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "archived_at",
+   "fieldtype": "Datetime",
+   "label": "Archived At"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-30 06:52:20.912057",
+ "modified_by": "Administrator",
+ "module": "Whatsapp Chat",
+ "name": "WhatsApp Chat Preference",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "All",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
