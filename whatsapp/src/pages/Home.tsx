@@ -11,12 +11,16 @@ import { ChatSpace } from "../components/chat/ChatSpace";
 import { SyncStatusBar } from "../components/common/SyncStatusBar";
 import { useCache } from "../contexts/CacheContext";
 import { useUser } from "../contexts/UserProvider";
+import { useChatPreferences } from "../hooks/useChatPreferences";
 import syncEngine from "../services/syncEngine";
 import type { Account, Chat, Message, UserSettings } from "../types";
 
 export const WhatsAppHome: React.FC = () => {
   const { logout } = useUser();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  // A draft chat is a selected contact that has no message history yet —
+  // no room/chat exists until the first message is sent.
+  const [draftChat, setDraftChat] = useState<Chat | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [chats, setChats] = useState<Chat[]>([]);
@@ -425,85 +429,113 @@ export const WhatsAppHome: React.FC = () => {
   );
 
   const selectedChat = useMemo(() => {
-    return selectedChatId
-      ? chats.find((c) => c.id === selectedChatId) || null
-      : null;
-  }, [chats, selectedChatId]);
+    if (!selectedChatId) return draftChat || null;
+    const existing = chats.find((c) => c.id === selectedChatId);
+    return existing || draftChat || null;
+  }, [chats, selectedChatId, draftChat]);
+
+  const { togglePin, toggleStar, toggleArchive } = useChatPreferences({
+    togglePinCall,
+    toggleStarCall,
+    toggleArchiveCall,
+    currentAccount,
+  });
 
   const handleTogglePin = useCallback(
     async (chatId: string) => {
       const chat = chats.find((c) => c.id === chatId);
       if (!chat) return;
-      try {
-        const res = await togglePinCall({
-          // Use chat.id (the WhatsApp Contact doc name) as the primary identifier
-          // This matches how contacts.get() returns rooms (name = doc name)
-          whatsapp_contact: chat.id,
-          mobile_no: chat.mobileNo,
-          contact_name: chat.name,
-          whatsapp_account: chat.whatsappAccount || currentAccount,
-        }) as { message?: { is_pinned?: boolean } };
-        const isPinned = res?.message?.is_pinned ?? !chat.isPinned;
-        setChats((prev) =>
-          prev.map((c) => (c.id === chatId ? { ...c, isPinned } : c)),
-        );
-      } catch (error) {
-        console.error("Failed to toggle pin:", error);
-      }
+      const isPinned = await togglePin(chat);
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, isPinned } : c)),
+      );
     },
-    [chats, currentAccount, togglePinCall],
+    [chats, togglePin],
   );
 
   const handleToggleStar = useCallback(
     async (chatId: string) => {
       const chat = chats.find((c) => c.id === chatId);
       if (!chat) return;
-      try {
-        const res = await toggleStarCall({
-          whatsapp_contact: chat.id,
-          mobile_no: chat.mobileNo,
-          contact_name: chat.name,
-          whatsapp_account: chat.whatsappAccount || currentAccount,
-        }) as { message?: { is_starred?: boolean } };
-        const isStarred = res?.message?.is_starred ?? !chat.isStarred;
-        setChats((prev) =>
-          prev.map((c) => (c.id === chatId ? { ...c, isStarred } : c)),
-        );
-      } catch (error) {
-        console.error("Failed to toggle star:", error);
-      }
+      const isStarred = await toggleStar(chat);
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, isStarred } : c)),
+      );
     },
-    [chats, currentAccount, toggleStarCall],
+    [chats, toggleStar],
   );
 
   const handleToggleArchive = useCallback(
     async (chatId: string) => {
       const chat = chats.find((c) => c.id === chatId);
       if (!chat) return;
-      try {
-        const res = await toggleArchiveCall({
-          whatsapp_contact: chat.id,
-          mobile_no: chat.mobileNo,
-          contact_name: chat.name,
-          whatsapp_account: chat.whatsappAccount || currentAccount,
-        }) as { message?: { is_archived?: boolean } };
-        const isArchived = res?.message?.is_archived ?? !chat.isArchived;
-        setChats((prev) =>
-          prev.map((c) => (c.id === chatId ? { ...c, isArchived } : c)),
-        );
-      } catch (error) {
-        console.error("Failed to toggle archive:", error);
-      }
+      const isArchived = await toggleArchive(chat);
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, isArchived } : c)),
+      );
     },
-    [chats, currentAccount, toggleArchiveCall],
+    [chats, toggleArchive],
   );
 
   const handleSelectChat = useCallback(
     (id: string) => {
       setSelectedChatId(id);
+      setDraftChat(null);
       if (isMobile) setShowSidebar(false);
       // Cache the current route
       cacheRoute(id, currentAccount);
+    },
+    [isMobile, currentAccount, cacheRoute],
+  );
+
+  // Handle a contact selected/created from the "New Message" dialog.
+  // We open a chat view for the contact. If the contact has an existing
+  // chat we select it; if it's brand new (no messages yet) we keep it as a
+  // draft so no room/chat is persisted until the first message is sent.
+  const handleOpenNewContact = useCallback(
+    (contact?: {
+      id?: string;
+      name?: string;
+      mobileNo?: string;
+      whatsappAccount?: string;
+      hasChat?: boolean;
+      canSendDirect?: boolean;
+      within24hWindow?: boolean;
+    }) => {
+      if (!contact?.id || !contact.mobileNo) return;
+
+      if (contact.hasChat) {
+        // Existing chat — just select it (it will appear in the polled list).
+        setSelectedChatId(contact.id);
+        setDraftChat(null);
+      } else {
+        // New contact — open as a draft chat (no room saved until message).
+        // A brand new contact has never messaged us → outside the 24h window,
+        // so only template messages are allowed.
+        const draft: Chat = {
+          id: contact.id,
+          name: contact.name || contact.mobileNo,
+          mobileNo: contact.mobileNo,
+          contactName: contact.name,
+          avatar: (contact.name || contact.mobileNo).charAt(0).toUpperCase(),
+          lastMessage: "",
+          timestamp: new Date().toISOString(),
+          unreadCount: 0,
+          online: false,
+          typing: false,
+          isGroup: false,
+          whatsappAccount: contact.whatsappAccount || currentAccount,
+          roomType: "Direct",
+          // Carry the 24h session window into the ChatSpace UI so templates-only
+          // enforcement applies immediately for new/expired/ended sessions.
+          within24hWindow: contact.within24hWindow ?? false,
+        };
+        setDraftChat(draft);
+        setSelectedChatId(contact.id);
+      }
+
+      if (isMobile) setShowSidebar(false);
+      cacheRoute(contact.id, contact.whatsappAccount || currentAccount);
     },
     [isMobile, currentAccount, cacheRoute],
   );
@@ -525,7 +557,10 @@ export const WhatsAppHome: React.FC = () => {
   }, [sendMessageCall, markMultipleAsReadCall]);
 
   return (
-    <div className="flex w-full h-dvh bg-[#111b21] overflow-hidden" style={{ height: '100dvh' }}>
+    <div
+      className="flex w-full h-dvh bg-[#111b21] overflow-hidden"
+      style={{ height: '100dvh' }}
+    >
       {/* Chat List Sidebar - takes full screen on mobile when shown */}
       <div
         className={`${
@@ -533,7 +568,7 @@ export const WhatsAppHome: React.FC = () => {
         } ${
           isMobile
             ? "absolute inset-0 z-20 w-full"
-            : "relative w-full max-w-[400px] min-w-[300px] flex-shrink-0"
+            : "relative w-full max-w-[400px] min-w-[320px] flex-shrink-0 border-r border-[#2a3942]"
         } flex-col overflow-hidden`}
       >
         <SyncStatusBar />
@@ -553,6 +588,7 @@ export const WhatsAppHome: React.FC = () => {
             onTogglePin={handleTogglePin}
             onToggleStar={handleToggleStar}
             onToggleArchive={handleToggleArchive}
+            onNewContact={handleOpenNewContact}
           />
         </div>
       </div>
@@ -573,6 +609,7 @@ export const WhatsAppHome: React.FC = () => {
           onTogglePin={handleTogglePin}
           onToggleStar={handleToggleStar}
           onToggleArchive={handleToggleArchive}
+          within24hWindow={selectedChat?.within24hWindow}
         />
       </div>
     </div>

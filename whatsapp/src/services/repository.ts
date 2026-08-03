@@ -116,6 +116,16 @@ export const messageRepo = {
       .where({ chatId, isPending: 1 })
       .toArray();
   },
+
+  async getLastTimestamp(chatId: string): Promise<string | undefined> {
+    const latest = await db.messages
+      .where("chatId")
+      .equals(chatId)
+      .reverse()
+      .sortBy("fullTimestamp");
+    // sortBy with reverse() returns newest-first, so latest[0] is the newest
+    return latest.length > 0 ? latest[0].fullTimestamp.toISOString() : undefined;
+  },
 };
 
 // ─── Route/Memory Repository ──────────────────────────────────

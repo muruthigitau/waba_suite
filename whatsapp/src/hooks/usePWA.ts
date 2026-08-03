@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { registerSW } from "../pwa";
 
 interface PWADetails {
   isInstallable: boolean;
@@ -42,42 +43,19 @@ export function usePWA(): PWADetails {
     };
     window.addEventListener("appinstalled", handleAppInstalled);
 
-    const registerSW = async () => {
-      if ("serviceWorker" in navigator) {
-        try {
-          // Register SW from Frappe's www directory so it can control /whatsapp/ scope
-          // The sw.js is copied to waba_suite/www/sw.js and served at /whatsapp/sw.js
-          const swUrl = `${window.location.origin}/assets/waba_suite/whatsapp/sw.js`;
-          const registration = await navigator.serviceWorker.register(swUrl);
-          // Removed explicit scope so SW defaults to its own path scope
-          // On Frappe, this will be /assets/waba_suite/whatsapp/ which is sufficient
-          // for caching app shell assets on PWA install
-
-          registration.addEventListener("updatefound", () => {
-            const newWorker = registration.installing;
-            if (newWorker) {
-              newWorker.addEventListener("statechange", () => {
-                if (
-                  newWorker.state === "installed" &&
-                  navigator.serviceWorker.controller
-                ) {
-                  setCanUpdate(true);
-                  setWaitingWorker(newWorker);
-                }
-              });
-            }
-          });
-
-          if (registration.waiting) {
-            setCanUpdate(true);
+    // Register the service worker at the site root (/sw.js) so it controls
+    // the /whatsapp scope and the app shell loads from cache while offline.
+    registerSW({
+      onNeedRefresh: () => {
+        setCanUpdate(true);
+        if (!window.isSecureContext || !("serviceWorker" in navigator)) return;
+        navigator.serviceWorker.getRegistration().then((registration) => {
+          if (registration?.waiting) {
             setWaitingWorker(registration.waiting);
           }
-        } catch (error) {
-          console.error("Service Worker registration failed:", error);
-        }
-      }
-    };
-    registerSW();
+        });
+      },
+    });
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);

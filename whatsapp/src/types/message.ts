@@ -6,7 +6,7 @@ export interface Message {
   timestamp: string;
   fullTimestamp: Date;
   isSent: boolean;
-  status: "sent" | "delivered" | "read" | "failed";
+  status: "sending" | "sent" | "delivered" | "read" | "failed";
   type:
     | "text"
     | "image"
@@ -34,8 +34,11 @@ export interface Message {
     longitude: number;
     name?: string;
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contactData?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   buttonData?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   interactiveData?: any;
   isTemplate?: boolean;
 }
@@ -69,8 +72,11 @@ export interface RawMessage {
     longitude: number;
     name?: string;
   };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contact_data?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   button_data?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   interactive_data?: any;
   sender_name?: string;
 }

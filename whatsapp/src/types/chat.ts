@@ -20,6 +20,8 @@ export interface Chat {
   isPinned?: boolean;
   isStarred?: boolean;
   isArchived?: boolean;
+  /** Whether the contact is within the WhatsApp 24h customer-service window. */
+  within24hWindow?: boolean;
 }
 
 export interface Room {

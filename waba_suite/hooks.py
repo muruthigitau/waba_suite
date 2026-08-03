@@ -1,302 +1,88 @@
+"""WABA Suite app hooks.
+
+Registers the app's frontend assets, scheduler events, document-event hooks,
+sounds, and website route rules for the WhatsApp chat interface.
+
+Key dependencies:
+    - waba_suite.utils: Notification triggers and doc-event script runner
+    - waba_suite.api.session: Session expiry maintenance
+"""
+
 app_name = "waba_suite"
 app_title = "WABA Suite"
 app_publisher = "David Gitau"
 app_description = (
-	"A comprehensive, all-in-one WhatsApp Business API (WABA) integration for the Frappe Framework"
+    "A comprehensive, all-in-one WhatsApp Business API (WABA) integration for "
+    "the Frappe Framework"
 )
 app_email = "muruthigitau@gmail.com"
 app_license = "agpl-3.0"
 
-# Apps
-# ------------------
-
-# required_apps = ["helpdesk"]
-
-# Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "waba_suite",
-# 		"logo": "/assets/waba_suite/logo.png",
-# 		"title": "WABA Suite",
-# 		"route": "/waba_suite",
-# 		"has_permission": "waba_suite.api.permission.has_app_permission"
-# 	}
-# ]
-
-# Includes in <head>
-# ------------------
-
-# include js, css files in header of desk.html
+# Assets injected into the desk (chat UI bundle + core JS).
 app_include_css = ["whatsapp_chat.bundle.css"]
 app_include_js = ["whatsapp_chat.bundle.js", "/assets/waba_suite/js/waba_js.js"]
 
-# include js, css files in header of web template
-# web_include_css = "/assets/waba_suite/css/waba_suite.css"
-# web_include_js = "/assets/waba_suite/js/waba_suite.js"
-
-# include custom scss in every website theme (without file extension ".scss")
-# website_theme_scss = "waba_suite/public/scss/website"
-
-# include js, css files in header of web form
-# webform_include_js = {"doctype": "public/js/doctype.js"}
-# webform_include_css = {"doctype": "public/css/doctype.css"}
-
-# include js in page
-# page_js = {"page" : "public/js/file.js"}
-
-# include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
-# doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
-# doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
-
-# Svg Icons
-# ------------------
-# include app icons in desk
-# app_include_icons = "waba_suite/public/icons.svg"
-
-# Home Pages
-# ----------
-
-# application home page (will override Website Settings)
-# home_page = "login"
-
-# website user home page (by Role)
-# role_home_page = {
-# 	"Role": "home_page"
-# }
-
-# Generators
-# ----------
-
-# automatically create page for each record of this doctype
-# website_generators = ["Web Page"]
-
-# automatically load and sync documents of this doctype from downstream apps
-# importable_doctypes = [doctype_1]
-
-# Jinja
-# ----------
-
-# add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "waba_suite.utils.jinja_methods",
-# 	"filters": "waba_suite.utils.jinja_filters"
-# }
-
-# Installation
-# ------------
-
-# before_install = "waba_suite.install.before_install"
-# after_install = "waba_suite.install.after_install"
-
-# Uninstallation
-# ------------
-
-# before_uninstall = "waba_suite.uninstall.before_uninstall"
-# after_uninstall = "waba_suite.uninstall.after_uninstall"
-
-# Integration Setup
-# ------------------
-# To set up dependencies/integrations with other apps
-# Name of the app being installed is passed as an argument
-
-# before_app_install = "waba_suite.utils.before_app_install"
-# after_app_install = "waba_suite.utils.after_app_install"
-
-# Integration Cleanup
-# -------------------
-# To clean up dependencies/integrations with other apps
-# Name of the app being uninstalled is passed as an argument
-
-# before_app_uninstall = "waba_suite.utils.before_app_uninstall"
-# after_app_uninstall = "waba_suite.utils.after_app_uninstall"
-
-# Desk Notifications
-# ------------------
-# See frappe.core.notifications.get_notification_config
-
-# notification_config = "waba_suite.notifications.get_notification_config"
-
-# Permissions
-# -----------
-# Permissions evaluated in scripted ways
-
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
-
-# Document Events
-# ---------------
-# Hook on document methods and events
-
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
-
-# Scheduled Tasks
-# ---------------
-
+# Scheduled jobs: trigger WhatsApp notifications by frequency and expire
+# customer-service sessions once their 24h window elapses.
 scheduler_events = {
-	"all": ["waba_suite.utils.trigger_whatsapp_notifications_all"],
-	"hourly": ["waba_suite.utils.trigger_whatsapp_notifications_hourly"],
-	"hourly_long": ["waba_suite.utils.trigger_whatsapp_notifications_hourly_long"],
-	"daily": [
-		"waba_suite.utils.trigger_whatsapp_notifications_daily",
-		"waba_suite.waba_suite.doctype.whatsapp_notification.whatsapp_notification.trigger_notifications",
-	],
-	"daily_long": [
-		"waba_suite.utils.trigger_whatsapp_notifications_daily_long",
-	],
-	"weekly": [
-		"waba_suite.utils.trigger_whatsapp_notifications_weekly",
-	],
-	"weekly_long": [
-		"waba_suite.utils.trigger_whatsapp_notifications_weekly_long",
-	],
-	"monthly": [
-		"waba_suite.utils.trigger_whatsapp_notifications_monthly",
-	],
-	"monthly_long": [
-		"waba_suite.utils.trigger_whatsapp_notifications_monthly_long",
-	],
+    "all": ["waba_suite.utils.trigger_whatsapp_notifications_all"],
+    "hourly": ["waba_suite.utils.trigger_whatsapp_notifications_hourly"],
+    "hourly_long": ["waba_suite.utils.trigger_whatsapp_notifications_hourly_long"],
+    "daily": [
+        "waba_suite.utils.trigger_whatsapp_notifications_daily",
+        "waba_suite.waba_suite.doctype.whatsapp_notification.whatsapp_notification.trigger_notifications",
+        "waba_suite.api.session.expire_outdated_sessions",
+    ],
+    "daily_long": ["waba_suite.utils.trigger_whatsapp_notifications_daily_long"],
+    "weekly": ["waba_suite.utils.trigger_whatsapp_notifications_weekly"],
+    "weekly_long": ["waba_suite.utils.trigger_whatsapp_notifications_weekly_long"],
+    "monthly": ["waba_suite.utils.trigger_whatsapp_notifications_monthly"],
+    "monthly_long": ["waba_suite.utils.trigger_whatsapp_notifications_monthly_long"],
 }
 
-
-# Testing
-# -------
-
-# before_tests = "waba_suite.install.before_tests"
-
-# Extend DocType Class
-# ------------------------------
-#
-# Specify custom mixins to extend the standard doctype controller.
-# extend_doctype_class = {
-# 	"Task": "waba_suite.custom.task.CustomTaskMixin"
-# }
-
-# Overriding Methods
-# ------------------------------
-#
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "waba_suite.event.get_events"
-# }
-#
-# each overriding function accepts a `data` argument;
-# generated from the base implementation of the doctype dashboard,
-# along with any modifications made in other Frappe apps
-# override_doctype_dashboards = {
-# 	"Task": "waba_suite.task.get_dashboard_data"
-# }
-
-# exempt linked doctypes from being automatically cancelled
-#
-# auto_cancel_exempted_doctypes = ["Auto Repeat"]
-
-# Ignore links to specified DocTypes when deleting documents
-# -----------------------------------------------------------
-
-# ignore_links_on_delete = ["Communication", "ToDo"]
-
-# Request Events
-# ----------------
-# before_request = ["waba_suite.utils.before_request"]
-# after_request = ["waba_suite.utils.after_request"]
-
-# Job Events
-# ----------
-# before_job = ["waba_suite.utils.before_job"]
-# after_job = ["waba_suite.utils.after_job"]
-
-# User Data Protection
-# --------------------
-
-# user_data_fields = [
-# 	{
-# 		"doctype": "{doctype_1}",
-# 		"filter_by": "{filter_by}",
-# 		"redact_fields": ["{field_1}", "{field_2}"],
-# 		"partial": 1,
-# 	},
-# 	{
-# 		"doctype": "{doctype_2}",
-# 		"filter_by": "{filter_by}",
-# 		"partial": 1,
-# 	},
-# 	{
-# 		"doctype": "{doctype_3}",
-# 		"strict": False,
-# 	},
-# 	{
-# 		"doctype": "{doctype_4}"
-# 	}
-# ]
-
-# Authentication and authorization
-# --------------------------------
-
-# auth_hooks = [
-# 	"waba_suite.auth.validate"
-# ]
-
-# Automatically update python controller files with type annotations for this app.
-# export_python_type_annotations = True
-
-# default_log_clearing_doctypes = {
-# 	"Logging DocType Name": 30  # days to retain logs
-# }
-
-# Translation
-# ------------
-# List of apps whose translatable strings should be excluded from this app's translations.
-# ignore_translatable_strings_from = []
-
-
+# Document events: run the server-script runner on all doctypes, and update
+# the session status whenever an incoming WhatsApp Message is inserted.
 doc_events = {
-	"*": {
-		"before_insert": "waba_suite.utils.run_server_script_for_doc_event",
-		"after_insert": "waba_suite.utils.run_server_script_for_doc_event",
-		"before_validate": "waba_suite.utils.run_server_script_for_doc_event",
-		"validate": "waba_suite.utils.run_server_script_for_doc_event",
-		"on_update": "waba_suite.utils.run_server_script_for_doc_event",
-		"before_submit": "waba_suite.utils.run_server_script_for_doc_event",
-		"on_submit": "waba_suite.utils.run_server_script_for_doc_event",
-		"before_cancel": "waba_suite.utils.run_server_script_for_doc_event",
-		"on_cancel": "waba_suite.utils.run_server_script_for_doc_event",
-		"on_trash": "waba_suite.utils.run_server_script_for_doc_event",
-		"after_delete": "waba_suite.utils.run_server_script_for_doc_event",
-		"before_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
-		"on_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
-	}
+    "*": {
+        "before_insert": "waba_suite.utils.run_server_script_for_doc_event",
+        "after_insert": "waba_suite.utils.run_server_script_for_doc_event",
+        "before_validate": "waba_suite.utils.run_server_script_for_doc_event",
+        "validate": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_update": "waba_suite.utils.run_server_script_for_doc_event",
+        "before_submit": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_submit": "waba_suite.utils.run_server_script_for_doc_event",
+        "before_cancel": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_cancel": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_trash": "waba_suite.utils.run_server_script_for_doc_event",
+        "after_delete": "waba_suite.utils.run_server_script_for_doc_event",
+        "before_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
+        "on_update_after_submit": "waba_suite.utils.run_server_script_for_doc_event",
+    },
+    "WhatsApp Message": {
+        "after_insert": "waba_suite.api.session.on_whatsapp_message_after_insert",
+    },
 }
 
+# UI sounds played for chat events.
 sounds = [
-	{
-		"name": "chat-notification",
-		"src": "/assets/frappe/sounds/email.mp3",
-		"volume": 0.2,
-	},
-	{
-		"name": "chat-message-send",
-		"src": "/assets/frappe/sounds/submit.mp3",
-		"volume": 0.2,
-	},
-	{
-		"name": "chat-message-receive",
-		"src": "/assets/frappe/sounds/alert.mp3",
-		"volume": 0.5,
-	},
+    {
+        "name": "chat-notification",
+        "src": "/assets/frappe/sounds/email.mp3",
+        "volume": 0.2,
+    },
+    {
+        "name": "chat-message-send",
+        "src": "/assets/frappe/sounds/submit.mp3",
+        "volume": 0.2,
+    },
+    {
+        "name": "chat-message-receive",
+        "src": "/assets/frappe/sounds/alert.mp3",
+        "volume": 0.5,
+    },
 ]
 
+# Serve the WhatsApp chat app at /whatsapp/<path>.
 website_route_rules = [
-	{"from_route": "/whatsapp/<path:app_path>", "to_route": "whatsapp"},
+    {"from_route": "/whatsapp/<path:app_path>", "to_route": "whatsapp"},
 ]

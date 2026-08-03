@@ -173,7 +173,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
       <div
         onClick={onClick}
         onContextMenu={handleContextMenu}
-        className={`flex items-center px-3 py-2 hover:bg-[#2a3942] cursor-pointer transition ${
+        className={`flex items-center px-3 py-2 hover:bg-[#2a3942] cursor-pointer transition border-b border-[#182229]/60 ${
           isActive ? "bg-[#2a3942]" : ""
         } ${chat.isArchived ? "opacity-60" : ""}`}
       >

@@ -1,4 +1,4 @@
-import { Cloud, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { Cloud, RefreshCw, WifiOff } from "lucide-react";
 import React from "react";
 import { useCache } from "../../contexts/CacheContext";
 import { usePWA } from "../../hooks/usePWA";
@@ -6,10 +6,14 @@ import { usePWA } from "../../hooks/usePWA";
 export const SyncStatusBar: React.FC = () => {
   const { isOnline, isSyncing, pendingCount, lastSync, triggerSync } =
     useCache();
-  const { isInstallable, isInstalled, canUpdate, installApp, updateApp } =
-    usePWA();
+  const { canUpdate, updateApp } = usePWA();
 
-  if (isOnline && isInstalled && !canUpdate && pendingCount === 0 && !isSyncing) {
+  if (
+    isOnline &&
+    !canUpdate &&
+    pendingCount === 0 &&
+    !isSyncing
+  ) {
     return null;
   }
 
@@ -48,24 +52,6 @@ export const SyncStatusBar: React.FC = () => {
             className="text-xs text-[#25D366] hover:text-[#20b859] disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
             Retry
-          </button>
-        </div>
-      )}
-
-      {/* Install PWA Banner */}
-      {isInstallable && !isInstalled && (
-        <div className="flex items-center justify-between px-4 py-2 bg-[#1a2d39] border-b border-[#2a3942]">
-          <div className="flex items-center gap-2">
-            <Wifi className="w-4 h-4 text-[#25D366]" />
-            <span className="text-xs text-[#d1d7db]">
-              Install WhatsApp for offline access
-            </span>
-          </div>
-          <button
-            onClick={installApp}
-            className="px-3 py-1 text-xs font-medium text-white bg-[#25D366] rounded-lg hover:bg-[#20b859] transition"
-          >
-            Install
           </button>
         </div>
       )}

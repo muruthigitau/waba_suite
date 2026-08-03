@@ -66,6 +66,11 @@ interface CacheContextType {
   getCachedChats: (accountName: string) => Promise<Chat[]>;
   getCachedMessages: (chatId: string) => Promise<Message[]>;
   triggerSync: () => Promise<void>;
+  syncNewChatMessages: (
+    chatId: string,
+    mobileNo: string,
+    whatsappAccount: string,
+  ) => Promise<number>;
 }
 
 const CacheContext = createContext<CacheContextType | undefined>(undefined);
@@ -424,6 +429,23 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
     await syncEngine.triggerSync();
   }, []);
 
+  const syncNewChatMessages = useCallback(
+    async (
+      chatId: string,
+      mobileNo: string,
+      whatsappAccount: string,
+    ): Promise<number> => {
+      const lastTimestamp = await messageRepo.getLastTimestamp(chatId);
+      return syncEngine.syncNewMessages({
+        chatId,
+        mobileNo,
+        whatsappAccount,
+        lastTimestamp,
+      });
+    },
+    [],
+  );
+
   const value = useMemo<CacheContextType>(
     () => ({
       isReady,
@@ -445,6 +467,7 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
       getCachedChats,
       getCachedMessages,
       triggerSync,
+      syncNewChatMessages,
     }),
     [
       isReady,
@@ -466,6 +489,7 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
       getCachedChats,
       getCachedMessages,
       triggerSync,
+      syncNewChatMessages,
     ],
   );
 

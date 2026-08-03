@@ -1,7 +1,8 @@
 /**
  * Application entry point for the WhatsApp chat frontend.
  *
- * Sets up React with routing, Frappe provider, and cache context.
+ * Sets up React with routing, Frappe provider, cache context, and the
+ * service worker for PWA/offline support.
  *
  * Key dependencies:
  *   - frappe-react-sdk: Frappe backend integration

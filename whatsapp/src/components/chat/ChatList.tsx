@@ -4,11 +4,9 @@ import {
   LogOut,
   Mail,
   MailOpen,
-  MessageCircle,
-  MoreVertical,
+  Plus,
   Settings,
   Star,
-  Users,
 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import type { Account, Chat } from "../../types";
@@ -38,6 +36,16 @@ interface ChatListProps {
   onTogglePin?: (chatId: string) => void;
   onToggleStar?: (chatId: string) => void;
   onToggleArchive?: (chatId: string) => void;
+  onNewContact?: (contact?: {
+    id?: string;
+    name?: string;
+    contact_name?: string;
+    mobileNo?: string;
+    whatsappAccount?: string;
+    hasChat?: boolean;
+    within24hWindow?: boolean;
+    canSendDirect?: boolean;
+  }) => void;
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
@@ -55,6 +63,7 @@ export const ChatList: React.FC<ChatListProps> = ({
   onTogglePin,
   onToggleStar,
   onToggleArchive,
+  onNewContact,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
@@ -179,28 +188,23 @@ export const ChatList: React.FC<ChatListProps> = ({
     <>
       <div className="flex flex-col h-full bg-[#202c33]">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a3942] bg-[#202c33]">
-          <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-between px-4 h-[60px] bg-[#202c33]">
+          <div className="flex items-center space-x-3 min-w-0">
             <Avatar name={currentUserName} size="md" color="#25D366" />
-            <div>
-              <h2 className="font-semibold text-white text-sm">
+            <div className="min-w-0">
+              <h2 className="font-semibold text-white text-base truncate">
                 {currentUserName}
               </h2>
               <p className="text-xs text-[#8696a0]">Online</p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <button className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1]">
-              <Users className="w-5 h-5" />
-            </button>
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => setShowAddRoom(true)}
-              className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1]"
+              className="w-10 h-10 flex items-center justify-center hover:bg-[#2a3942] rounded-full transition text-[#25D366]"
+              title="New message"
             >
-              <MessageCircle className="w-5 h-5" />
-            </button>
-            <button className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1]">
-              <MoreVertical className="w-5 h-5" />
+              <Plus className="w-6 h-6" />
             </button>
           </div>
         </div>
@@ -229,27 +233,27 @@ export const ChatList: React.FC<ChatListProps> = ({
         {/* Filter Tabs — All | Unread | Starred | Archived */}
         <div className="flex border-b border-[#2a3942] bg-[#202c33] overflow-x-auto no-scrollbar">
           <FilterTab
-            icon={<Home className="w-3.5 h-3.5" />}
+            icon={<Home className="w-4 h-4" />}
             label="All"
             isActive={activeFilter === "all"}
             onClick={() => setActiveFilter("all")}
           />
           <FilterTab
-            icon={unreadCount > 0 ? <Mail className="w-3.5 h-3.5" /> : <MailOpen className="w-3.5 h-3.5" />}
+            icon={unreadCount > 0 ? <Mail className="w-4 h-4" /> : <MailOpen className="w-4 h-4" />}
             label="Unread"
             count={unreadCount}
             isActive={activeFilter === "unread"}
             onClick={() => setActiveFilter("unread")}
           />
           <FilterTab
-            icon={<Star className="w-3.5 h-3.5" />}
+            icon={<Star className="w-4 h-4" />}
             label="Starred"
             count={starredCount}
             isActive={activeFilter === "starred"}
             onClick={() => setActiveFilter("starred")}
           />
           <FilterTab
-            icon={<Archive className="w-3.5 h-3.5" />}
+            icon={<Archive className="w-4 h-4" />}
             label="Archived"
             count={archivedCount}
             isActive={activeFilter === "archived"}
@@ -297,7 +301,7 @@ export const ChatList: React.FC<ChatListProps> = ({
               ) : activeFilter === "archived" ? (
                 <Archive className="w-8 h-8 text-[#8696a0]" />
               ) : (
-                <MessageCircle className="w-8 h-8 text-[#8696a0]" />
+                <Plus className="w-8 h-8 text-[#8696a0]" />
               )}
             </div>
             <p className="text-[#8696a0] text-sm font-medium">
@@ -377,7 +381,10 @@ export const ChatList: React.FC<ChatListProps> = ({
         isOpen={showAddRoom}
         onClose={() => setShowAddRoom(false)}
         whatsappAccount={currentAccount}
-        onSuccess={() => {
+        onSuccess={(contact) => {
+          if (onNewContact) {
+            onNewContact(contact);
+          }
           if (onClose) onClose();
         }}
       />

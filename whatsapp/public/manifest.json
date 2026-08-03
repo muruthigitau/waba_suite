@@ -24,13 +24,19 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/waba_suite/whatsapp/images/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [],
   "services": [
     {
-      "src": "/assets/waba_suite/whatsapp/sw.js",
-      "scope": "/whatsapp"
+      "src": "/sw.js",
+      "scope": "/"
     }
   ]
 }

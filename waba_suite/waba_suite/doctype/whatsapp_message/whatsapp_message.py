@@ -20,10 +20,10 @@ from frappe.model.document import Document
 from waba_suite.utils import format_number, get_whatsapp_account
 
 from waba_suite.api.room import (
-    get_or_create_session_sync,
     route_incoming_message,
     send_main_menu,
 )
+from waba_suite.api.session import get_or_create_session
 
 from .message_formatter import restyle_message_content
 from .message_sender import send_read_receipt, send_whatsapp_message
@@ -37,7 +37,7 @@ class WhatsAppMessage(Document):
     """
 
     def validate(self):
-        """Validate the document before saving."""
+        """Validate the document before saving: set account, resolve file URL, style message."""
         self.set_whatsapp_account()
         self.ensure_absolute_file_url()
         if self.message_type != "Template":
@@ -45,7 +45,7 @@ class WhatsAppMessage(Document):
         self.set_file_url_from_attach()
 
     def after_insert(self):
-        """Handle post-insert processing (sending for outgoing, sync for incoming)."""
+        """Handle post-insert processing (deduplicated send/sync)."""
         self.handle_whatsapp_insertion()
 
     def ensure_absolute_file_url(self):
@@ -144,7 +144,11 @@ class WhatsAppMessage(Document):
         return "document"
 
     def set_whatsapp_account(self):
-        """Set the WhatsApp account and contact for the message."""
+        """Resolve the WhatsApp account and contact for this message.
+
+        Links reply references, assigns the account from settings when missing,
+        and creates or links the WhatsApp Contact from the phone number.
+        """
         if self.reply_to_message_id and not self.reply_to_message:
             rm = frappe.db.exists("WhatsApp Message", {"message_id": self.reply_to_message_id})
             if rm:
@@ -582,18 +586,24 @@ class WhatsAppMessage(Document):
 def process_incoming_sync(docname):
     """Process an incoming WhatsApp message synchronously.
 
-    Creates or retrieves a chat session and routes the message
-    through the chatbot flow if auto-replies are enabled.
+    Creates or retrieves the single session for the contact+account (per the
+    24-hour window logic) and routes the message through the chatbot flow if
+    auto-replies are enabled.
 
     Args:
         docname: Name of the WhatsApp Message document to process.
     """
     doc = frappe.get_doc("WhatsApp Message", docname)
 
-    session = get_or_create_session_sync(doc)
+    session = get_or_create_session(
+        mobile_no=doc.get("from"),
+        whatsapp_account=doc.whatsapp_account,
+        whatsapp_contact=doc.whatsapp_contact,
+    )
 
-    if not session:
-        return
+    # A session that just opened (or was ended) is treated as new so the
+    # customer gets the onboarding menu.
+    is_new = session.status in ("Expired", "Ended")
 
     frappe.db.set_value(
         "WhatsApp Message",
@@ -609,8 +619,6 @@ def process_incoming_sync(docname):
 
     if not auto_replies_enabled:
         return
-
-    is_new = session.get("is_new", False)
 
     if is_new:
         send_main_menu(doc.get("from"), session)

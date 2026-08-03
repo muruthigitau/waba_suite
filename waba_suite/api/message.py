@@ -1,15 +1,18 @@
 """Messages API for WhatsApp.
 
-Provides endpoints to retrieve, send, and manage WhatsApp messages
-including template messages, read receipts, and reactions.
+Provides whitelisted endpoints to retrieve, send, and manage WhatsApp
+messages including template messages, read receipts, and reactions.
 
 Key dependencies:
-    - frappe: ERPNext framework
+    - frappe
     - waba_suite.api.message_utils: Internal message processing utilities
+    - waba_suite.api.message_templates: Template payload builders
+    - waba_suite.api.contact_helpers: Shared window constant
 """
 
 import json
 import mimetypes
+from datetime import timedelta
 
 import frappe
 
@@ -17,6 +20,8 @@ from waba_suite.api.message_utils import (
     resolve_template_message,
     send_whatsapp_read_receipts_sync,
 )
+from waba_suite.api.message_templates import build_template_message_data
+from waba_suite.api.contact_helpers import CUSTOMER_SERVICE_WINDOW_HOURS
 
 
 @frappe.whitelist()
@@ -34,15 +39,12 @@ def get_all(room, user_no, whatsapp_account=None):
 
     Returns:
         List of message dicts sorted by creation date (ascending).
-        Each message includes content, content_type, sender info, and
-        optionally template data and reactions.
     """
     try:
         filters = {
             "to": ["in", [user_no, ""]],
             "from": ["in", [user_no, ""]],
         }
-
         if whatsapp_account:
             filters["whatsapp_account"] = whatsapp_account
 
@@ -58,21 +60,15 @@ def get_all(room, user_no, whatsapp_account=None):
 
         for msg in messages:
             if msg.get("content_type") == "reaction":
-                try:
-                    parent_id = msg.get("reply_to_message")
-                    if parent_id:
-                        if parent_id not in reactions_dict:
-                            reactions_dict[parent_id] = []
-                        reactions_dict[parent_id].append(
-                            {
-                                "emoji": msg.get("message", "👍"),
-                                "sender": msg.get("to")
-                                or msg.get("from", "Administrator"),
-                                "message_id": msg.get("name"),
-                            }
-                        )
-                except Exception:
-                    pass
+                parent_id = msg.get("reply_to_message")
+                if parent_id:
+                    reactions_dict.setdefault(parent_id, []).append(
+                        {
+                            "emoji": msg.get("message", "👍"),
+                            "sender": msg.get("to") or msg.get("from", "Administrator"),
+                            "message_id": msg.get("name"),
+                        }
+                    )
                 continue
 
             if msg.get("message_type") == "Template":
@@ -88,10 +84,7 @@ def get_all(room, user_no, whatsapp_account=None):
                     msg.get("message") if msg.get("content_type") != "text" else None
                 )
 
-            if msg.get("to"):
-                msg["sender_user_no"] = msg.get("to")
-            else:
-                msg["sender_user_no"] = "Administrator"
+            msg["sender_user_no"] = msg.get("to") or "Administrator"
 
             if msg.get("message_type") == "Template":
                 msg["template_name"] = msg.get("template")
@@ -119,9 +112,7 @@ def get_all(room, user_no, whatsapp_account=None):
         result.sort(key=lambda x: x.get("creation", ""))
         return result
     except Exception:
-        frappe.log_error(
-            title="WhatsApp get_all Error", message=frappe.get_traceback()
-        )
+        frappe.log_error(title="WhatsApp get_all Error", message=frappe.get_traceback())
         return []
 
 
@@ -129,8 +120,8 @@ def get_all(room, user_no, whatsapp_account=None):
 def mark_as_read(room, whatsapp_account=None):
     """Mark all incoming messages in a room as read.
 
-    Updates the contact's is_read flag and sends read receipts
-    for unread incoming messages.
+    Updates the contact's is_read flag and sends read receipts for unread
+    incoming messages.
 
     Args:
         room: WhatsApp Contact name.
@@ -140,9 +131,7 @@ def mark_as_read(room, whatsapp_account=None):
         "ok" on success, "error" on failure.
     """
     try:
-        frappe.db.set_value(
-            "WhatsApp Contact", room, "is_read", 1, update_modified=False
-        )
+        frappe.db.set_value("WhatsApp Contact", room, "is_read", 1, update_modified=False)
         if whatsapp_account:
             contact = frappe.get_doc("WhatsApp Contact", room)
             if contact.mobile_no:
@@ -167,6 +156,58 @@ def mark_as_read(room, whatsapp_account=None):
         return "error"
 
 
+def is_within_24h_window(mobile_no):
+    """Check whether a customer has messaged us within the 24h service window.
+
+    WhatsApp only allows free-form messages (text, media, reactions, etc.) to
+    be delivered to a recipient who has messaged us within the last 24 hours.
+    Outside that window, only approved template messages may be sent.
+
+    Args:
+        mobile_no: The recipient's (or contact's) phone number.
+
+    Returns:
+        True if a free-form message may currently be delivered, else False.
+    """
+    if not mobile_no:
+        return False
+
+    last_incoming = frappe.db.get_value(
+        "WhatsApp Message",
+        {"from": mobile_no, "type": "Incoming"},
+        "creation",
+        order_by="creation desc",
+    )
+    if not last_incoming:
+        return False
+
+    now = frappe.utils.now_datetime()
+    window_start = now - timedelta(hours=CUSTOMER_SERVICE_WINDOW_HOURS)
+    last_incoming_dt = frappe.utils.get_datetime(last_incoming)
+    return last_incoming_dt >= window_start
+
+
+def ensure_can_send_direct(room):
+    """Raise an exception if the contact is outside the 24h service window.
+
+    Used by message.send to block free-form messages (text/files/reactions)
+    that can't legally be delivered via WhatsApp outside the window.
+
+    Args:
+        room: WhatsApp Contact name.
+
+    Raises:
+        frappe.ValidationError if outside the 24h window.
+    """
+    contact = frappe.get_cached_doc("WhatsApp Contact", room)
+    if not is_within_24h_window(contact.mobile_no):
+        frappe.throw(
+            "This contact is outside the 24-hour customer service window. "
+            "Only template messages can be sent. Use the template button instead.",
+            frappe.ValidationError,
+        )
+
+
 @frappe.whitelist()
 def send(
     content,
@@ -181,8 +222,8 @@ def send(
 ):
     """Send a WhatsApp message.
 
-    Creates a WhatsApp Message document with the specified content
-    and attachment, determining the content type from the file if needed.
+    Creates a WhatsApp Message document with the specified content and
+    attachment, determining the content type from the file if needed.
 
     Args:
         content: Message text content.
@@ -196,11 +237,29 @@ def send(
         content_type: Optional content type override.
 
     Returns:
-        Dict with status and message_id on success, or status and error on failure.
+        Dict with status and message_id on success, or status and error.
     """
     try:
         if not content_type:
             content_type = "text"
+
+        # Enforce the 24h window: reactions to an existing parent reference
+        # check the parent's contact; everything else requires a direct window.
+        if content_type in ("reaction",):
+            parent = reply_to_message_id
+            if parent:
+                msg_doc = frappe.get_doc("WhatsApp Message", parent)
+                if not is_within_24h_window(msg_doc.get("from") or msg_doc.get("to")):
+                    frappe.throw(
+                        "Reaction not allowed outside the 24-hour service window. "
+                        "Only template messages can be sent.",
+                        frappe.ValidationError,
+                    )
+            else:
+                ensure_can_send_direct(room)
+        else:
+            ensure_can_send_direct(room)
+
         contact = frappe.get_doc("WhatsApp Contact", room)
         if attachment:
             content_type = _detect_content_type(content, content_type)
@@ -229,7 +288,7 @@ def send(
 
 
 def _detect_content_type(content, current_type):
-    """Detect content type from file MIME type.
+    """Detect content type from a file's MIME type.
 
     Args:
         content: File content or URL to analyze.
@@ -254,12 +313,7 @@ def _detect_content_type(content, current_type):
         return "image"
     if any(
         t in ft
-        for t in [
-            "application/pdf",
-            "msword",
-            "vnd.ms-excel",
-            "officedocument",
-        ]
+        for t in ["application/pdf", "msword", "vnd.ms-excel", "officedocument"]
     ):
         return "document"
     if any(
@@ -284,8 +338,8 @@ def send_template(
 ):
     """Send a WhatsApp template message.
 
-    Resolves template variables from a source document and creates
-    a WhatsApp Message document with the template data.
+    Resolves template variables from a source document and creates a WhatsApp
+    Message document with the template data.
 
     Args:
         to: Recipient phone number.
@@ -301,69 +355,14 @@ def send_template(
     """
     if not template:
         frappe.throw("Template is required")
+
     source_doc = None
     if reference_doctype and reference_name:
         source_doc = frappe.get_doc(reference_doctype, reference_name)
     template_doc = frappe.get_doc("WhatsApp Templates", template)
-    file_url = None
-    if template_doc.header_type == "DOCUMENT" and source_doc:
-        file_url = _generate_document_file(source_doc, print_format)
 
-    overrides = {}
-    if variable_overrides:
-        try:
-            overrides = json.loads(variable_overrides)
-        except Exception:
-            pass
-
-    _re = __import__("re")
-    variables = template_doc.get("variables") or []
-    header_map, body_map, footer_map = _build_variable_maps(
-        variables, source_doc, overrides
-    )
-
-    def build_params(pm, expected):
-        si = sorted(pm.items(), key=lambda x: x[1][0])
-        r = [{"type": "text", "text": v} for _, (_, v) in si]
-        if expected > 0:
-            r = r[:expected]
-        return r
-
-    hp = build_params(
-        header_map,
-        len(_re.findall(r"\{\{(\d+)\}\}", template_doc.get("header") or "")),
-    )
-    bp = build_params(
-        body_map,
-        len(_re.findall(r"\{\{(\d+)\}\}", template_doc.get("template") or "")),
-    )
-    fp = build_params(
-        footer_map,
-        len(_re.findall(r"\{\{(\d+)\}\}", template_doc.get("footer") or "")),
-    )
-
-    bv = [p["text"] for p in bp]
-    hv = hp[0]["text"] if hp else ""
-    message_data = json.dumps(
-        {
-            "template_name": template,
-            "body_values": bv,
-            "header": (
-                {"type": "TEXT", "text": hv}
-                if hp
-                else (
-                    {
-                        "type": "DOCUMENT",
-                        "filename": file_url.split("/")[-1],
-                        "url": file_url,
-                    }
-                    if file_url
-                    else {}
-                )
-            ),
-            "buttons": [],
-        },
-        indent=2,
+    message_data, file_url = build_template_message_data(
+        template_doc, source_doc, print_format, variable_overrides
     )
 
     doc = frappe.get_doc(
@@ -385,105 +384,10 @@ def send_template(
     frappe.db.set_value(
         "WhatsApp Message",
         doc.name,
-        {
-            "reference_doctype": reference_doctype,
-            "reference_name": reference_name,
-        },
+        {"reference_doctype": reference_doctype, "reference_name": reference_name},
     )
     frappe.db.commit()
     return doc.name
-
-
-def _build_variable_maps(variables, source_doc, overrides):
-    """Build variable maps for header, body, and footer sections.
-
-    Args:
-        variables: List of template variable child table rows.
-        source_doc: Source document for field resolution.
-        overrides: Dict of variable index -> value overrides.
-
-    Returns:
-        Tuple of (header_map, body_map, footer_map) dicts.
-    """
-    header_map = {}
-    body_map = {}
-    footer_map = {}
-
-    for var in variables:
-        value = "-"
-        if var.source_type == "DocField" and source_doc:
-            value = source_doc.get(var.field_name) or "-"
-        elif var.source_type == "Static":
-            value = var.static_value or "-"
-        elif var.source_type == "Computed" and source_doc:
-            ctx = {
-                "doc": source_doc,
-                "get_url": frappe.utils.get_url,
-                "fmt_money": frappe.utils.fmt_money,
-                "format_date": frappe.utils.formatdate,
-            }
-            try:
-                value = str(eval(var.expression, {"__builtins__": {}}, ctx))
-            except Exception:
-                value = "-"
-        if value in [None, "", "None"]:
-            value = "-"
-        value = str(value)
-        var_type = (var.type or "Body").strip().lower()
-        var_index = var.get("index") or 0
-        if str(var_index) in overrides:
-            value = overrides[str(var_index)]
-
-        key = None
-        if var.source_type == "DocField" and var.field_name:
-            key = (var_type, "DocField", var.field_name)
-        elif var.source_type == "Static" and var.static_value:
-            key = (var_type, "Static", var.static_value)
-        elif var.source_type == "Computed" and var.expression:
-            key = (var_type, "Computed", var.expression)
-        if key:
-            tm = body_map
-            if var_type == "header":
-                tm = header_map
-            elif var_type == "footer":
-                tm = footer_map
-            if key not in tm:
-                tm[key] = (var_index, value)
-
-    return header_map, body_map, footer_map
-
-
-def _generate_document_file(source_doc, print_format):
-    """Generate a PDF document file from a source document.
-
-    Args:
-        source_doc: Source document to print.
-        print_format: Print format name.
-
-    Returns:
-        Public URL of the generated file, or None.
-    """
-    pdf = frappe.attach_print(
-        doctype=source_doc.doctype,
-        name=source_doc.name,
-        doc=source_doc,
-        print_format=print_format,
-    )
-    fn = pdf.get("fname", f"{source_doc.name}.pdf")
-    fc = pdf.get("fcontent")
-    if fc:
-        fd = frappe.get_doc(
-            {
-                "doctype": "File",
-                "file_name": fn,
-                "content": fc,
-                "attached_to_doctype": source_doc.doctype,
-                "attached_to_name": source_doc.name,
-                "is_private": 0,
-            }
-        ).insert(ignore_permissions=True)
-        return frappe.utils.get_url(fd.file_url)
-    return None
 
 
 @frappe.whitelist()
