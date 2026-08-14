@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  Archive,
   Check,
   CheckCheck,
   Clock,
@@ -9,9 +10,11 @@ import {
   Image,
   MapPin,
   Music,
+  Pin,
+  Star,
   Users,
 } from "lucide-react";
-import React from "react";
+import React, { useCallback, useRef, useState } from "react";
 import type { Chat } from "../../types";
 import { Avatar } from "../common/Avatar";
 
@@ -20,6 +23,9 @@ interface ChatRoomProps {
   isActive: boolean;
   onClick: () => void;
   formatTime: (timestamp: string) => string;
+  onTogglePin?: (chatId: string) => void;
+  onToggleStar?: (chatId: string) => void;
+  onToggleArchive?: (chatId: string) => void;
 }
 
 const stripHtml = (html: string) => {
@@ -62,7 +68,12 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   isActive,
   onClick,
   formatTime,
+  onTogglePin,
+  onToggleStar,
+  onToggleArchive,
 }) => {
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const isOutgoing = chat.lastMessageType === "Outgoing";
 
   const getLastMessageIcon = () => {
@@ -112,6 +123,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
     return plainText || "No messages yet";
   };
 
+  // Close context menu on outside click
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowContextMenu((prev) => !prev);
+  }, []);
+
+  const handleAction = useCallback(
+    (action: (chatId: string) => void) => {
+      return (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setShowContextMenu(false);
+        action(chat.id);
+      };
+    },
+    [chat.id],
+  );
+
   const getMessageTypeIcon = () => {
     if (chat.lastMessageType === "image")
       return <Image className="w-3 h-3 text-[#8696a0] mr-1" />;
@@ -140,55 +169,108 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   };
 
   return (
-    <div
-      onClick={onClick}
-      className={`flex items-center px-3 py-2 hover:bg-[#2a3942] cursor-pointer transition ${
-        isActive ? "bg-[#2a3942]" : ""
-      }`}
-    >
-      <Avatar
-        name={chat.name}
-        size="md"
-        online={chat.online}
-        src={chat.profilePicture}
-      />
-      <div className="flex-1 ml-3 min-w-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="font-medium text-white text-sm truncate max-w-[150px]">
-              {chat.name}
-            </span>
-            {chat.isGroup && (
-              <Users className="w-3 h-3 text-[#8696a0] flex-shrink-0" />
-            )}
-          </div>
-          <span className="text-xs text-[#8696a0] whitespace-nowrap ml-2 flex-shrink-0">
-            {formatTime(chat.timestamp)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between mt-0.5">
-          <div className="flex items-center space-x-1 flex-1 min-w-0">
-            {getLastMessageIcon()}
-            <div className="flex items-center flex-1 min-w-0">
-              {getMessageTypeIcon()}
-              <p className="text-sm text-[#8696a0] truncate">
-                {chat.typing ? (
-                  <span className="text-[#25D366]">Typing...</span>
-                ) : (
-                  getLastMessagePreview()
-                )}
-              </p>
-            </div>
-          </div>
-          {chat.unreadCount > 0 && (
-            <div className="ml-2 w-5 h-5 rounded-full bg-[#25D366] flex items-center justify-center flex-shrink-0">
-              <span className="text-xs text-white">
-                {chat.unreadCount > 9 ? "9+" : chat.unreadCount}
-              </span>
+    <div className="relative">
+      <div
+        onClick={onClick}
+        onContextMenu={handleContextMenu}
+        className={`flex items-center px-3 py-2 hover:bg-[#2a3942] cursor-pointer transition border-b border-[#182229]/60 ${
+          isActive ? "bg-[#2a3942]" : ""
+        } ${chat.isArchived ? "opacity-60" : ""}`}
+      >
+        <div className="relative">
+          <Avatar
+            name={chat.name}
+            size="md"
+            online={chat.online}
+            src={chat.profilePicture}
+          />
+          {/* Pin indicator */}
+          {chat.isPinned && (
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-[#25D366] rounded-full flex items-center justify-center">
+              <Pin className="w-2.5 h-2.5 text-white" />
             </div>
           )}
         </div>
+        <div className="flex-1 ml-3 min-w-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="font-medium text-white text-sm truncate max-w-[150px]">
+                {chat.name}
+              </span>
+              {chat.isGroup && (
+                <Users className="w-3 h-3 text-[#8696a0] flex-shrink-0" />
+              )}
+              {/* Star/Archive badges */}
+              <div className="flex items-center gap-0.5">
+                {chat.isStarred && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
+                {chat.isArchived && <Archive className="w-3 h-3 text-[#8696a0]" />}
+              </div>
+            </div>
+            <span className="text-xs text-[#8696a0] whitespace-nowrap ml-2 flex-shrink-0">
+              {formatTime(chat.timestamp)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between mt-0.5">
+            <div className="flex items-center space-x-1 flex-1 min-w-0">
+              {getLastMessageIcon()}
+              <div className="flex items-center flex-1 min-w-0">
+                {getMessageTypeIcon()}
+                <p className="text-sm text-[#8696a0] truncate">
+                  {chat.typing ? (
+                    <span className="text-[#25D366]">Typing...</span>
+                  ) : (
+                    getLastMessagePreview()
+                  )}
+                </p>
+              </div>
+            </div>
+            {chat.unreadCount > 0 && (
+              <div className="ml-2 w-5 h-5 rounded-full bg-[#25D366] flex items-center justify-center flex-shrink-0">
+                <span className="text-xs text-white">
+                  {chat.unreadCount > 9 ? "9+" : chat.unreadCount}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Context Menu */}
+      {showContextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-50"
+            onClick={() => setShowContextMenu(false)}
+          />
+          <div
+            ref={contextMenuRef}
+            className="absolute right-2 top-12 z-50 bg-[#202c33] border border-[#2a3942] rounded-lg shadow-xl py-1 w-44"
+          >
+            <button
+              onClick={handleAction(onTogglePin || (() => {}))}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d1d7db] hover:bg-[#2a3942] transition"
+            >
+              <Pin className={`w-4 h-4 ${chat.isPinned ? "text-[#25D366]" : "text-[#8696a0]"}`} />
+              <span>{chat.isPinned ? "Unpin" : "Pin"}</span>
+            </button>
+            <button
+              onClick={handleAction(onToggleStar || (() => {}))}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d1d7db] hover:bg-[#2a3942] transition"
+            >
+              <Star className={`w-4 h-4 ${chat.isStarred ? "text-yellow-400 fill-yellow-400" : "text-[#8696a0]"}`} />
+              <span>{chat.isStarred ? "Unstar" : "Star"}</span>
+            </button>
+            <div className="h-px bg-[#2a3942] my-1" />
+            <button
+              onClick={handleAction(onToggleArchive || (() => {}))}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d1d7db] hover:bg-[#2a3942] transition"
+            >
+              <Archive className={`w-4 h-4 ${chat.isArchived ? "text-[#25D366]" : "text-[#8696a0]"}`} />
+              <span>{chat.isArchived ? "Unarchive" : "Archive"}</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };

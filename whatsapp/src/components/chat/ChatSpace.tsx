@@ -1,5 +1,5 @@
 import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
-import { MessageCircleCheck, Paperclip, Send, Smile, X } from "lucide-react";
+import { MessageCircleCheck, MessageSquareText, Paperclip, Send, Smile, X } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -7,13 +7,20 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useCache } from "../../contexts/CacheContext";
+import { useMessageGrouping } from "../../hooks/useMessageGrouping";
+import syncEngine from "../../services/syncEngine";
 import type { Chat, Message } from "../../types";
+import { FileUploadField } from "../common/FileUploadField";
 import { Loader } from "../common/Loader";
 import { MessageBubble } from "../common/MessageBubble";
 import { ChatHeader } from "../layout/ChatHeader";
 import { TemplateMessage } from "../messages/TemplateMessage";
 import { EmojiPicker } from "../modals/EmojiPicker";
+import { TemplateModal } from "../modals/TemplateModal";
 
+// If true, the contact's WhatsApp Session is expired and only template
+// messages may be sent (free-form text/media/reactions are not allowed).
 interface ChatSpaceProps {
   chat: Chat | null;
   currentAccount: string;
@@ -26,35 +33,74 @@ interface ChatSpaceProps {
   onReact?: (messageId: string, emoji: string) => void;
   onBack?: () => void;
   isMobile?: boolean;
+  onTogglePin?: (chatId: string) => void;
+  onToggleStar?: (chatId: string) => void;
+  onToggleArchive?: (chatId: string) => void;
+  sessionExpired?: boolean;
 }
 
 export const ChatSpace: React.FC<ChatSpaceProps> = ({
   chat,
   currentAccount,
-  onSendMessage,
   onMarkAsRead,
   onReact,
   onBack,
   isMobile = false,
+  onTogglePin,
+  onToggleStar,
+  onToggleArchive,
+  sessionExpired,
 }) => {
+  const {
+    isOnline,
+    hydrateMessages,
+    cacheMessages,
+    syncNewChatMessages,
+    queueOfflineMessage,
+  } = useCache();
   const [messageInput, setMessageInput] = useState("");
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [globalEmojiPicker, setGlobalEmojiPicker] = useState<{
     isOpen: boolean;
     onSelect: (emoji: string) => void;
   }>({ isOpen: false, onSelect: () => {} });
+  const [showFileUpload, setShowFileUpload] = useState(false);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [uploadedFileData, setUploadedFileData] = useState<any>(null);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
+  // Templates-only when the WhatsApp Session is expired (or unknown). Free-form
+  // messages (text, media, reactions) are only allowed within an Active session.
+  const templateOnly = useMemo(() => {
+    // If the session-expiry flag is provided from the backend, use it directly.
+    // Otherwise fall back to the chat's session info; default to templates-only
+    // when we have no session data for a contact.
+    if (typeof sessionExpired === "boolean") {
+      return sessionExpired;
+    }
+    return chat?.sessionExpired ?? true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionExpired, chat?.sessionExpired]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileUploadRef = useRef<{
+    openSelector: () => void;
+    uploadDirectFile: (file: File) => Promise<void>;
+  } | null>(null);
+  const lastChatIdRef = useRef<string | null>(null);
 
   const {
     data: messagesData,
     mutate: mutateMessages,
     isLoading,
   } = useFrappeGetCall<{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     message: any[];
   }>(
     "waba_suite.api.message.get_all",
@@ -66,16 +112,26 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     chat ? undefined : { enabled: false, revalidateOnFocus: false },
   );
 
-  const { call: markMultipleAsReadCall } = useFrappePostCall(
-    "waba_suite.api.message.mark_multiple_as_read",
-  );
-
   const { call: sendMessageCall, loading: isSending } = useFrappePostCall<{
     message: {
       status: string;
       message_id?: string;
     };
   }>("waba_suite.api.message.send");
+
+  // Register get_all as the incremental sync callable so syncEngine can
+  // fetch only messages newer than the last cached timestamp.
+  const { call: getMessagesCallBack } = useFrappePostCall<{
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    message: any[];
+  }>("waba_suite.api.message.get_all");
+
+  useEffect(() => {
+    syncEngine.setGetMessagesCall(getMessagesCallBack);
+    return () => {
+      syncEngine.setGetMessagesCall(null);
+    };
+  }, [getMessagesCallBack]);
 
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
@@ -90,6 +146,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
     const rawList = messagesData.message;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return rawList.map((msg: any) => {
       let reactions = null;
       if (msg.reactions) {
@@ -130,9 +187,13 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         }
       }
 
+      // For template messages, use the message field (JSON) for TemplateMessage component
+      // Also pass raw template definition fields for proper rendering
+      const templateContent = msg.use_template ? (msg.message || msg.content || "") : (msg.content || msg.message || "");
+
       return {
         id: msg.name,
-        content: msg.content || msg.message || "",
+        content: templateContent,
         timestamp: new Date(msg.creation).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -151,35 +212,125 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         buttonData: msg.button_data,
         interactiveData: msg.interactive_data,
         replyTo: parsedReplyTo,
+        templateRaw: msg.use_template ? {
+          header: msg.template_header_raw || "",
+          body: msg.template_body_raw || "",
+          footer: msg.template_footer_raw || "",
+        } : undefined,
       };
     });
   }, [messagesData, chat]);
 
+  // ─── Offline-first: hydrate messages from Dexie immediately ───
+  // We only clear state when the chat actually changes, not on every render.
+  useEffect(() => {
+    const chatId = chat?.id ?? null;
+    if (chatId !== lastChatIdRef.current) {
+      lastChatIdRef.current = chatId;
+      if (!chatId) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setMessages([]);
+      } else {
+        // Reset to empty so the previous chat's messages don't flash
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setMessages([]);
+        const hydrate = async () => {
+          const cached = await hydrateMessages(chatId);
+          if (cached.length > 0 && lastChatIdRef.current === chatId) {
+            setMessages(cached);
+          }
+        };
+        hydrate();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat?.id]);
+
+  // Merge hydrated Dexie data with optimistic/sent messages. This runs in an
+  // effect only when formattedMessages changes (server data arrives/updates).
   useEffect(() => {
     if (formattedMessages.length > 0) {
-      setMessages(formattedMessages);
-    } else if (formattedMessages.length === 0 && messagesData?.message) {
-      setMessages([]);
+      // Cache the server messages to Dexie for offline use
+      if (chat) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        cacheMessages(formattedMessages as any, chat.id).catch(() => {});
+      }
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMessages((prev) => {
+        const mergedMap = new Map<string, Message>();
+        formattedMessages.forEach((m) => mergedMap.set(m.id, m));
+        // Preserve optimistic local messages not yet on the server
+        prev.forEach((m) => {
+          if (!mergedMap.has(m.id)) {
+            mergedMap.set(m.id, m);
+          }
+        });
+        return Array.from(mergedMap.values()).sort(
+          (a, b) => a.fullTimestamp.getTime() - b.fullTimestamp.getTime(),
+        );
+      });
     }
-  }, [formattedMessages, messagesData]);
+  }, [formattedMessages, chat, cacheMessages]);
 
+  // Incremental sync: when online, fetch only messages newer than the last
+  // cached timestamp and store them in Dexie.
   useEffect(() => {
-    if (chat && chat.unreadCount > 0 && onMarkAsRead) {
-      onMarkAsRead(chat);
-      markMultipleAsReadCall({
-        whatsapp_contact: chat.mobileNo,
-        whatsapp_account: currentAccount,
-      }).catch(console.error);
-    }
-  }, [chat, messages, onMarkAsRead, currentAccount, markMultipleAsReadCall]);
+    if (!chat || !isOnline) return;
 
+    let cancelled = false;
+    const syncIncremental = async () => {
+      try {
+        const count = await syncNewChatMessages(
+          chat.id,
+          chat.mobileNo,
+          chat.whatsappAccount || currentAccount,
+        );
+        if (!cancelled && count > 0) {
+          const updated = await hydrateMessages(chat.id);
+          if (!cancelled) {
+            setMessages((prev) => {
+              const mergedMap = new Map<string, Message>();
+              updated.forEach((m) => mergedMap.set(m.id, m));
+              prev.forEach((m) => mergedMap.set(m.id, m));
+              return Array.from(mergedMap.values()).sort(
+                (a, b) => a.fullTimestamp.getTime() - b.fullTimestamp.getTime(),
+              );
+            });
+          }
+        }
+      } catch (e) {
+        // Offline or server error — Dexie data is already shown
+        console.debug("Incremental sync skipped:", e);
+      }
+    };
+    syncIncremental();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chat, isOnline, currentAccount, syncNewChatMessages, hydrateMessages]);
+
+  // Trigger read calls whenever a session/chat is opened so all unread
+  // messages are marked as read and read receipts are sent immediately on
+  // open, not only when the unread badge count is non-zero. The parent's
+  // onMarkAsRead (Home.tsx) handles both the API call and unread-count reset.
+  useEffect(() => {
+    if (!chat || !isOnline) return;
+    // Fire on every chat open / account switch (chat id change). The backend
+    // mark_multiple_as_read endpoint is idempotent and reports a no-op if
+    // there are no unread messages.
+    onMarkAsRead?.(chat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat?.id, chat?.mobileNo, chat?.whatsappAccount, currentAccount, isOnline]);
+
+  // Poll for new messages every 5s — but only while online
   useEffect(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
 
-    if (chat) {
+    if (chat && isOnline) {
       mutateMessages();
       pollingIntervalRef.current = setInterval(() => {
         mutateMessages();
@@ -192,21 +343,76 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         pollingIntervalRef.current = null;
       }
     };
-  }, [chat, mutateMessages]);
+  }, [chat, mutateMessages, isOnline]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  // Show/hide the scroll-to-bottom button as the user scrolls.
+  const handleMessagesScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const el = e.currentTarget;
+      const distanceFromBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollBtn(distanceFromBottom > 150);
+    },
+    [],
+  );
+
+  const handleScrollToBottom = useCallback(() => {
+    scrollToBottom();
+    setShowScrollBtn(false);
+  }, [scrollToBottom]);
+
+  // Group messages the way WhatsApp does: date chips between days, and
+  // consecutive messages from the same sender collapsed together.
+  const groupedMessages = useMessageGrouping(messages);
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      if (!chat || templateOnly) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === "file") {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            setShowFileUpload(true);
+            setTimeout(() => {
+              if (fileUploadRef.current) {
+                fileUploadRef.current.uploadDirectFile(file);
+              }
+            }, 50);
+            break;
+          }
+        }
+      }
+    },
+    [chat, templateOnly],
+  );
+
   const sendMessageDirect = useCallback(
-    async (content: string, replyToMessage?: Message | null) => {
+    async (
+      content: string,
+      replyToMessage?: Message | null,
+      fileUrl?: string | null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fileData?: any,
+    ) => {
       if (!chat || isSending) return;
 
+      // ─── Outside the 24h window: only template messages allowed ───
+      if (templateOnly) return;
+
       const messageId = Date.now().toString();
+      const messageContent = content.trim() || fileData?.file_name || "File";
 
       const optimisticMessage: Message = {
         id: messageId,
-        content,
+        content: messageContent,
         timestamp: new Date().toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
@@ -214,7 +420,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         fullTimestamp: new Date(),
         isSent: true,
         status: "sending",
-        type: "text",
+        type: fileData?.content_type || "text",
         isTemplate: false,
         replyTo: replyToMessage
           ? {
@@ -226,30 +432,60 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
               contentType: replyToMessage.type,
             }
           : undefined,
+        attach: fileUrl || undefined,
+        caption: content.trim() ? content.trim() : fileData?.caption,
       };
 
       setMessages((prev) => [...prev, optimisticMessage]);
       scrollToBottom();
 
+      // ─── Offline path: persist to Dexie + queue for background sync ───
+      if (!isOnline) {
+        await queueOfflineMessage(
+          chat,
+          messageContent,
+          messageId,
+          replyToMessage || undefined,
+          fileUrl || undefined,
+        );
+        return;
+      }
+
       try {
         const response = await sendMessageCall({
-          content: content,
+          content: messageContent,
           user: chat.name,
           room: chat.id,
           user_no: chat.mobileNo,
           message_id: messageId,
           whatsapp_account: chat.whatsappAccount || currentAccount,
           reply_to_message_id: replyToMessage?.id || null,
-          content_type: "text",
-          attachment: null,
+          content_type: fileData?.content_type || "text",
+          attachment: fileUrl,
+          caption: content.trim() ? content.trim() : fileData?.caption,
         });
 
         if (response?.message?.status === "ok") {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === messageId ? { ...msg, status: "sent" } : msg,
-            ),
-          );
+          // Reconcile the optimistic message with the server-created record.
+          // The backend ignores the client message_id and generates its own
+          // document name, so we must swap our temporary id for the real one.
+          // Otherwise the merge (keyed by id) keeps BOTH entries → duplicate.
+          const serverMessageId = response?.message?.message_id;
+          if (serverMessageId && serverMessageId !== messageId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? { ...msg, id: serverMessageId, status: "sent" }
+                  : msg,
+              ),
+            );
+          } else {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId ? { ...msg, status: "sent" } : msg,
+              ),
+            );
+          }
           await mutateMessages();
         } else {
           setMessages((prev) =>
@@ -260,7 +496,15 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
           console.error("Failed to send message:", response?.message);
         }
       } catch (error) {
-        console.error("Failed to send message:", error);
+        // ─── Network failure: queue for retry when back online ───
+        console.error("Failed to send message, queuing for retry:", error);
+        await queueOfflineMessage(
+          chat,
+          messageContent,
+          messageId,
+          replyToMessage || undefined,
+          fileUrl || undefined,
+        );
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === messageId ? { ...msg, status: "failed" } : msg,
@@ -275,14 +519,31 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       scrollToBottom,
       isSending,
       currentAccount,
+      isOnline,
+      queueOfflineMessage,
     ],
   );
 
   const handleSend = async () => {
-    if (!messageInput.trim() || !chat || isSending) return;
-    await sendMessageDirect(messageInput, replyTo);
-    setMessageInput("");
-    setReplyTo(null);
+    if (!chat || isSending) return;
+
+    if (uploadedFileUrl) {
+      await sendMessageDirect(
+        messageInput,
+        replyTo,
+        uploadedFileUrl,
+        uploadedFileData,
+      );
+      setUploadedFileUrl(null);
+      setUploadedFileData(null);
+      setMessageInput("");
+      setReplyTo(null);
+      setShowFileUpload(false);
+    } else if (messageInput.trim()) {
+      await sendMessageDirect(messageInput, replyTo);
+      setMessageInput("");
+      setReplyTo(null);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -296,17 +557,64 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     setReplyTo(message);
   };
 
-  const handleReact = (messageId: string, emoji: string) => {
+  const handleReact = async (messageId: string, emoji: string) => {
+    if (!chat || templateOnly) return;
+
     if (onReact) {
       onReact(messageId, emoji);
+    }
+
+    try {
+      await sendMessageCall({
+        content: emoji,
+        user: chat.name,
+        room: chat.id,
+        user_no: chat.mobileNo,
+        attachment: null,
+        message_id: Date.now().toString(),
+        whatsapp_account: chat.whatsappAccount || currentAccount,
+        reply_to_message_id: messageId,
+        content_type: "reaction",
+      });
+      await mutateMessages();
+    } catch (error) {
+      console.error("Failed to sync reaction status:", error);
     }
   };
 
   const openInputEmojiPicker = () => {
+    if (templateOnly) return;
     setGlobalEmojiPicker({
       isOpen: true,
       onSelect: (emoji) => setMessageInput((prev) => prev + emoji),
     });
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleFileUploadComplete = (fileUrl: string | null, fileData?: any) => {
+    if (fileUrl) {
+      setUploadedFileUrl(fileUrl);
+      setUploadedFileData(fileData);
+    } else {
+      setShowFileUpload(false);
+      setUploadedFileUrl(null);
+      setUploadedFileData(null);
+    }
+  };
+
+  const handlePaperclipClick = () => {
+    if (templateOnly) {
+      setShowTemplateModal(true);
+      return;
+    }
+    if (showFileUpload) {
+      fileUploadRef.current?.openSelector();
+    } else {
+      setShowFileUpload(true);
+      setTimeout(() => {
+        fileUploadRef.current?.openSelector();
+      }, 50);
+    }
   };
 
   if (!chat) {
@@ -326,25 +634,46 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-hidden relative">
+    <div
+      className="flex-1 flex flex-col h-full bg-[#0b141a] overflow-hidden relative"
+      onPaste={handlePaste}
+    >
       <ChatHeader
         chat={chat}
         onBack={onBack}
         isMobile={isMobile}
-        onVoiceCall={() => {}}
-        onVideoCall={() => {}}
-        onMenu={() => {}}
+        onTogglePin={onTogglePin}
+        onToggleStar={onToggleStar}
+        onToggleArchive={onToggleArchive}
       />
+
+      {/* Templates-only banner when outside the 24h window */}
+      {templateOnly && (
+        <div className="flex items-center justify-center px-4 py-2 bg-[#1f2d33] border-b border-[#2a3942] gap-2">
+          <MessageSquareText className="w-4 h-4 text-[#ffc107]" />
+          <span className="text-xs text-[#d1d7db]">
+            This contact is outside the 24-hour window. Only template messages
+            can be sent.
+          </span>
+          <button
+            onClick={() => setShowTemplateModal(true)}
+            className="text-xs font-medium text-[#25D366] hover:text-[#20b859] transition"
+          >
+            Open Templates
+          </button>
+        </div>
+      )}
 
       <div
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto px-4 py-3 space-y-2 bg-[#0b141a] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIHZpZXdCb3g9IjAgMCA4IDgiPjxwYXRoIGQ9Ik0wIDBoNHY0SDB6bTQgNGg0djRINHoiIGZpbGw9IiMxYzI5MzAiLz48L3N2Zz4=')] bg-repeat"
+        onScroll={handleMessagesScroll}
+        className="flex-1 overflow-y-auto px-4 py-3 bg-[#0b141a] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIHZpZXdCb3g9IjAgMCA4IDgiPjxwYXRoIGQ9Ik0wIDBoNHY0SDB6bTQgNGg0djRINHoiIGZpbGw9IiMxYzI5MzAiLz48L3N2Zz4=')] bg-repeat"
         style={{
           overflowY: "auto",
           scrollBehavior: "smooth",
         }}
       >
-        {isLoading ? (
+        {isLoading && messages.length === 0 ? (
           <div className="flex justify-center py-8">
             <Loader />
           </div>
@@ -359,13 +688,25 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
             </p>
           </div>
         ) : (
-          <>
-            {messages.map((message) => {
+          <div className="max-w-[1000px] mx-auto flex flex-col space-y-0.5">
+            {groupedMessages.map((g) => {
+              if (g.kind === "date") {
+                return (
+                  <div key={g.key} className="flex justify-center my-3">
+                    <span className="px-3 py-1 text-[11px] font-medium text-[#8696a0] bg-[#182229]/90 rounded-md shadow-sm">
+                      {g.label}
+                    </span>
+                  </div>
+                );
+              }
+
+              const message = g.message!;
+
               if (message.isTemplate) {
                 return (
                   <div
-                    key={message.id}
-                    className={`flex ${message.isSent ? "justify-end" : "justify-start"}`}
+                    key={g.key}
+                    className={`flex ${message.isSent ? "justify-end" : "justify-start"} ${g.isFirstOfBatch ? "mt-3" : "mt-0.5"}`}
                   >
                     <div
                       className={`max-w-[70%] ${
@@ -384,19 +725,34 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
                   </div>
                 );
               }
+
               return (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  onReply={handleReply}
-                  onReact={handleReact}
-                  isGroup={chat.isGroup}
-                  setGlobalEmojiPicker={setGlobalEmojiPicker}
-                />
+                <div key={g.key} className={g.isFirstOfBatch ? "mt-3" : "mt-0.5"}>
+                  <MessageBubble
+                    message={message}
+                    // Outside the 24h window, hide replies/reactions
+                    onReply={templateOnly ? undefined : handleReply}
+                    onReact={templateOnly ? undefined : handleReact}
+                    isGroup={chat.isGroup}
+                    setGlobalEmojiPicker={setGlobalEmojiPicker}
+                  />
+                </div>
               );
             })}
+
+            {/* Scroll-to-bottom floating button */}
+            {showScrollBtn && (
+              <button
+                onClick={handleScrollToBottom}
+                className="absolute bottom-[110px] right-6 z-20 w-11 h-11 rounded-full bg-[#00a884] text-white flex items-center justify-center shadow-lg hover:bg-[#008f72] transition"
+                title="Scroll to latest"
+              >
+                <Send className="w-5 h-5 -rotate-90" />
+              </button>
+            )}
+
             <div ref={messagesEndRef} />
-          </>
+          </div>
         )}
       </div>
 
@@ -422,43 +778,102 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         </div>
       )}
 
-      <div className="p-3 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0 relative">
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={openInputEmojiPicker}
-            className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
-          >
-            <Smile className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
-          >
-            <Paperclip className="w-5 h-5" />
-          </button>
-          <input type="file" ref={fileInputRef} className="hidden" multiple />
-          <input
-            type="text"
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Type a message"
-            className="flex-1 px-4 py-2 bg-[#2a3942] rounded-full text-sm text-white placeholder:text-[#8696a0] focus:outline-none focus:ring-1 focus:ring-[#25D366] min-w-0"
-            disabled={isSending}
+      {showFileUpload && (
+        <div className="p-3 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0">
+          <FileUploadField
+            ref={fileUploadRef}
+            value={uploadedFileUrl || undefined}
+            onChange={handleFileUploadComplete}
+            doctype="WhatsApp Contact"
+            docname={chat.id}
+            fieldname="attachment"
+            isPrivate={false}
+            accept=".pdf,.png,.jpg,.jpeg,.mp4,.mp3,.doc,.docx,.xls,.xlsx,.txt"
+            isMobile={isMobile}
           />
+          {uploadedFileUrl && (
+            <div className="mt-2 text-xs text-[#25D366] flex items-center gap-1">
+              <span>
+                File uploaded successfully. Type a message below to send as
+                caption.
+              </span>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 mt-3">
+            <button
+              onClick={() => {
+                setShowFileUpload(false);
+                setUploadedFileUrl(null);
+                setUploadedFileData(null);
+              }}
+              className="px-4 py-2 rounded-lg bg-[#2a3942] text-white hover:bg-[#3b4a54] transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Outside the 24h window: remove input/file entirely, templates only */}
+      {templateOnly ? (
+        <div className="p-3 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0">
           <button
-            onClick={handleSend}
-            disabled={!messageInput.trim() || isSending}
-            className="p-2 bg-[#25D366] hover:bg-[#20b859] rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            onClick={() => setShowTemplateModal(true)}
+            className="w-full py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-white bg-[#25D366] hover:bg-[#20b859] rounded-lg transition"
           >
-            {isSending ? (
-              <Loader size="sm" color="white" />
-            ) : (
-              <Send className="w-5 h-5 text-white" />
-            )}
+            <MessageSquareText className="w-4 h-4" />
+            Send Template Message
           </button>
         </div>
-      </div>
+      ) : (
+        <div className="p-3 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0 relative">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={openInputEmojiPicker}
+              className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
+            >
+              <Smile className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handlePaperclipClick}
+              className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setShowTemplateModal(true)}
+              className="p-2 hover:bg-[#2a3942] rounded-full transition text-[#aebac1] flex-shrink-0"
+              title="Send template message"
+            >
+              <MessageSquareText className="w-5 h-5" />
+            </button>
+            <input
+              type="text"
+              value={messageInput}
+              onChange={(e) => setMessageInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={
+                uploadedFileUrl
+                  ? "Add a caption to your file..."
+                  : "Type a message"
+              }
+              className="flex-1 px-4 py-2 bg-[#2a3942] rounded-full text-sm text-white placeholder:text-[#8696a0] focus:outline-none focus:ring-1 focus:ring-[#25D366] min-w-0"
+              disabled={isSending}
+            />
+            <button
+              onClick={handleSend}
+              disabled={isSending || (!uploadedFileUrl && !messageInput.trim())}
+              className="p-2 bg-[#25D366] hover:bg-[#20b859] rounded-full transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+            >
+              {isSending ? (
+                <Loader size="sm" color="white" />
+              ) : (
+                <Send className="w-5 h-5 text-white" />
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {globalEmojiPicker.isOpen && (
         <EmojiPicker
@@ -468,6 +883,16 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
           }
         />
       )}
+
+      <TemplateModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        chat={chat}
+        currentAccount={currentAccount}
+        onSent={() => mutateMessages()}
+      />
     </div>
   );
 };
+
+export default ChatSpace;

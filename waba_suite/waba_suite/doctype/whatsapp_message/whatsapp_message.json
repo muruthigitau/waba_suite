@@ -129,8 +129,7 @@
    "allow_in_quick_entry": 1,
    "fieldname": "message",
    "fieldtype": "HTML Editor",
-   "label": "Message",
-   "set_only_once": 1
+   "label": "Message"
   },
   {
    "allow_in_quick_entry": 1,
@@ -361,7 +360,7 @@
    "link_fieldname": "reply_to_message"
   }
  ],
- "modified": "2026-06-10 10:12:36.752223",
+ "modified": "2026-07-30 09:29:26.507479",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Message",

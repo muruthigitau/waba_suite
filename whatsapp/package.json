@@ -8,14 +8,17 @@
     "build": "vite build --base=/assets/waba_suite/whatsapp/ && yarn copy-html-entry",
     "lint": "eslint .",
     "preview": "vite preview",
-    "copy-html-entry": "cp ../waba_suite/public/whatsapp/index.html ../waba_suite/www/whatsapp.html"
+    "copy-html-entry": "cp ../waba_suite/public/whatsapp/index.html ../waba_suite/www/whatsapp.html",
+    "copy-sw": "cp src/../public/sw.js ../waba_suite/www/sw.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
+    "dexie": "^4.4.4",
     "frappe-react-sdk": "^1.15.0",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-pdf": "^10.4.1",
     "react-router-dom": "^7.17.0",
     "sonner": "^2.0.7",
     "tailwindcss": "^4.3.0"
@@ -26,10 +29,12 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "axios": "^1.19.0",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "idb-keyval": "^6.3.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12"

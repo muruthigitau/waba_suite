@@ -60,7 +60,11 @@ export const VideoMessage: React.FC<VideoMessageProps> = ({ src, caption }) => {
           )}
         </button>
       </div>
-      {caption && <p className="text-sm mt-1 text-[#d1d7db]">{caption}</p>}
+      {caption && (
+        <p className="text-sm mt-1 text-[#d1d7db] break-words whitespace-pre-wrap">
+          {caption}
+        </p>
+      )}
     </div>
   );
 };
