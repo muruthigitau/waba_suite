@@ -19,8 +19,8 @@ import { TemplateMessage } from "../messages/TemplateMessage";
 import { EmojiPicker } from "../modals/EmojiPicker";
 import { TemplateModal } from "../modals/TemplateModal";
 
-const WINDOW_HOURS_MS = 24 * 60 * 60 * 1000; // 24 hours
-
+// If true, the contact's WhatsApp Session is expired and only template
+// messages may be sent (free-form text/media/reactions are not allowed).
 interface ChatSpaceProps {
   chat: Chat | null;
   currentAccount: string;
@@ -36,7 +36,7 @@ interface ChatSpaceProps {
   onTogglePin?: (chatId: string) => void;
   onToggleStar?: (chatId: string) => void;
   onToggleArchive?: (chatId: string) => void;
-  within24hWindow?: boolean;
+  sessionExpired?: boolean;
 }
 
 export const ChatSpace: React.FC<ChatSpaceProps> = ({
@@ -49,7 +49,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   onTogglePin,
   onToggleStar,
   onToggleArchive,
-  within24hWindow,
+  sessionExpired,
 }) => {
   const {
     isOnline,
@@ -73,26 +73,18 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
 
-  // ─── 24-hour WhatsApp window ─────────────────────────────────────────────
-  // Free-form messages (text, media, reactions) are only deliverable within a
-  // 24h customer-service window. Outside it, only template messages are allowed.
-  // Prefer the prop (set when opening a new/draft contact); otherwise derive
-  // from the most recent incoming message timestamp in the loaded messages.
+  // Templates-only when the WhatsApp Session is expired (or unknown). Free-form
+  // messages (text, media, reactions) are only allowed within an Active session.
   const templateOnly = useMemo(() => {
-    if (typeof within24hWindow === "boolean") {
-      return !within24hWindow;
+    // If the session-expiry flag is provided from the backend, use it directly.
+    // Otherwise fall back to the chat's session info; default to templates-only
+    // when we have no session data for a contact.
+    if (typeof sessionExpired === "boolean") {
+      return sessionExpired;
     }
-    const now = new Date().getTime();
-    const latestIncoming = messages
-      .filter((m) => !m.isSent)
-      .reduce(
-        (max, m) =>
-          m.fullTimestamp.getTime() > max ? m.fullTimestamp.getTime() : max,
-        0,
-      );
-    return latestIncoming === 0 || now - latestIncoming > WINDOW_HOURS_MS;
+    return chat?.sessionExpired ?? true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [within24hWindow]);
+  }, [sessionExpired, chat?.sessionExpired]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -118,10 +110,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       whatsapp_account: currentAccount,
     },
     chat ? undefined : { enabled: false, revalidateOnFocus: false },
-  );
-
-  const { call: markMultipleAsReadCall } = useFrappePostCall(
-    "waba_suite.api.message.mark_multiple_as_read",
   );
 
   const { call: sendMessageCall, loading: isSending } = useFrappePostCall<{
@@ -322,15 +310,18 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     };
   }, [chat, isOnline, currentAccount, syncNewChatMessages, hydrateMessages]);
 
+  // Trigger read calls whenever a session/chat is opened so all unread
+  // messages are marked as read and read receipts are sent immediately on
+  // open, not only when the unread badge count is non-zero. The parent's
+  // onMarkAsRead (Home.tsx) handles both the API call and unread-count reset.
   useEffect(() => {
-    if (chat && chat.unreadCount > 0 && onMarkAsRead) {
-      onMarkAsRead(chat);
-      markMultipleAsReadCall({
-        whatsapp_contact: chat.mobileNo,
-        whatsapp_account: currentAccount,
-      }).catch(console.error);
-    }
-  }, [chat, messages, onMarkAsRead, currentAccount, markMultipleAsReadCall]);
+    if (!chat || !isOnline) return;
+    // Fire on every chat open / account switch (chat id change). The backend
+    // mark_multiple_as_read endpoint is idempotent and reports a no-op if
+    // there are no unread messages.
+    onMarkAsRead?.(chat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat?.id, chat?.mobileNo, chat?.whatsappAccount, currentAccount, isOnline]);
 
   // Poll for new messages every 5s — but only while online
   useEffect(() => {
@@ -475,11 +466,26 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         });
 
         if (response?.message?.status === "ok") {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === messageId ? { ...msg, status: "sent" } : msg,
-            ),
-          );
+          // Reconcile the optimistic message with the server-created record.
+          // The backend ignores the client message_id and generates its own
+          // document name, so we must swap our temporary id for the real one.
+          // Otherwise the merge (keyed by id) keeps BOTH entries → duplicate.
+          const serverMessageId = response?.message?.message_id;
+          if (serverMessageId && serverMessageId !== messageId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId
+                  ? { ...msg, id: serverMessageId, status: "sent" }
+                  : msg,
+              ),
+            );
+          } else {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === messageId ? { ...msg, status: "sent" } : msg,
+              ),
+            );
+          }
           await mutateMessages();
         } else {
           setMessages((prev) =>

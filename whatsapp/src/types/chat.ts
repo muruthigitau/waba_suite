@@ -1,5 +1,7 @@
 /** Chat-related type definitions for the WhatsApp chat application. */
 
+import type { Message } from "./message";
+
 export interface Chat {
   id: string;
   name: string;
@@ -20,8 +22,12 @@ export interface Chat {
   isPinned?: boolean;
   isStarred?: boolean;
   isArchived?: boolean;
-  /** Whether the contact is within the WhatsApp 24h customer-service window. */
-  within24hWindow?: boolean;
+  /** WhatsApp Session status (Active/Expired/Ended) for the contact+account. */
+  sessionStatus?: string;
+  /** WhatsApp Session expiry timestamp (message datetime + 24h). */
+  sessionExpiresAt?: string;
+  /** Whether the WhatsApp Session is expired (only templates allowed). */
+  sessionExpired?: boolean;
 }
 
 export interface Room {

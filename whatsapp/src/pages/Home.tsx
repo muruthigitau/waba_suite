@@ -314,6 +314,10 @@ export const WhatsAppHome: React.FC = () => {
         isPinned: room.is_pinned === true || room.is_pinned === 1,
         isStarred: room.is_starred === true || room.is_starred === 1,
         isArchived: room.is_archived === true || room.is_archived === 1,
+        // Single WhatsApp Session status + expiry for the contact+account.
+        sessionStatus: room.session_status || undefined,
+        sessionExpiresAt: room.session_expires_at || undefined,
+        sessionExpired: room.is_session_expired === true || room.is_session_expired === 1,
       };
     });
   }, [roomsData]);
@@ -356,20 +360,19 @@ export const WhatsAppHome: React.FC = () => {
 
   const handleMarkAsRead = useCallback(
     async (chat: Chat) => {
-      if (chat && chat.unreadCount > 0) {
-        try {
-          await markMultipleAsReadCall({
-            whatsapp_contact: chat.mobileNo,
-            whatsapp_account: chat.whatsappAccount,
-          });
-          setChats((prev) =>
-            prev.map((c) =>
-              c.id === chat.id ? { ...c, unreadCount: 0 } : c,
-            ),
-          );
-        } catch (error) {
-          console.error("Failed to mark as read:", error);
-        }
+      if (!chat) return;
+      // Fire on every session open so all unread messages get marked as read
+      // and read receipts are sent, regardless of the unread badge count.
+      try {
+        await markMultipleAsReadCall({
+          whatsapp_contact: chat.id,
+          whatsapp_account: chat.whatsappAccount,
+        });
+        setChats((prev) =>
+          prev.map((c) => (c.id === chat.id ? { ...c, unreadCount: 0 } : c)),
+        );
+      } catch (error) {
+        console.error("Failed to mark as read:", error);
       }
     },
     [markMultipleAsReadCall],
@@ -500,7 +503,9 @@ export const WhatsAppHome: React.FC = () => {
       whatsappAccount?: string;
       hasChat?: boolean;
       canSendDirect?: boolean;
-      within24hWindow?: boolean;
+      sessionStatus?: string;
+      sessionExpiresAt?: string;
+      sessionExpired?: boolean;
     }) => {
       if (!contact?.id || !contact.mobileNo) return;
 
@@ -526,9 +531,11 @@ export const WhatsAppHome: React.FC = () => {
           isGroup: false,
           whatsappAccount: contact.whatsappAccount || currentAccount,
           roomType: "Direct",
-          // Carry the 24h session window into the ChatSpace UI so templates-only
+          // Carry the session expiry into the ChatSpace UI so templates-only
           // enforcement applies immediately for new/expired/ended sessions.
-          within24hWindow: contact.within24hWindow ?? false,
+          sessionStatus: contact.sessionStatus,
+          sessionExpiresAt: contact.sessionExpiresAt,
+          sessionExpired: contact.sessionExpired ?? true,
         };
         setDraftChat(draft);
         setSelectedChatId(contact.id);
@@ -609,7 +616,7 @@ export const WhatsAppHome: React.FC = () => {
           onTogglePin={handleTogglePin}
           onToggleStar={handleToggleStar}
           onToggleArchive={handleToggleArchive}
-          within24hWindow={selectedChat?.within24hWindow}
+          sessionExpired={selectedChat?.sessionExpired}
         />
       </div>
     </div>
