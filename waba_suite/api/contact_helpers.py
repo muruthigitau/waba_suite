@@ -8,7 +8,6 @@ Key dependencies:
 """
 
 import frappe
-from datetime import timedelta
 
 # WhatsApp allows businesses to send free-form messages (text/media/reactions)
 # only within a 24-hour customer service window. Outside that window, only
@@ -16,25 +15,75 @@ from datetime import timedelta
 CUSTOMER_SERVICE_WINDOW_HOURS = 24
 
 
-def contact_payload(contact_name, whatsapp_account=None):
-    """Build a contact payload with chat existence and 24h-window info.
+def get_session(contact_name, whatsapp_account=None):
+    """Return the single WhatsApp Session for a contact+account, if any.
 
     Args:
         contact_name: WhatsApp Contact document name.
-        whatsapp_account: Optional WhatsApp account to scope the has-chat check.
+        whatsapp_account: WhatsApp account to scope the session.
 
     Returns:
-        Dict with name, contact_name, mobile_no, has_chat, last incoming message
-        timestamp, and whether the contact is inside the 24h window.
+        The WhatsApp Session document, or None.
     """
-    contact = frappe.get_doc("WhatsApp Contact", contact_name)
-
-    last_incoming = frappe.db.get_value(
-        "WhatsApp Message",
-        {"from": contact.mobile_no, "type": "Incoming"},
-        "creation",
+    if not contact_name or not whatsapp_account:
+        return None
+    session_name = frappe.db.get_value(
+        "WhatsApp Session",
+        {
+            "whatsapp_contact": contact_name,
+            "whatsapp_account": whatsapp_account,
+        },
+        "name",
         order_by="creation desc",
     )
+    if not session_name:
+        return None
+    try:
+        return frappe.get_doc("WhatsApp Session", session_name)
+    except Exception:
+        return None
+
+
+def is_session_expired(session):
+    """Return True if a session is explicitly Expired/Ended or past expiry.
+
+    A session is considered expired when status is Expired/Ended, or when an
+    Active session's expires_at (message datetime + 24h) has elapsed.
+
+    Args:
+        session: WhatsApp Session document or None.
+
+    Returns:
+        True if the session is expired, else False.
+    """
+    if not session:
+        return True
+    if session.status in ("Expired", "Ended"):
+        return True
+    if session.status == "Active" and session.expires_at:
+        exp = session.expires_at
+        if isinstance(exp, str):
+            exp = frappe.utils.get_datetime(exp)
+        if exp and frappe.utils.now_datetime() > exp:
+            return True
+    return False
+
+
+def contact_payload(contact_name, whatsapp_account=None):
+    """Build a contact payload with chat existence and session/expiry info.
+
+    The session window is anchored on the single WhatsApp Session for the
+    contact+account. A contact has no chat until the first message exists.
+
+    Args:
+        contact_name: WhatsApp Contact document name.
+        whatsapp_account: Optional WhatsApp account to scope the session check.
+
+    Returns:
+        Dict with name, contact_name, mobile_no, has_chat, session status,
+        session expiry, and whether the session is expired.
+    """
+    contact = frappe.get_doc("WhatsApp Contact", contact_name)
 
     has_chat = bool(
         frappe.db.exists(
@@ -43,19 +92,18 @@ def contact_payload(contact_name, whatsapp_account=None):
         )
     )
 
-    now = frappe.utils.now_datetime()
-    within_window = False
-    if last_incoming:
-        last_incoming_dt = frappe.utils.get_datetime(last_incoming)
-        window_start = now - timedelta(hours=CUSTOMER_SERVICE_WINDOW_HOURS)
-        within_window = last_incoming_dt >= window_start
+    session = get_session(contact.name, whatsapp_account)
+    session_status = session.status if session else None
+    session_expires_at = session.expires_at if session else None
 
     return {
         "name": contact.name,
         "contact_name": contact.contact_name or contact.mobile_no,
         "mobile_no": contact.mobile_no,
         "has_chat": has_chat,
-        "last_incoming_at": str(last_incoming) if last_incoming else None,
-        "within_24h_window": within_window,
-        "can_send_direct": within_window,
+        "session_status": session_status,
+        "session_expires_at": (
+            str(session_expires_at) if session_expires_at else None
+        ),
+        "is_session_expired": is_session_expired(session),
     }

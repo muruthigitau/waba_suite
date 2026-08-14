@@ -11,7 +11,11 @@ Key dependencies:
 import frappe
 from frappe import _
 
-from waba_suite.api.contact_helpers import contact_payload
+from waba_suite.api.contact_helpers import (
+    contact_payload,
+    get_session,
+    is_session_expired,
+)
 
 
 @frappe.whitelist()
@@ -329,6 +333,15 @@ def get(email, whatsapp_account=None):
                 "status": "draft",
             },
         )
+
+        # Expose the single session (status + expiry) for the contact+account.
+        # is_session_expired is computed from the session's expires_at.
+        session = get_session(contact.name, whatsapp_account)
+        contact["session_status"] = session.status if session else None
+        contact["session_expires_at"] = (
+            str(session.expires_at) if session and session.expires_at else None
+        )
+        contact["is_session_expired"] = is_session_expired(session)
 
         pref = prefs_map.get(contact.name, {})
         contact["is_pinned"] = pref.get("is_pinned", False)
