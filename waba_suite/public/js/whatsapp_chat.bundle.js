@@ -135,7 +135,8 @@ frappe.Chat = class {
 	setup_events() {
 		const me = this;
 		$(".waba-navbar-icon").on("click", function () {
-			me.chat_bubble.change_bubble();
+			// me.chat_bubble.change_bubble();
+			window.open("/whatsapp", "_blank");
 		});
 
 		$(document).mouseup(function (e) {
