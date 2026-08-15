@@ -55,8 +55,13 @@
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-08-15 13:08:19.250888",
+ "links": [
+  {
+   "link_doctype": "WhatsApp Chat Label Assignment",
+   "link_fieldname": "whatsapp_chat_label"
+  }
+ ],
+ "modified": "2026-08-15 14:03:50.464514",
  "modified_by": "Administrator",
  "module": "Whatsapp Chat",
  "name": "WhatsApp Chat Label",
@@ -77,7 +82,11 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "label_name",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "label_name",
+ "translated_doctype": 1
 }

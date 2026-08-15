@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "whatsapp_contact",
+  "whatsapp_account",
   "column_break_fpbj",
   "whatsapp_chat_label"
  ],
@@ -30,17 +31,28 @@
    "in_standard_filter": 1,
    "label": "WhatsApp Chat Label",
    "options": "WhatsApp Chat Label",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_fpbj",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "whatsapp_account",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "WhatsApp Account",
+   "options": "WhatsApp Account"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-15 13:11:59.365592",
+ "modified": "2026-08-15 14:30:01.703020",
  "modified_by": "Administrator",
  "module": "Whatsapp Chat",
  "name": "WhatsApp Chat Label Assignment",

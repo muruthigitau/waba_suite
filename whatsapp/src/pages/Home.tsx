@@ -1,4 +1,5 @@
 import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
+import { MessageCircleCheck } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -38,6 +39,7 @@ export const WhatsAppHome: React.FC = () => {
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
+
   const {
     isReady,
     hydrateChats,
@@ -48,10 +50,11 @@ export const WhatsAppHome: React.FC = () => {
     cacheAccounts,
     cacheUserSettings,
     restoreUserSettings,
+    clearAccountData,
   } = useCache();
 
   const { data: accountsData } = useFrappeGetCall<{
-    message: { accounts: Account[]; default_account: string };
+    message: { accounts: Account[]; default_account: string; has_accounts: boolean };
   }>(
     "waba_suite.api.accounts.get_user_accounts_with_default",
     {},
@@ -187,7 +190,9 @@ export const WhatsAppHome: React.FC = () => {
     const init = async () => {
       if (!isReady) return;
 
-      // 1. Restore previous route FIRST — it has the most recent user state
+      // 1. Restore previous route FIRST — it has the most recent user state.
+      // The route cache (IndexedDB) stores both the active account and the
+      // last opened chat, restoring them on reload.
       const route = await restoreRoute();
       if (route && route.currentAccount) {
         setCurrentAccount(route.currentAccount);
@@ -243,17 +248,9 @@ export const WhatsAppHome: React.FC = () => {
 
   useEffect(() => {
     if (accountsData?.message) {
-      const { accounts: accs, default_account } = accountsData.message;
+      const { accounts: accs } = accountsData.message;
       if (accs && Array.isArray(accs)) {
         setAccounts(accs);
-        const defaultAccName = (() => {
-          if (typeof default_account === "string" && default_account) return default_account;
-          if (default_account && typeof default_account === "object" && "name" in default_account) return (default_account as {name: string}).name;
-          return accs.length > 0 ? accs[0].name : "";
-        })();
-        if (defaultAccName) {
-          setCurrentAccount(defaultAccName);
-        }
       }
     }
   }, [accountsData]);
@@ -446,13 +443,18 @@ export const WhatsAppHome: React.FC = () => {
 
   const handleSwitchAccount = useCallback(
     async (accountName: string) => {
+      // Clear the new account's cached chats/messages/pending from Dexie so
+      // we always refetch fresh data for the newly selected account.
+      // This makes switching seamless — after the switch, handleSetCurrentAccount's
+      // poll/polling effect refetches rooms from the server.
+      await clearAccountData(accountName);
       setCurrentAccount(accountName);
       setSelectedChatId(null);
       setChats([]);
-      // Cache route with new account
-      cacheRoute(null, accountName);
+      // Persist the new account in the Dexie route cache (IndexedDB).
+      await cacheRoute(null, accountName);
     },
-    [cacheRoute],
+    [cacheRoute, clearAccountData],
   );
 
   const selectedChat = useMemo(() => {
@@ -516,6 +518,7 @@ export const WhatsAppHome: React.FC = () => {
       try {
         const res = (await setAssignmentsCall({
           whatsapp_contact: labelPickerChatId,
+          whatsapp_account: currentAccount,
           label_ids: labelIds,
         })) as { message?: { labels?: ChatLabel[] } };
         const updatedLabels = res?.message?.labels || [];
@@ -531,7 +534,7 @@ export const WhatsAppHome: React.FC = () => {
         console.error("Failed to save labels:", error);
       }
     },
-    [labelPickerChatId, setAssignmentsCall],
+    [labelPickerChatId, setAssignmentsCall, currentAccount],
   );
 
   const labelPickerChat = useMemo(() => {
@@ -544,7 +547,7 @@ export const WhatsAppHome: React.FC = () => {
       setSelectedChatId(id);
       setDraftChat(null);
       if (isMobile) setShowSidebar(false);
-      // Cache the current route
+      // Persist the opened chat + account in the Dexie route cache (IndexedDB).
       cacheRoute(id, currentAccount);
     },
     [isMobile, currentAccount, cacheRoute],
@@ -614,6 +617,21 @@ export const WhatsAppHome: React.FC = () => {
     await logout();
   }, [logout]);
 
+  // Restore the persisted account on mount (already handled by restoreRoute in the
+  // init effect above, which reads from the Dexie route cache).
+
+  // Strict permissions: a non-admin user with no accounts is not listed on
+  // any WhatsApp Account's Users table — deny access to the WhatsApp page.
+  const deniedAccess = useMemo(() => {
+    if (accountsData && accountsData.message) {
+      // `has_accounts` reflects only the accounts linked to this user via the
+      // Users (POS Profile User) child table. Administrator is always allowed
+      // and receives accounts from the backend.
+      return accountsData.message.has_accounts === false;
+    }
+    return false;
+  }, [accountsData]);
+
   // Setup sync engine with actual API callbacks when available
   useEffect(() => {
     syncEngine.setApiCallbacks({
@@ -627,7 +645,24 @@ export const WhatsAppHome: React.FC = () => {
       className="flex w-full h-dvh bg-[#111b21] overflow-hidden"
       style={{ height: '100dvh' }}
     >
-      {/* Chat List Sidebar - takes full screen on mobile when shown */}
+      {/* Strict permissions: deny access when user has no WhatsApp Account access */}
+      {deniedAccess && (
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#111b21] text-center px-6">
+          <div className="w-20 h-20 rounded-full bg-[#202c33] flex items-center justify-center mb-4">
+            <MessageCircleCheck className="w-10 h-10 text-[#8696a0]" />
+          </div>
+          <h2 className="text-xl font-semibold text-white mb-2">
+            Access Denied
+          </h2>
+          <p className="text-[#8696a0] text-sm max-w-sm">
+            You do not have access to WhatsApp. Please contact your
+            administrator to be added to a WhatsApp Account's Users list.
+          </p>
+        </div>
+      )}
+
+      {/* Chat List Sidebar - fully hidden when access is denied */}
+      {!deniedAccess && (
       <div
         className={`${
           showSidebar ? "flex" : "hidden"
@@ -640,6 +675,7 @@ export const WhatsAppHome: React.FC = () => {
         <SyncStatusBar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <ChatList
+            key={currentAccount}
             chats={chats}
             selectedChatId={selectedChatId}
             onSelectChat={handleSelectChat}
@@ -648,7 +684,6 @@ export const WhatsAppHome: React.FC = () => {
             currentAccount={currentAccount}
             accounts={accounts}
             onSwitchAccount={handleSwitchAccount}
-            userSettings={userSettings}
             currentUserName={currentUserName}
             onLogout={handleLogout}
             onTogglePin={handleTogglePin}
@@ -660,8 +695,10 @@ export const WhatsAppHome: React.FC = () => {
           />
         </div>
       </div>
+      )}
 
-      {/* Chat Space - takes full screen on mobile when sidebar is hidden */}
+      {/* Chat Space - fully hidden when access is denied */}
+      {!deniedAccess && (
       <div
         className={`flex-1 flex flex-col min-w-0 ${
           isMobile && showSidebar ? "hidden" : "flex"
@@ -681,6 +718,7 @@ export const WhatsAppHome: React.FC = () => {
           sessionExpired={selectedChat?.sessionExpired}
         />
       </div>
+      )}
       {/* Label Picker Modal — keyed by chat id so the selection resets per chat */}
       <LabelPickerModal
         key={labelPickerChatId || "none"}
