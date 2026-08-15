@@ -36,6 +36,7 @@ interface ChatSpaceProps {
   onTogglePin?: (chatId: string) => void;
   onToggleStar?: (chatId: string) => void;
   onToggleArchive?: (chatId: string) => void;
+  onOpenLabels?: (chatId: string) => void;
   sessionExpired?: boolean;
 }
 
@@ -49,6 +50,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   onTogglePin,
   onToggleStar,
   onToggleArchive,
+  onOpenLabels,
   sessionExpired,
 }) => {
   const {
@@ -645,6 +647,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         onTogglePin={onTogglePin}
         onToggleStar={onToggleStar}
         onToggleArchive={onToggleArchive}
+        onOpenLabels={onOpenLabels}
       />
 
       {/* Templates-only banner when outside the 24h window */}

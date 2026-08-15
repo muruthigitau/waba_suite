@@ -9,11 +9,12 @@ import React, {
 import { ChatList } from "../components/chat/ChatList";
 import { ChatSpace } from "../components/chat/ChatSpace";
 import { SyncStatusBar } from "../components/common/SyncStatusBar";
+import { LabelPickerModal } from "../components/modals/LabelPickerModal";
 import { useCache } from "../contexts/CacheContext";
 import { useUser } from "../contexts/UserProvider";
 import { useChatPreferences } from "../hooks/useChatPreferences";
 import syncEngine from "../services/syncEngine";
-import type { Account, Chat, Message, UserSettings } from "../types";
+import type { Account, Chat, ChatLabel, Message, UserSettings } from "../types";
 
 export const WhatsAppHome: React.FC = () => {
   const { logout } = useUser();
@@ -31,6 +32,9 @@ export const WhatsAppHome: React.FC = () => {
     enableNotifications: true,
   });
   const [currentUserName, setCurrentUserName] = useState<string>("User");
+  const [allLabels, setAllLabels] = useState<ChatLabel[]>([]);
+  // Chat currently having labels edited (the LabelPickerModal target chat id)
+  const [labelPickerChatId, setLabelPickerChatId] = useState<string | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
@@ -122,6 +126,15 @@ export const WhatsAppHome: React.FC = () => {
   const { call: toggleArchiveCall } = useFrappePostCall(
     "waba_suite.api.chat_preferences.toggle_archive",
   );
+  const { data: allLabelsData } = useFrappeGetCall<{
+    message: ChatLabel[];
+  }>(
+    "waba_suite.api.labels.get_all",
+    {},
+    isReady ? undefined : { enabled: false },
+  );
+  const { call: setAssignmentsCall, loading: isSavingLabels } =
+    useFrappePostCall("waba_suite.api.labels.set_assignments");
 
   useEffect(() => {
     const handleResize = () => {
@@ -266,6 +279,12 @@ export const WhatsAppHome: React.FC = () => {
     };
   }, [currentAccount, mutateRooms]);
 
+  useEffect(() => {
+    if (allLabelsData?.message) {
+      setAllLabels(allLabelsData.message);
+    }
+  }, [allLabelsData]);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formattedChats = useMemo(() => {
     if (!roomsData?.message) {
@@ -314,6 +333,11 @@ export const WhatsAppHome: React.FC = () => {
         isPinned: room.is_pinned === true || room.is_pinned === 1,
         isStarred: room.is_starred === true || room.is_starred === 1,
         isArchived: room.is_archived === true || room.is_archived === 1,
+        // Labels assigned to this contact for filtering
+        labels: Array.isArray(room.labels) ? room.labels : [],
+        labelIds: Array.isArray(room.labels)
+          ? room.labels.map((l: { name: string }) => l.name)
+          : [],
         // Single WhatsApp Session status + expiry for the contact+account.
         sessionStatus: room.session_status || undefined,
         sessionExpiresAt: room.session_expires_at || undefined,
@@ -480,6 +504,41 @@ export const WhatsAppHome: React.FC = () => {
     [chats, toggleArchive],
   );
 
+  // Open the label picker for a specific chat (sets the target chat id).
+  const handleOpenLabels = useCallback((chatId: string) => {
+    setLabelPickerChatId(chatId);
+  }, []);
+
+  // Save the updated label assignments for the target chat.
+  const handleSaveLabels = useCallback(
+    async (labelIds: string[]) => {
+      if (!labelPickerChatId) return;
+      try {
+        const res = (await setAssignmentsCall({
+          whatsapp_contact: labelPickerChatId,
+          label_ids: labelIds,
+        })) as { message?: { labels?: ChatLabel[] } };
+        const updatedLabels = res?.message?.labels || [];
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === labelPickerChatId
+              ? { ...c, labels: updatedLabels, labelIds: updatedLabels.map((l) => l.name) }
+              : c,
+          ),
+        );
+        setLabelPickerChatId(null);
+      } catch (error) {
+        console.error("Failed to save labels:", error);
+      }
+    },
+    [labelPickerChatId, setAssignmentsCall],
+  );
+
+  const labelPickerChat = useMemo(() => {
+    if (!labelPickerChatId) return null;
+    return chats.find((c) => c.id === labelPickerChatId) || null;
+  }, [chats, labelPickerChatId]);
+
   const handleSelectChat = useCallback(
     (id: string) => {
       setSelectedChatId(id);
@@ -595,6 +654,8 @@ export const WhatsAppHome: React.FC = () => {
             onTogglePin={handleTogglePin}
             onToggleStar={handleToggleStar}
             onToggleArchive={handleToggleArchive}
+            onOpenLabels={handleOpenLabels}
+            labels={allLabels}
             onNewContact={handleOpenNewContact}
           />
         </div>
@@ -616,9 +677,21 @@ export const WhatsAppHome: React.FC = () => {
           onTogglePin={handleTogglePin}
           onToggleStar={handleToggleStar}
           onToggleArchive={handleToggleArchive}
+          onOpenLabels={handleOpenLabels}
           sessionExpired={selectedChat?.sessionExpired}
         />
       </div>
+      {/* Label Picker Modal — keyed by chat id so the selection resets per chat */}
+      <LabelPickerModal
+        key={labelPickerChatId || "none"}
+        isOpen={!!labelPickerChat}
+        onClose={() => setLabelPickerChatId(null)}
+        title={`Labels — ${labelPickerChat?.name || ""}`}
+        labels={allLabels}
+        selectedLabelIds={labelPickerChat?.labelIds || []}
+        onSave={handleSaveLabels}
+        isSaving={isSavingLabels}
+      />
     </div>
   );
 };

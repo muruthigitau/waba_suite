@@ -7,9 +7,10 @@ import {
   Plus,
   Settings,
   Star,
+  Tag,
 } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
-import type { Account, Chat } from "../../types";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Account, Chat, ChatLabel } from "../../types";
 import { Avatar } from "../common/Avatar";
 import { SearchBar } from "../common/SearchBar";
 import { AccountSwitcher } from "../modals/AccountSwitcher";
@@ -36,6 +37,8 @@ interface ChatListProps {
   onTogglePin?: (chatId: string) => void;
   onToggleStar?: (chatId: string) => void;
   onToggleArchive?: (chatId: string) => void;
+  onOpenLabels?: (chatId: string) => void;
+  labels?: ChatLabel[];
   onNewContact?: (contact?: {
     id?: string;
     name?: string;
@@ -63,6 +66,8 @@ export const ChatList: React.FC<ChatListProps> = ({
   onTogglePin,
   onToggleStar,
   onToggleArchive,
+  onOpenLabels,
+  labels = [],
   onNewContact,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,6 +78,24 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [activeFilter, setActiveFilter] = useState<ChatFilter>("all");
   const [showArchivedBanner, setShowArchivedBanner] = useState(true);
+  const [selectedLabelFilters, setSelectedLabelFilters] = useState<string[]>([]);
+  const [showLabelFilter, setShowLabelFilter] = useState(false);
+  const labelFilterRef = useRef<HTMLDivElement>(null);
+
+  // Close the label filter dropdown when clicking outside of it
+  useEffect(() => {
+    if (!showLabelFilter) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        labelFilterRef.current &&
+        !labelFilterRef.current.contains(e.target as Node)
+      ) {
+        setShowLabelFilter(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showLabelFilter]);
 
   // Filter stats
   const unreadCount = useMemo(() => {
@@ -86,6 +109,15 @@ export const ChatList: React.FC<ChatListProps> = ({
   const archivedCount = useMemo(() => {
     return chats.filter((c) => c.isArchived).length;
   }, [chats]);
+
+  // Toggle a label in the multi-select filter
+  const toggleLabelFilter = useCallback((labelId: string) => {
+    setSelectedLabelFilters((prev) =>
+      prev.includes(labelId)
+        ? prev.filter((id) => id !== labelId)
+        : [...prev, labelId],
+    );
+  }, []);
 
   // Sort and filter chats
   const processedChats = useMemo(() => {
@@ -109,6 +141,14 @@ export const ChatList: React.FC<ChatListProps> = ({
         break;
     }
 
+    // Apply label filters (multichoice — show chats that have ANY selected label)
+    if (selectedLabelFilters.length > 0) {
+      filtered = filtered.filter((chat) => {
+        const chatLabelIds = new Set((chat.labels || []).map((l) => l.name));
+        return selectedLabelFilters.some((id) => chatLabelIds.has(id));
+      });
+    }
+
     // Apply search
     if (searchQuery.trim()) {
       filtered = filtered.filter(
@@ -126,7 +166,7 @@ export const ChatList: React.FC<ChatListProps> = ({
     });
 
     return filtered;
-  }, [chats, activeFilter, searchQuery]);
+  }, [chats, activeFilter, searchQuery, selectedLabelFilters]);
 
 
   const currentAccountInfo = useMemo(() => {
@@ -290,6 +330,94 @@ export const ChatList: React.FC<ChatListProps> = ({
           <SearchBar value={searchQuery} onChange={setSearchQuery} />
         </div>
 
+        {/* Label Filter Toggle + Dropdown */}
+        {labels.length > 0 && (
+          <div ref={labelFilterRef} className="relative px-3 pb-2 bg-[#202c33]">
+            <button
+              onClick={() => setShowLabelFilter((prev) => !prev)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition text-sm ${
+                selectedLabelFilters.length > 0
+                  ? "bg-[#2a3942] border-[#25D366] text-white"
+                  : "bg-[#2a3942] border-transparent text-[#d1d7db] hover:bg-[#3b4a54]"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-[#25D366]" />
+                {selectedLabelFilters.length > 0 ? (
+                  <span className="flex items-center gap-1 flex-wrap">
+                    {labels
+                      .filter((l) => selectedLabelFilters.includes(l.name))
+                      .map((l) => (
+                        <span
+                          key={l.name}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
+                          style={{ backgroundColor: l.color || "#8696a0" }}
+                        >
+                          {l.label_name}
+                        </span>
+                      ))}
+                  </span>
+                ) : (
+                  "Filter by labels"
+                )}
+              </span>
+              <span className="flex items-center gap-1">
+                {selectedLabelFilters.length > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedLabelFilters([]);
+                    }}
+                    className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-[#4a5a64] transition text-[#aebac1] hover:text-white"
+                    title="Clear label filters"
+                  >
+                    <span className="text-xs font-bold leading-none">✕</span>
+                  </button>
+                )}
+                <span className={`text-xs transition ${showLabelFilter ? "rotate-180" : ""}`}>
+                  ▾
+                </span>
+              </span>
+            </button>
+
+            {showLabelFilter && (
+              <div className="absolute left-3 right-3 top-full mt-1 z-40 bg-[#202c33] border border-[#2a3942] rounded-lg shadow-xl py-2 max-h-64 overflow-y-auto">
+                {labels.map((label) => {
+                  const isChecked = selectedLabelFilters.includes(label.name);
+                  return (
+                    <button
+                      key={label.name}
+                      onClick={() => toggleLabelFilter(label.name)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition ${
+                        isChecked
+                          ? "bg-[#2a3942] text-white"
+                          : "text-[#d1d7db] hover:bg-[#2a3942]/60"
+                      }`}
+                    >
+                      <span
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: label.color || "#8696a0" }}
+                      />
+                      <span className="flex-1 text-left">{label.label_name}</span>
+                      {isChecked && (
+                        <span className="text-[#25D366] text-xs">✓</span>
+                      )}
+                    </button>
+                  );
+                })}
+                {selectedLabelFilters.length > 0 && (
+                  <button
+                    onClick={() => setSelectedLabelFilters([])}
+                    className="w-full text-left px-3 py-2 text-xs text-[#25D366] hover:bg-[#2a3942]/60 transition"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Empty State */}
         {processedChats.length === 0 && (
           <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
@@ -341,6 +469,7 @@ export const ChatList: React.FC<ChatListProps> = ({
               onTogglePin={onTogglePin}
               onToggleStar={onToggleStar}
               onToggleArchive={onToggleArchive}
+              onOpenLabels={onOpenLabels}
             />
           ))}
         </div>
