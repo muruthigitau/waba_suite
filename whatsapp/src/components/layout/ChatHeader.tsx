@@ -56,41 +56,40 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               {chat.isStarred && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
               {chat.isArchived && <Archive className="w-3 h-3 text-[#8696a0]" />}
             </div>
-            {/* Labels as visible chips with color + name */}
-            {chat.labels && chat.labels.length > 0 && (
-              <div className="flex items-center flex-wrap gap-1 mt-1">
-                {chat.labels.map((l) => (
-                  <span
-                    key={l.name}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
-                    style={{ backgroundColor: l.color || "#8696a0" }}
-                    title={l.label_name}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-white opacity-80" />
-                    {l.label_name}
-                  </span>
-                ))}
-              </div>
-            )}
-          <div className="flex items-center space-x-2">
-            <p className="text-xs text-[#8696a0]">
-              {chat.typing ? (
-                <span className="text-[#25D366]">Typing...</span>
-              ) : chat.online ? (
-                "Online"
-              ) : (
-                "Offline"
+            <div className="flex items-center gap-2 min-w-0">
+              <p className="text-xs text-[#8696a0] whitespace-nowrap">
+                {chat.typing ? (
+                  <span className="text-[#25D366]">Typing...</span>
+                ) : chat.online ? (
+                  "Online"
+                ) : (
+                  "Offline"
+                )}
+              </p>
+              {chat.mobileNo && (
+                <p className="text-xs text-[#8696a0] truncate">
+                  • {chat.mobileNo}
+                </p>
               )}
-            </p>
-            {chat.mobileNo && (
-              <>
-                <span className="text-xs text-[#8696a0]">•</span>
-                <p className="text-xs text-[#8696a0]">{chat.mobileNo}</p>
-              </>
-            )}
-          </div>
+            </div>
         </div>
       </div>
+      {/* Label chips far right at the end */}
+      {chat.labels && chat.labels.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap justify-end min-w-0 px-2 flex-1">
+          {chat.labels.map((l) => (
+            <span
+              key={l.name}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium text-white whitespace-nowrap"
+              style={{ backgroundColor: l.color || "#8696a0" }}
+              title={l.label_name}
+            >
+              <span className="w-1 h-1 rounded-full bg-white opacity-80" />
+              {l.label_name}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="relative flex items-center">
         <button
           onClick={() => setShowMenu(!showMenu)}
