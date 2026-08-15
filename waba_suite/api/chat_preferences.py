@@ -12,9 +12,12 @@ import json
 import frappe
 from frappe import _
 
+from waba_suite.api.contact_helpers import require_whatsapp_access
+
 
 @frappe.whitelist()
 def get_preferences(user=None):
+    require_whatsapp_access()
     """Get all chat preferences for a user.
 
     Args:
@@ -58,6 +61,7 @@ def set_preference(
     whatsapp_account=None,
     **kwargs,
 ):
+    require_whatsapp_access()
     """Set chat preferences for a user+contact combination.
 
     Creates one record per user+contact. Supports flags: is_pinned (0/1),
@@ -257,6 +261,7 @@ def toggle_archive(
 
 @frappe.whitelist()
 def bulk_get(whatsapp_contacts, user=None):
+    require_whatsapp_access()
     """Get preferences for multiple contacts at once.
 
     Args:

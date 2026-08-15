@@ -15,6 +15,7 @@ from waba_suite.api.contact_helpers import (
     contact_payload,
     get_session,
     is_session_expired,
+    require_whatsapp_access,
 )
 from waba_suite.api.labels import get_for_contact
 
@@ -35,6 +36,7 @@ def create(contact_name, mobile_no, whatsapp_account=None):
     Returns:
         Contact payload dict (see contact_payload).
     """
+    require_whatsapp_access()
     mobile = (mobile_no or "").strip()
     if not mobile:
         frappe.throw(_("Mobile number is required"))
@@ -62,6 +64,7 @@ def create(contact_name, mobile_no, whatsapp_account=None):
 
 @frappe.whitelist()
 def search(query, whatsapp_account=None, limit=20):
+    require_whatsapp_access()
     """Search existing WhatsApp contacts by name or mobile number.
 
     Used by the "New Message" dialog to pick an existing contact. With no query
@@ -242,6 +245,7 @@ def convert_frappe_contact(contact_name, whatsapp_account=None):
 
 @frappe.whitelist()
 def get(email, whatsapp_account=None):
+    require_whatsapp_access()
     """Retrieve WhatsApp contacts with their last message and preferences.
 
     Fetches contacts that have at least one WhatsApp Message, along with the
@@ -350,8 +354,9 @@ def get(email, whatsapp_account=None):
         contact["is_archived"] = pref.get("is_archived", False)
         contact["preference"] = prefs_list
 
-        # Include labels assigned to this contact for chat filtering
-        contact["labels"] = get_for_contact(contact.name)
+        # Include labels assigned to this contact for chat filtering,
+        # scoped to the current WhatsApp account.
+        contact["labels"] = get_for_contact(contact.name, whatsapp_account)
 
     contacts.sort(
         key=lambda x: x.get("last_message", {}).get("creation")

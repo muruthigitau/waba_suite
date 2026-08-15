@@ -1,6 +1,24 @@
 import frappe
 from frappe import _
 
+from waba_suite.api.contact_helpers import is_user_allowed
+
+
+@frappe.whitelist()
+def has_whatsapp_access():
+    """Return whether the current user may access WhatsApp data.
+
+    Strict permissions: only users listed in a WhatsApp Account's Users child
+    table (or Administrators) are allowed.
+
+    Returns:
+        Dict with has_access (bool) and user (str).
+    """
+    return {
+        "has_access": is_user_allowed(),
+        "user": frappe.session.user,
+    }
+
 
 @frappe.whitelist()
 def get_user_accounts_with_default():

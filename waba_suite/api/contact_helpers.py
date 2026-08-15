@@ -15,6 +15,54 @@ import frappe
 CUSTOMER_SERVICE_WINDOW_HOURS = 24
 
 
+def is_user_allowed(user=None):
+    """Return whether a user may access WhatsApp chat data.
+
+    Strict permissions: Only users listed in a WhatsApp Account's "Users"
+    child table (POS Profile User) may see WhatsApp data. Administrators are
+    always allowed.
+
+    Args:
+        user: Optional user identifier. Defaults to the current session user.
+
+    Returns:
+        True if the user is allowed (admin, or linked to at least one account's
+        users table), else False.
+    """
+    if not user:
+        user = frappe.session.user
+
+    if user == "Administrator" or user == "Guest":
+        return user == "Administrator"
+
+    return bool(
+        frappe.db.exists(
+            "POS Profile User",
+            {"parenttype": "WhatsApp Account", "user": user},
+        )
+    )
+
+
+def require_whatsapp_access(user=None):
+    """Raise if the user does not have WhatsApp access.
+
+    Enforces strict permissions: non-admin users must be listed on at least one
+    WhatsApp Account's Users table.
+
+    Args:
+        user: Optional user identifier. Defaults to the current session user.
+
+    Raises:
+        frappe.PermissionError if the user has no WhatsApp access.
+    """
+    if not is_user_allowed(user):
+        frappe.throw(
+            "You do not have access to WhatsApp. Please contact your administrator "
+            "to be added to a WhatsApp Account's Users list.",
+            frappe.PermissionError,
+        )
+
+
 def get_session(contact_name, whatsapp_account=None):
     """Return the single WhatsApp Session for a contact+account, if any.
 

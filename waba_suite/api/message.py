@@ -21,7 +21,10 @@ from waba_suite.api.message_utils import (
     send_whatsapp_read_receipts_sync,
 )
 from waba_suite.api.message_templates import build_template_message_data
-from waba_suite.api.contact_helpers import CUSTOMER_SERVICE_WINDOW_HOURS
+from waba_suite.api.contact_helpers import (
+    CUSTOMER_SERVICE_WINDOW_HOURS,
+    require_whatsapp_access,
+)
 
 
 @frappe.whitelist()
@@ -40,6 +43,7 @@ def get_all(room, user_no, whatsapp_account=None):
     Returns:
         List of message dicts sorted by creation date (ascending).
     """
+    require_whatsapp_access()
     try:
         filters = {
             "to": ["in", [user_no, ""]],
@@ -130,6 +134,7 @@ def mark_as_read(room, whatsapp_account=None):
     Returns:
         "ok" on success, "error" on failure.
     """
+    require_whatsapp_access()
     try:
         frappe.db.set_value("WhatsApp Contact", room, "is_read", 1, update_modified=False)
         if whatsapp_account:
@@ -239,6 +244,7 @@ def send(
     Returns:
         Dict with status and message_id on success, or status and error.
     """
+    require_whatsapp_access()
     try:
         if not content_type:
             content_type = "text"
@@ -353,6 +359,7 @@ def send_template(
     Returns:
         Name of the created WhatsApp Message document.
     """
+    require_whatsapp_access()
     if not template:
         frappe.throw("Template is required")
 
@@ -403,6 +410,7 @@ def mark_multiple_as_read(whatsapp_contact, whatsapp_account=None):
     Returns:
         Dict with status and message count on success, or error on failure.
     """
+    require_whatsapp_access()
     try:
         unread = frappe.get_all(
             "WhatsApp Message",
