@@ -5,6 +5,7 @@ import db, {
   type DexiePendingMessage,
   type DexieAccount,
   type DexieUserSettings,
+  type DexieUiState,
 } from "./db";
 
 const SYNCED_AT = new Date().toISOString();
@@ -63,15 +64,21 @@ export const chatRepo = {
   async clearAll(): Promise<void> {
     await db.chats.clear();
   },
+
+  async clearByAccount(whatsappAccount: string): Promise<void> {
+    await db.chats.where("whatsappAccount").equals(whatsappAccount).delete();
+  },
 };
 
 // ─── Messages Repository ──────────────────────────────────────
 
 export const messageRepo = {
-  async getByChatId(chatId: string): Promise<DexieMessage[]> {
+  async getByChatId(
+    chatId: string,
+    whatsappAccount: string,
+  ): Promise<DexieMessage[]> {
     return db.messages
-      .where("chatId")
-      .equals(chatId)
+      .where({ chatId, whatsappAccount })
       .reverse()
       .sortBy("fullTimestamp");
   },
@@ -107,22 +114,48 @@ export const messageRepo = {
     await db.messages.where("chatId").equals(chatId).delete();
   },
 
+  async deleteByAccount(whatsappAccount: string): Promise<void> {
+    await db.messages.where("whatsappAccount").equals(whatsappAccount).delete();
+  },
+
+  async clearByAccount(whatsappAccount: string): Promise<void> {
+    await db.messages.where("whatsappAccount").equals(whatsappAccount).delete();
+  },
+
   async clearAll(): Promise<void> {
     await db.messages.clear();
   },
 
-  async getPendingMessages(chatId: string): Promise<DexieMessage[]> {
+  async getPendingMessages(
+    chatId: string,
+    whatsappAccount?: string,
+  ): Promise<DexieMessage[]> {
+    if (whatsappAccount) {
+      return db.messages
+        .where({ chatId, isPending: 1, whatsappAccount })
+        .toArray();
+    }
     return db.messages
       .where({ chatId, isPending: 1 })
       .toArray();
   },
 
-  async getLastTimestamp(chatId: string): Promise<string | undefined> {
-    const latest = await db.messages
-      .where("chatId")
-      .equals(chatId)
-      .reverse()
-      .sortBy("fullTimestamp");
+  async getLastTimestamp(
+    chatId: string,
+    whatsappAccount?: string,
+  ): Promise<string | undefined> {
+    let latest: DexieMessage[];
+    if (whatsappAccount) {
+      latest = await db.messages
+        .where({ chatId, whatsappAccount })
+        .reverse()
+        .sortBy("fullTimestamp");
+    } else {
+      latest = await db.messages
+        .where({ chatId, whatsappAccount: "unknown" })
+        .reverse()
+        .sortBy("fullTimestamp");
+    }
     // sortBy with reverse() returns newest-first, so latest[0] is the newest
     return latest.length > 0 ? latest[0].fullTimestamp.toISOString() : undefined;
   },
@@ -221,6 +254,13 @@ export const pendingMessageRepo = {
   async clearAll(): Promise<void> {
     await db.pendingMessages.clear();
   },
+
+  async clearByAccount(whatsappAccount: string): Promise<void> {
+    await db.pendingMessages
+      .where("whatsappAccount")
+      .equals(whatsappAccount)
+      .delete();
+  },
 };
 
 // ─── Accounts Repository ──────────────────────────────────────
@@ -270,6 +310,29 @@ export const userSettingsRepo = {
 
 // ─── Database Maintenance ─────────────────────────────────────
 
+export const uiStateRepo = {
+  async get(account: string): Promise<DexieUiState | undefined> {
+    return db.uiState.get(account);
+  },
+
+  async save(data: {
+    account: string;
+    activeFilter: string;
+    labelFilters: string[];
+  }): Promise<void> {
+    await db.uiState.put({
+      id: data.account,
+      activeFilter: data.activeFilter,
+      labelFilters: data.labelFilters,
+      updatedAt: SYNCED_AT,
+    });
+  },
+
+  async clear(account: string): Promise<void> {
+    await db.uiState.delete(account);
+  },
+};
+
 export const dbMaintenance = {
   async clearAllData(): Promise<void> {
     await Promise.all([
@@ -279,6 +342,7 @@ export const dbMaintenance = {
       db.pendingMessages.clear(),
       db.accounts.clear(),
       db.userSettings.clear(),
+      db.uiState.clear(),
     ]);
   },
 

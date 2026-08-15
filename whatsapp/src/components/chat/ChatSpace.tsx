@@ -237,7 +237,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setMessages([]);
         const hydrate = async () => {
-          const cached = await hydrateMessages(chatId);
+          const cached = await hydrateMessages(chatId, currentAccount);
           if (cached.length > 0 && lastChatIdRef.current === chatId) {
             setMessages(cached);
           }
@@ -255,7 +255,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       // Cache the server messages to Dexie for offline use
       if (chat) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        cacheMessages(formattedMessages as any, chat.id).catch(() => {});
+        cacheMessages(formattedMessages as any, chat.id, currentAccount).catch(() => {});
       }
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages((prev) => {
@@ -288,7 +288,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
           chat.whatsappAccount || currentAccount,
         );
         if (!cancelled && count > 0) {
-          const updated = await hydrateMessages(chat.id);
+          const updated = await hydrateMessages(chat.id, currentAccount);
           if (!cancelled) {
             setMessages((prev) => {
               const mergedMap = new Map<string, Message>();

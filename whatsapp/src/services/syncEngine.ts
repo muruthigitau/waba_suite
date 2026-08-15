@@ -107,6 +107,7 @@ class SyncEngine {
     const dexieMessages: DexieMessage[] = rawList.map((rm: any) => ({
       id: rm.name,
       chatId,
+      whatsappAccount,
       content: rm.content || rm.message || "",
       timestamp: new Date(rm.creation).toLocaleTimeString([], {
         hour: "2-digit",

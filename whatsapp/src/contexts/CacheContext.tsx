@@ -14,6 +14,7 @@ import {
   routeRepo,
   accountRepo,
   userSettingsRepo,
+  pendingMessageRepo,
 } from "../services/repository";
 import syncEngine from "../services/syncEngine";
 import type {
@@ -37,11 +38,15 @@ interface CacheContextType {
   pendingCount: number;
   lastSync: string | undefined;
   hydrateChats: (accountName: string) => Promise<Chat[]>;
-  hydrateMessages: (chatId: string) => Promise<Message[]>;
+  hydrateMessages: (chatId: string, whatsappAccount: string) => Promise<Message[]>;
   cacheChats: (rooms: Room[], accountName: string) => Promise<void>;
   cacheMessages: (
     rawMessages: RawMessage[],
     chatId: string,
+    whatsappAccount: string,
+  ) => Promise<void>;
+  clearAccountData: (
+    whatsappAccount: string,
   ) => Promise<void>;
   cacheRoute: (selectedChatId: string | null, account: string) => Promise<void>;
   restoreRoute: () => Promise<{
@@ -64,7 +69,7 @@ interface CacheContextType {
     fileUrl?: string,
   ) => Promise<void>;
   getCachedChats: (accountName: string) => Promise<Chat[]>;
-  getCachedMessages: (chatId: string) => Promise<Message[]>;
+  getCachedMessages: (chatId: string, whatsappAccount: string) => Promise<Message[]>;
   triggerSync: () => Promise<void>;
   syncNewChatMessages: (
     chatId: string,
@@ -208,7 +213,7 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
   );
 
   const rawMessageToDexieMessage = useCallback(
-    (rm: RawMessage, chatId: string): DexieMessage => {
+    (rm: RawMessage, chatId: string, whatsappAccount: string): DexieMessage => {
       let parsedReactions = undefined;
       if (rm.reactions) {
         try {
@@ -224,6 +229,7 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
       return {
         id: rm.name,
         chatId,
+        whatsappAccount,
         content: rm.content || "",
         timestamp: new Date(rm.creation).toLocaleTimeString([], {
           hour: "2-digit",
@@ -261,8 +267,8 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
   );
 
   const hydrateMessages = useCallback(
-    async (chatId: string): Promise<Message[]> => {
-      const cached = await messageRepo.getByChatId(chatId);
+    async (chatId: string, whatsappAccount: string): Promise<Message[]> => {
+      const cached = await messageRepo.getByChatId(chatId, whatsappAccount);
       return cached.map(dexieMessageToMessage);
     },
     [dexieMessageToMessage],
@@ -277,13 +283,28 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
   );
 
   const cacheMessages = useCallback(
-    async (rawMessages: RawMessage[], chatId: string): Promise<void> => {
+    async (
+      rawMessages: RawMessage[],
+      chatId: string,
+      whatsappAccount: string,
+    ): Promise<void> => {
       const dexieMessages = rawMessages.map((rm) =>
-        rawMessageToDexieMessage(rm, chatId),
+        rawMessageToDexieMessage(rm, chatId, whatsappAccount),
       );
       await messageRepo.bulkUpsert(dexieMessages);
     },
     [rawMessageToDexieMessage],
+  );
+
+  const clearAccountData = useCallback(
+    async (whatsappAccount: string): Promise<void> => {
+      await Promise.all([
+        chatRepo.clearByAccount(whatsappAccount),
+        messageRepo.clearByAccount(whatsappAccount),
+        pendingMessageRepo.clearByAccount(whatsappAccount),
+      ]);
+    },
+    [],
   );
 
   const cacheRoute = useCallback(
@@ -358,6 +379,7 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
         const dexieMsg: DexieMessage = {
           id: messageId,
           chatId: chat.id,
+          whatsappAccount: chat.whatsappAccount,
           content,
           timestamp: new Date().toLocaleTimeString([], {
             hour: "2-digit",
@@ -419,8 +441,8 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
   );
 
   const getCachedMessages = useCallback(
-    async (chatId: string): Promise<Message[]> => {
-      return hydrateMessages(chatId);
+    async (chatId: string, whatsappAccount: string): Promise<Message[]> => {
+      return hydrateMessages(chatId, whatsappAccount);
     },
     [hydrateMessages],
   );
@@ -435,7 +457,10 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
       mobileNo: string,
       whatsappAccount: string,
     ): Promise<number> => {
-      const lastTimestamp = await messageRepo.getLastTimestamp(chatId);
+      const lastTimestamp = await messageRepo.getLastTimestamp(
+        chatId,
+        whatsappAccount,
+      );
       return syncEngine.syncNewMessages({
         chatId,
         mobileNo,
@@ -457,6 +482,7 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
       hydrateMessages,
       cacheChats,
       cacheMessages,
+      clearAccountData,
       cacheRoute,
       restoreRoute,
       cacheAccounts,
@@ -479,6 +505,7 @@ export const CacheProvider: React.FC<CacheProviderProps> = ({ children }) => {
       hydrateMessages,
       cacheChats,
       cacheMessages,
+      clearAccountData,
       cacheRoute,
       restoreRoute,
       cacheAccounts,
