@@ -5,9 +5,8 @@ import {
   Mail,
   MailOpen,
   Plus,
-  Settings,
+  Smartphone,
   Star,
-  Tag,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Account, Chat, ChatLabel } from "../../types";
@@ -15,7 +14,7 @@ import { Avatar } from "../common/Avatar";
 import { SearchBar } from "../common/SearchBar";
 import { AccountSwitcher } from "../modals/AccountSwitcher";
 import { AddRoomModal } from "../modals/AddRoomModal";
-import { UserSettingsModal } from "../modals/UserSettingsModal";
+import { uiStateRepo } from "../../services/repository";
 import { ChatRoom } from "./ChatRoom";
 
 type ChatFilter = "all" | "unread" | "starred" | "archived";
@@ -29,9 +28,6 @@ interface ChatListProps {
   currentAccount: string;
   accounts: Account[];
   onSwitchAccount: (accountName: string) => Promise<void>;
-  userSettings: {
-    enableNotifications: boolean;
-  };
   currentUserName?: string;
   onLogout: () => Promise<void>;
   onTogglePin?: (chatId: string) => void;
@@ -60,7 +56,6 @@ export const ChatList: React.FC<ChatListProps> = ({
   currentAccount,
   accounts,
   onSwitchAccount,
-  userSettings,
   currentUserName = "User",
   onLogout,
   onTogglePin,
@@ -73,29 +68,16 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddRoom, setShowAddRoom] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [activeFilter, setActiveFilter] = useState<ChatFilter>("all");
   const [showArchivedBanner, setShowArchivedBanner] = useState(true);
-  const [selectedLabelFilters, setSelectedLabelFilters] = useState<string[]>([]);
-  const [showLabelFilter, setShowLabelFilter] = useState(false);
-  const labelFilterRef = useRef<HTMLDivElement>(null);
-
-  // Close the label filter dropdown when clicking outside of it
-  useEffect(() => {
-    if (!showLabelFilter) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        labelFilterRef.current &&
-        !labelFilterRef.current.contains(e.target as Node)
-      ) {
-        setShowLabelFilter(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showLabelFilter]);
+  const [selectedLabelFilters, setSelectedLabelFilters] = useState<string[]>(
+    [],
+  );
+  // Guard: prevent the save effect from overwriting persisted state with
+  // default values before the async restore completes on mount/account switch.
+  const restoredRef = useRef(false);
 
   // Filter stats
   const unreadCount = useMemo(() => {
@@ -110,7 +92,43 @@ export const ChatList: React.FC<ChatListProps> = ({
     return chats.filter((c) => c.isArchived).length;
   }, [chats]);
 
-  // Toggle a label in the multi-select filter
+  // Restore persisted filter tab + label filters from IndexedDB on load,
+  // scoped per WhatsApp account. `restoredRef` is set only after the async
+  // restore completes so the save effect won't clobber persisted values
+  // with the component's default initial state.
+  useEffect(() => {
+    let cancelled = false;
+    restoredRef.current = false;
+    (async () => {
+      try {
+        const state = await uiStateRepo.get(currentAccount);
+        if (cancelled) return;
+        if (state) {
+          if (
+            state.activeFilter === "all" ||
+            state.activeFilter === "unread" ||
+            state.activeFilter === "starred" ||
+            state.activeFilter === "archived"
+          ) {
+            setActiveFilter(state.activeFilter);
+          }
+          if (Array.isArray(state.labelFilters)) {
+            setSelectedLabelFilters(state.labelFilters);
+          }
+        }
+      } catch {
+        // ignore malformed stored values
+      } finally {
+        if (!cancelled) {
+          restoredRef.current = true;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAccount]);
+
   const toggleLabelFilter = useCallback((labelId: string) => {
     setSelectedLabelFilters((prev) =>
       prev.includes(labelId)
@@ -118,6 +136,20 @@ export const ChatList: React.FC<ChatListProps> = ({
         : [...prev, labelId],
     );
   }, []);
+
+  // Persist the active filter tab + label filters to IndexedDB when they
+  // change. Skip until after the async restore has completed so we never
+  // save default "all" + [] over the user's persisted selection on mount.
+  useEffect(() => {
+    if (!restoredRef.current) return;
+    uiStateRepo
+      .save({
+        account: currentAccount,
+        activeFilter,
+        labelFilters: selectedLabelFilters,
+      })
+      .catch(() => {});
+  }, [currentAccount, activeFilter, selectedLabelFilters]);
 
   // Sort and filter chats
   const processedChats = useMemo(() => {
@@ -167,11 +199,6 @@ export const ChatList: React.FC<ChatListProps> = ({
 
     return filtered;
   }, [chats, activeFilter, searchQuery, selectedLabelFilters]);
-
-
-  const currentAccountInfo = useMemo(() => {
-    return accounts.find((acc) => acc.name === currentAccount);
-  }, [accounts, currentAccount]);
 
   const formatTime = useCallback((timestamp: string) => {
     if (!timestamp) return "";
@@ -238,37 +265,7 @@ export const ChatList: React.FC<ChatListProps> = ({
               <p className="text-xs text-[#8696a0]">Online</p>
             </div>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => setShowAddRoom(true)}
-              className="w-10 h-10 flex items-center justify-center hover:bg-[#2a3942] rounded-full transition text-[#25D366]"
-              title="New message"
-            >
-              <Plus className="w-6 h-6" />
-            </button>
-          </div>
         </div>
-
-        {/* Account Switcher */}
-        {accounts.length > 1 && (
-          <div
-            onClick={() => setShowAccountSwitcher(true)}
-            className="flex items-center justify-between px-4 py-2 bg-[#2a3942] cursor-pointer hover:bg-[#3b4a54] transition"
-          >
-            <div className="flex items-center space-x-2">
-              <span className="text-lg">📱</span>
-              <div>
-                <div className="text-sm font-medium text-white">
-                  {currentAccountInfo?.account_name || currentAccount}
-                </div>
-                <div className="text-xs text-[#8696a0]">
-                  Active WhatsApp Account
-                </div>
-              </div>
-            </div>
-            <div className="text-xs text-[#25D366]">Switch</div>
-          </div>
-        )}
 
         {/* Filter Tabs — All | Unread | Starred | Archived */}
         <div className="flex border-b border-[#2a3942] bg-[#202c33] overflow-x-auto no-scrollbar">
@@ -279,7 +276,13 @@ export const ChatList: React.FC<ChatListProps> = ({
             onClick={() => setActiveFilter("all")}
           />
           <FilterTab
-            icon={unreadCount > 0 ? <Mail className="w-4 h-4" /> : <MailOpen className="w-4 h-4" />}
+            icon={
+              unreadCount > 0 ? (
+                <Mail className="w-4 h-4" />
+              ) : (
+                <MailOpen className="w-4 h-4" />
+              )
+            }
             label="Unread"
             count={unreadCount}
             isActive={activeFilter === "unread"}
@@ -330,91 +333,49 @@ export const ChatList: React.FC<ChatListProps> = ({
           <SearchBar value={searchQuery} onChange={setSearchQuery} />
         </div>
 
-        {/* Label Filter Toggle + Dropdown */}
+        {/* Label Filter — horizontal chip/pill row (toggles directly) */}
         {labels.length > 0 && (
-          <div ref={labelFilterRef} className="relative px-3 pb-2 bg-[#202c33]">
-            <button
-              onClick={() => setShowLabelFilter((prev) => !prev)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition text-sm ${
-                selectedLabelFilters.length > 0
-                  ? "bg-[#2a3942] border-[#25D366] text-white"
-                  : "bg-[#2a3942] border-transparent text-[#d1d7db] hover:bg-[#3b4a54]"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-[#25D366]" />
-                {selectedLabelFilters.length > 0 ? (
-                  <span className="flex items-center gap-1 flex-wrap">
-                    {labels
-                      .filter((l) => selectedLabelFilters.includes(l.name))
-                      .map((l) => (
-                        <span
-                          key={l.name}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-white"
-                          style={{ backgroundColor: l.color || "#8696a0" }}
-                        >
-                          {l.label_name}
-                        </span>
-                      ))}
-                  </span>
-                ) : (
-                  "Filter by labels"
-                )}
-              </span>
-              <span className="flex items-center gap-1">
-                {selectedLabelFilters.length > 0 && (
+          <div className="px-3 pb-3 bg-[#202c33]">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+              {selectedLabelFilters.length > 0 && (
+                <button
+                  onClick={() => setSelectedLabelFilters([])}
+                  className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-[#2a3942] text-white hover:bg-[#3b4a54] transition"
+                  title="Clear label filters"
+                >
+                  ✕ All
+                </button>
+              )}
+              {labels.map((label) => {
+                const isChecked = selectedLabelFilters.includes(label.name);
+                return (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedLabelFilters([]);
-                    }}
-                    className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-[#4a5a64] transition text-[#aebac1] hover:text-white"
-                    title="Clear label filters"
+                    key={label.name}
+                    onClick={() => toggleLabelFilter(label.name)}
+                    className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                      isChecked
+                        ? "text-white shadow"
+                        : "bg-[#2a3942] text-[#d1d7db] hover:bg-[#3b4a54]"
+                    }`}
+                    style={
+                      isChecked
+                        ? { backgroundColor: label.color || "#25D366" }
+                        : undefined
+                    }
                   >
-                    <span className="text-xs font-bold leading-none">✕</span>
-                  </button>
-                )}
-                <span className={`text-xs transition ${showLabelFilter ? "rotate-180" : ""}`}>
-                  ▾
-                </span>
-              </span>
-            </button>
-
-            {showLabelFilter && (
-              <div className="absolute left-3 right-3 top-full mt-1 z-40 bg-[#202c33] border border-[#2a3942] rounded-lg shadow-xl py-2 max-h-64 overflow-y-auto">
-                {labels.map((label) => {
-                  const isChecked = selectedLabelFilters.includes(label.name);
-                  return (
-                    <button
-                      key={label.name}
-                      onClick={() => toggleLabelFilter(label.name)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition ${
+                    <span
+                      className={`w-2 h-2 rounded-full ${isChecked ? "bg-white/80" : ""}`}
+                      style={
                         isChecked
-                          ? "bg-[#2a3942] text-white"
-                          : "text-[#d1d7db] hover:bg-[#2a3942]/60"
-                      }`}
-                    >
-                      <span
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: label.color || "#8696a0" }}
-                      />
-                      <span className="flex-1 text-left">{label.label_name}</span>
-                      {isChecked && (
-                        <span className="text-[#25D366] text-xs">✓</span>
-                      )}
-                    </button>
-                  );
-                })}
-                {selectedLabelFilters.length > 0 && (
-                  <button
-                    onClick={() => setSelectedLabelFilters([])}
-                    className="w-full text-left px-3 py-2 text-xs text-[#25D366] hover:bg-[#2a3942]/60 transition"
-                  >
-                    Clear filters
+                          ? undefined
+                          : { backgroundColor: label.color || "#8696a0" }
+                      }
+                    />
+                    {label.label_name}
                   </button>
-                )}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -452,29 +413,40 @@ export const ChatList: React.FC<ChatListProps> = ({
                     ? "Star a chat to see it here"
                     : activeFilter === "archived"
                       ? "Archive a chat to see it here"
-                      : 'Start a new conversation by clicking the + button'}
+                      : "Start a new conversation by clicking the + button"}
             </p>
           </div>
         )}
 
-        {/* Chat List */}
-        <div className="flex-1 overflow-y-auto">
-          {processedChats.map((chat) => (
-            <ChatRoom
-              key={chat.id}
-              chat={chat}
-              isActive={selectedChatId === chat.id}
-              onClick={() => handleSelectChat(chat.id)}
-              formatTime={formatTime}
-              onTogglePin={onTogglePin}
-              onToggleStar={onToggleStar}
-              onToggleArchive={onToggleArchive}
-              onOpenLabels={onOpenLabels}
-            />
-          ))}
+        {/* Chat List + Floating New Chat Button (WhatsApp-style) */}
+        <div className="relative flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-y-auto">
+            {processedChats.map((chat) => (
+              <ChatRoom
+                key={chat.id}
+                chat={chat}
+                isActive={selectedChatId === chat.id}
+                onClick={() => handleSelectChat(chat.id)}
+                formatTime={formatTime}
+                onTogglePin={onTogglePin}
+                onToggleStar={onToggleStar}
+                onToggleArchive={onToggleArchive}
+                onOpenLabels={onOpenLabels}
+              />
+            ))}
+          </div>
+
+          {/* Floating circular + (like real WhatsApp) — opens new chat */}
+          <button
+            onClick={() => setShowAddRoom(true)}
+            className="absolute bottom-4 right-4 z-20 w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#20b859] text-white shadow-lg shadow-black/40 flex items-center justify-center transition transform hover:scale-105"
+            title="New message"
+          >
+            <Plus className="w-7 h-7" />
+          </button>
         </div>
 
-        {/* Bottom Navigation — Chats | Settings | Logout */}
+        {/* Bottom Navigation — Chats | Account Switcher (if >1) | Logout */}
         <div className="border-t border-[#2a3942] p-2">
           <div className="flex items-center justify-around">
             <button
@@ -484,16 +456,34 @@ export const ChatList: React.FC<ChatListProps> = ({
               }}
               className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group"
             >
-              <Home className={`w-5 h-5 transition ${activeFilter === "all" ? "text-[#25D366]" : "text-[#aebac1] group-hover:text-white"}`} />
-              <span className={`text-[10px] transition ${activeFilter === "all" ? "text-[#25D366]" : "text-[#aebac1] group-hover:text-white"}`}>Chats</span>
+              <Home
+                className={`w-5 h-5 transition ${activeFilter === "all" ? "text-[#25D366]" : "text-[#aebac1] group-hover:text-white"}`}
+              />
+              <span
+                className={`text-[10px] transition ${activeFilter === "all" ? "text-[#25D366]" : "text-[#aebac1] group-hover:text-white"}`}
+              >
+                Chats
+              </span>
             </button>
-            <button onClick={() => setShowSettings(true)} className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group">
-              <Settings className="w-5 h-5 text-[#aebac1] group-hover:text-white transition" />
-              <span className="text-[10px] text-[#aebac1] group-hover:text-white transition">Settings</span>
-            </button>
-            <button onClick={() => setShowLogoutConfirm(true)} className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group">
+            {accounts.length > 1 && (
+              <button
+                onClick={() => setShowAccountSwitcher(true)}
+                className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group"
+              >
+                <Smartphone className="w-5 h-5 text-[#aebac1] group-hover:text-white transition" />
+                <span className="text-[10px] text-[#aebac1] group-hover:text-white transition">
+                  Accounts
+                </span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group"
+            >
               <LogOut className="w-5 h-5 text-[#aebac1] group-hover:text-red-500 transition" />
-              <span className="text-[10px] text-[#aebac1] group-hover:text-red-500 transition">Logout</span>
+              <span className="text-[10px] text-[#aebac1] group-hover:text-red-500 transition">
+                Logout
+              </span>
             </button>
           </div>
         </div>
@@ -516,10 +506,6 @@ export const ChatList: React.FC<ChatListProps> = ({
           }
           if (onClose) onClose();
         }}
-      />
-      <UserSettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
       />
 
       {showLogoutConfirm && (
@@ -564,7 +550,13 @@ interface FilterTabProps {
   onClick: () => void;
 }
 
-const FilterTab: React.FC<FilterTabProps> = ({ icon, label, count, isActive, onClick }) => (
+const FilterTab: React.FC<FilterTabProps> = ({
+  icon,
+  label,
+  count,
+  isActive,
+  onClick,
+}) => (
   <button
     onClick={onClick}
     className={`flex items-center justify-center gap-1 py-2.5 px-3 text-xs font-medium transition border-b-2 flex-shrink-0 ${
