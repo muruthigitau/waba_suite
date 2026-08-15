@@ -12,6 +12,7 @@ import {
   Music,
   Pin,
   Star,
+  Tag,
   Users,
 } from "lucide-react";
 import React, { useCallback, useRef, useState } from "react";
@@ -26,6 +27,7 @@ interface ChatRoomProps {
   onTogglePin?: (chatId: string) => void;
   onToggleStar?: (chatId: string) => void;
   onToggleArchive?: (chatId: string) => void;
+  onOpenLabels?: (chatId: string) => void;
 }
 
 const stripHtml = (html: string) => {
@@ -50,7 +52,9 @@ const getTemplatePreview = (content: string): string => {
     if (parsed.template_name) {
       let preview = parsed.template_name;
       if (parsed.body_values && parsed.body_values.length > 0) {
-        const cleanBody = parsed.body_values.filter((v) => v !== "-").join(" ");
+        const cleanBody = parsed.body_values
+          .filter((v: unknown) => v !== "-")
+          .join(" ");
         if (cleanBody) {
           preview = `${preview}: ${cleanBody.substring(0, 40)}`;
         }
@@ -71,6 +75,7 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
   onTogglePin,
   onToggleStar,
   onToggleArchive,
+  onOpenLabels,
 }) => {
   const [showContextMenu, setShowContextMenu] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
@@ -200,10 +205,27 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
               {chat.isGroup && (
                 <Users className="w-3 h-3 text-[#8696a0] flex-shrink-0" />
               )}
-              {/* Star/Archive badges */}
+              {/* Star/Archive/Label badges */}
               <div className="flex items-center gap-0.5">
                 {chat.isStarred && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
                 {chat.isArchived && <Archive className="w-3 h-3 text-[#8696a0]" />}
+                {chat.labels && chat.labels.length > 0 && (
+                  <div className="flex items-center gap-0.5">
+                    {chat.labels.slice(0, 2).map((l) => (
+                      <span
+                        key={l.name}
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: l.color || "#8696a0" }}
+                        title={l.label_name}
+                      />
+                    ))}
+                    {chat.labels.length > 2 && (
+                      <span className="text-[10px] text-[#8696a0]">
+                        +{chat.labels.length - 2}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <span className="text-xs text-[#8696a0] whitespace-nowrap ml-2 flex-shrink-0">
@@ -259,6 +281,24 @@ export const ChatRoom: React.FC<ChatRoomProps> = ({
             >
               <Star className={`w-4 h-4 ${chat.isStarred ? "text-yellow-400 fill-yellow-400" : "text-[#8696a0]"}`} />
               <span>{chat.isStarred ? "Unstar" : "Star"}</span>
+            </button>
+            <div className="h-px bg-[#2a3942] my-1" />
+            <button
+              onClick={handleAction(onOpenLabels || (() => {}))}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d1d7db] hover:bg-[#2a3942] transition"
+            >
+              <Tag
+                className={`w-4 h-4 ${
+                  chat.labels && chat.labels.length > 0
+                    ? "text-[#25D366]"
+                    : "text-[#8696a0]"
+                }`}
+              />
+              <span>
+                {chat.labels && chat.labels.length > 0
+                  ? `Labels (${chat.labels.length})`
+                  : "Add labels"}
+              </span>
             </button>
             <div className="h-px bg-[#2a3942] my-1" />
             <button
