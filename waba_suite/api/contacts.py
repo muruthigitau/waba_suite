@@ -16,6 +16,7 @@ from waba_suite.api.contact_helpers import (
     get_session,
     is_session_expired,
 )
+from waba_suite.api.labels import get_for_contact
 
 
 @frappe.whitelist()
@@ -348,6 +349,9 @@ def get(email, whatsapp_account=None):
         contact["is_starred"] = pref.get("is_starred", False)
         contact["is_archived"] = pref.get("is_archived", False)
         contact["preference"] = prefs_list
+
+        # Include labels assigned to this contact for chat filtering
+        contact["labels"] = get_for_contact(contact.name)
 
     contacts.sort(
         key=lambda x: x.get("last_message", {}).get("creation")
