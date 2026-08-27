@@ -16,7 +16,7 @@ class SyncEngine {
   private statusCallback: SyncStatusCallback | null = null;
   private networkCallbacks: NetworkStatusCallback[] = [];
   private isOnline = navigator.onLine;
-  private syncIntervalMs = 15000; // 15 seconds
+  private syncIntervalMs = 30000; // 30 seconds
   private pendingMessageCall: ApiCall | null = null;
   private markAsReadCall: ApiCall | null = null;
   private getMessagesCall: MessagesApiCall | null = null;

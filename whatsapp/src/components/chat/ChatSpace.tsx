@@ -1,5 +1,12 @@
 import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
-import { MessageCircleCheck, MessageSquareText, Paperclip, Send, Smile, X } from "lucide-react";
+import {
+  MessageCircleCheck,
+  MessageSquareText,
+  Paperclip,
+  Send,
+  Smile,
+  X,
+} from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -18,6 +25,11 @@ import { ChatHeader } from "../layout/ChatHeader";
 import { TemplateMessage } from "../messages/TemplateMessage";
 import { EmojiPicker } from "../modals/EmojiPicker";
 import { TemplateModal } from "../modals/TemplateModal";
+
+// How often to poll the server for new messages in an open chat (ms).
+// Kept conservative to limit load on waba_suite.api.message.get_all for large
+// conversations; incremental sync covers fast path on chat/account changes.
+const MESSAGE_POLL_INTERVAL_MS = 50000;
 
 // If true, the contact's WhatsApp Session is expired and only template
 // messages may be sent (free-form text/media/reactions are not allowed).
@@ -55,9 +67,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 }) => {
   const {
     isOnline,
-    hydrateMessages,
-    cacheMessages,
-    syncNewChatMessages,
     queueOfflineMessage,
   } = useCache();
   const [messageInput, setMessageInput] = useState("");
@@ -90,7 +99,9 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
   const fileUploadRef = useRef<{
     openSelector: () => void;
     uploadDirectFile: (file: File) => Promise<void>;
@@ -191,7 +202,9 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
       // For template messages, use the message field (JSON) for TemplateMessage component
       // Also pass raw template definition fields for proper rendering
-      const templateContent = msg.use_template ? (msg.message || msg.content || "") : (msg.content || msg.message || "");
+      const templateContent = msg.use_template
+        ? msg.message || msg.content || ""
+        : msg.content || msg.message || "";
 
       return {
         id: msg.name,
@@ -214,50 +227,31 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         buttonData: msg.button_data,
         interactiveData: msg.interactive_data,
         replyTo: parsedReplyTo,
-        templateRaw: msg.use_template ? {
-          header: msg.template_header_raw || "",
-          body: msg.template_body_raw || "",
-          footer: msg.template_footer_raw || "",
-        } : undefined,
+        templateRaw: msg.use_template
+          ? {
+              header: msg.template_header_raw || "",
+              body: msg.template_body_raw || "",
+              footer: msg.template_footer_raw || "",
+            }
+          : undefined,
       };
     });
   }, [messagesData, chat]);
 
-  // ─── Offline-first: hydrate messages from Dexie immediately ───
-  // We only clear state when the chat actually changes, not on every render.
+  // Clear the message list whenever the selected chat changes. Messages are
+  // loaded straight from the server (get_all) — no local IndexedDB cache.
   useEffect(() => {
     const chatId = chat?.id ?? null;
     if (chatId !== lastChatIdRef.current) {
       lastChatIdRef.current = chatId;
-      if (!chatId) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setMessages([]);
-      } else {
-        // Reset to empty so the previous chat's messages don't flash
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setMessages([]);
-        const hydrate = async () => {
-          const cached = await hydrateMessages(chatId, currentAccount);
-          if (cached.length > 0 && lastChatIdRef.current === chatId) {
-            setMessages(cached);
-          }
-        };
-        hydrate();
-      }
+      setMessages([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat?.id]);
 
-  // Merge hydrated Dexie data with optimistic/sent messages. This runs in an
-  // effect only when formattedMessages changes (server data arrives/updates).
+  // Merge server messages (from get_all) with in-memory optimistic messages.
+  // No local IndexedDB cache — the server response is the source of truth.
   useEffect(() => {
     if (formattedMessages.length > 0) {
-      // Cache the server messages to Dexie for offline use
-      if (chat) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        cacheMessages(formattedMessages as any, chat.id, currentAccount).catch(() => {});
-      }
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages((prev) => {
         const mergedMap = new Map<string, Message>();
         formattedMessages.forEach((m) => mergedMap.set(m.id, m));
@@ -272,45 +266,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         );
       });
     }
-  }, [formattedMessages, chat, cacheMessages]);
-
-  // Incremental sync: when online, fetch only messages newer than the last
-  // cached timestamp and store them in Dexie.
-  useEffect(() => {
-    if (!chat || !isOnline) return;
-
-    let cancelled = false;
-    const syncIncremental = async () => {
-      try {
-        const count = await syncNewChatMessages(
-          chat.id,
-          chat.mobileNo,
-          chat.whatsappAccount || currentAccount,
-        );
-        if (!cancelled && count > 0) {
-          const updated = await hydrateMessages(chat.id, currentAccount);
-          if (!cancelled) {
-            setMessages((prev) => {
-              const mergedMap = new Map<string, Message>();
-              updated.forEach((m) => mergedMap.set(m.id, m));
-              prev.forEach((m) => mergedMap.set(m.id, m));
-              return Array.from(mergedMap.values()).sort(
-                (a, b) => a.fullTimestamp.getTime() - b.fullTimestamp.getTime(),
-              );
-            });
-          }
-        }
-      } catch (e) {
-        // Offline or server error — Dexie data is already shown
-        console.debug("Incremental sync skipped:", e);
-      }
-    };
-    syncIncremental();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [chat, isOnline, currentAccount, syncNewChatMessages, hydrateMessages]);
+  }, [formattedMessages]);
 
   // Trigger read calls whenever a session/chat is opened so all unread
   // messages are marked as read and read receipts are sent immediately on
@@ -323,9 +279,16 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     // there are no unread messages.
     onMarkAsRead?.(chat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat?.id, chat?.mobileNo, chat?.whatsappAccount, currentAccount, isOnline]);
+  }, [
+    chat?.id,
+    chat?.mobileNo,
+    chat?.whatsappAccount,
+    currentAccount,
+    isOnline,
+  ]);
 
-  // Poll for new messages every 5s — but only while online
+  // Poll for new messages on a fixed interval — but only while online.
+  // See MESSAGE_POLL_INTERVAL_MS above.
   useEffect(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -336,7 +299,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       mutateMessages();
       pollingIntervalRef.current = setInterval(() => {
         mutateMessages();
-      }, 5000);
+      }, MESSAGE_POLL_INTERVAL_MS);
     }
 
     return () => {
@@ -730,7 +693,10 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
               }
 
               return (
-                <div key={g.key} className={g.isFirstOfBatch ? "mt-3" : "mt-0.5"}>
+                <div
+                  key={g.key}
+                  className={g.isFirstOfBatch ? "mt-3" : "mt-0.5"}
+                >
                   <MessageBubble
                     message={message}
                     // Outside the 24h window, hide replies/reactions
