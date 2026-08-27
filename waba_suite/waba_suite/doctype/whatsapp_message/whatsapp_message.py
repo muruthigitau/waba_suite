@@ -642,6 +642,10 @@ def process_incoming_sync(docname):
 	"""
 	doc = frappe.get_doc("WhatsApp Message", docname)
 
+	account = frappe.get_doc("WhatsApp Account", doc.whatsapp_account)
+	if account.send_away_reply_if_outside_hours(doc):
+		return
+
 	session = get_or_create_session(
 		mobile_no=doc.get("from"),
 		whatsapp_account=doc.whatsapp_account,

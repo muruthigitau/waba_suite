@@ -1,11 +1,26 @@
 # Copyright (c) 2025, Shridhar Patil and contributors
 # For license information, please see license.txt
 
+from datetime import datetime, time, timedelta
+
 import frappe
 from frappe.model.document import Document
+from frappe.utils import get_datetime_in_timezone, get_system_timezone
 
 
 class WhatsAppAccount(Document):
+	# English day name -> datetime.weekday() (Monday=0) mapping. Used instead of
+	# locale-dependent ``strftime("%A")`` so the check is independent of server locale.
+	WEEKDAY_INDEX = {
+		"Monday": 0,
+		"Tuesday": 1,
+		"Wednesday": 2,
+		"Thursday": 3,
+		"Friday": 4,
+		"Saturday": 5,
+		"Sunday": 6,
+	}
+
 	def on_update(self):
 		self.there_must_be_only_one_default()
 
@@ -13,6 +28,99 @@ class WhatsAppAccount(Document):
 		self.validate_helpdesk_dependency()
 		self.validate_user_enabled()
 		self.validate_unique_user_default()
+		self.validate_business_hours()
+
+	def is_within_business_hours(self):
+		"""Return True if the current time falls within a configured working window.
+
+		The current time is computed in the System Settings timezone (via
+		``get_system_timezone()``) rather than the server's local timezone, so the
+		day-of-week and wall-clock comparison stays correct regardless of where the
+		server runs. Day names are matched through a fixed English mapping so the
+		comparison is independent of the server's locale.
+
+		Returns:
+		    True when the current day/time matches any business hours row, else False.
+		"""
+		now = get_datetime_in_timezone(get_system_timezone())
+		current_weekday = now.weekday()
+		current_time = now.time().replace(microsecond=0)
+
+		for row in self.business_hours:
+			if self.WEEKDAY_INDEX.get(row.day) != current_weekday:
+				continue
+			start = self._to_time(row.start_time)
+			end = self._to_time(row.end_time)
+
+			if start is None or end is None:
+				continue
+			if start <= current_time <= end:
+				return True
+		return False
+
+	def send_away_reply_if_outside_hours(self, message_doc):
+		"""Send the away message when the account is outside business hours.
+
+		Args:
+		    message_doc: Incoming WhatsApp Message document that triggered the flow.
+
+		Returns:
+		    True when the away reply was sent, otherwise False.
+		"""
+		if not self.enable_away_auto_reply or not self.away_message:
+			return False
+		if self.is_within_business_hours():
+			return False
+		frappe.get_doc(
+			{
+				"doctype": "WhatsApp Message",
+				"to": message_doc.get("from"),
+				"type": "Outgoing",
+				"content_type": "text",
+				"message": self.away_message,
+				"whatsapp_account": self.name,
+			}
+		).insert(ignore_permissions=True)
+		return True
+
+	@staticmethod
+	def _to_time(value):
+		"""Convert a Time field value to a ``datetime.time`` object.
+
+		Args:
+		    value: Time string or time object.
+
+		Returns:
+		    datetime.time or None when the value cannot be parsed.
+		"""
+		if not value:
+			return time.min
+		if isinstance(value, time):
+			return value
+		if isinstance(value, datetime):
+			return value.time()
+		if isinstance(value, timedelta):
+			return (datetime.min + value).time()
+		text = str(value).strip()
+		for fmt in ("%H:%M:%S.%f", "%H:%M:%S", "%H:%M", "%H.%M.%S.%f", "%H.%M.%S", "%H.%M"):
+			try:
+				return datetime.strptime(text, fmt).time()
+			except ValueError:
+				continue
+		return time.min
+
+	def validate_business_hours(self):
+		"""Validate business hours rows: end time must be after start time."""
+		for row in self.business_hours:
+			start = self._to_time(row.start_time)
+			end = self._to_time(row.end_time)
+			if start and end and end < start:
+				frappe.throw(
+					msg=frappe._("Row {0}: End Time must be after Start Time for {1}.").format(
+						row.idx, frappe.bold(row.day)
+					),
+					title=frappe._("Invalid Business Hours"),
+				)
 
 	def validate_helpdesk_dependency(self):
 		if self.support_enabled and "helpdesk" not in frappe.get_installed_apps():

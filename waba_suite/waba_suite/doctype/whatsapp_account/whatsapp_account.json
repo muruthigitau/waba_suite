@@ -28,7 +28,11 @@
   "auto_create_lead_on_new_contact",
   "lead_doctype",
   "section_break_gxxd",
-  "users"
+  "users",
+  "section_break_business_hours",
+  "enable_away_auto_reply",
+  "away_message",
+  "business_hours"
  ],
  "fields": [
   {
@@ -149,6 +153,34 @@
    "options": "DocType"
   },
   {
+   "fieldname": "section_break_business_hours",
+   "fieldtype": "Section Break",
+   "label": "Business Hours & Away Auto Reply"
+  },
+  {
+   "default": "0",
+   "description": "Send the away message below for incoming messages received outside the configured business hours.",
+   "fieldname": "enable_away_auto_reply",
+   "fieldtype": "Check",
+   "label": "Enable auto reply for away messages"
+  },
+  {
+   "depends_on": "eval: doc.enable_away_auto_reply",
+   "description": "Custom reply sent to incoming messages received outside business hours.",
+   "fieldname": "away_message",
+   "fieldtype": "Small Text",
+   "label": "Away Message",
+   "mandatory_depends_on": "eval: doc.enable_away_auto_reply"
+  },
+  {
+   "depends_on": "eval: doc.enable_away_auto_reply",
+   "description": "Configure the working days and time ranges for this account.",
+   "fieldname": "business_hours",
+   "fieldtype": "Table",
+   "label": "Business Hours",
+   "options": "WhatsApp Business Hours"
+  },
+  {
    "fieldname": "section_break_bscd",
    "fieldtype": "Section Break"
   },
@@ -169,7 +201,7 @@
    "link_fieldname": "whatsapp_account"
   }
  ],
- "modified": "2026-06-10 11:38:19.137927",
+ "modified": "2026-08-27 05:25:16.845062",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Account",
