@@ -13,11 +13,9 @@ from frappe import _
 
 from waba_suite.api.contact_helpers import (
     contact_payload,
-    get_session,
     is_session_expired,
     require_whatsapp_access,
 )
-from waba_suite.api.labels import get_for_contact
 
 
 @frappe.whitelist()
@@ -249,7 +247,9 @@ def get(email, whatsapp_account=None):
     """Retrieve WhatsApp contacts with their last message and preferences.
 
     Fetches contacts that have at least one WhatsApp Message, along with the
-    current user's chat preferences (pin, star, archive status).
+    current user's chat preferences (pin, star, archive status). All per-contact
+    data (last message, unread count, session, labels) is resolved with batched
+    queries to avoid N+1 lookups, so the chat list loads quickly.
 
     Args:
         email: Not used; kept for API compatibility.
@@ -267,14 +267,19 @@ def get(email, whatsapp_account=None):
     if not whatsapp_account:
         return []
 
-    message_rows = frappe.get_all(
-        "WhatsApp Message",
-        filters={"whatsapp_account": whatsapp_account},
-        fields=["whatsapp_contact"],
-    )
-    contact_names = list(
-        {m.whatsapp_contact for m in message_rows if m.whatsapp_contact}
-    )
+    contact_names = [
+        m.whatsapp_contact
+        for m in frappe.get_all(
+            "WhatsApp Message",
+            filters={
+                "whatsapp_account": whatsapp_account,
+                "whatsapp_contact": ["!=", ""],
+            },
+            fields=["whatsapp_contact"],
+            distinct=True,
+        )
+        if m.whatsapp_contact
+    ]
     if not contact_names:
         return []
 
@@ -290,11 +295,44 @@ def get(email, whatsapp_account=None):
             "profile_picture",
         ],
     )
+    contact_ids = [c.name for c in contacts]
+    if not contact_ids:
+        return []
 
-    user = frappe.session.user
+    # ── Batch: last message + unread counts for every contact in one query ──
+    all_messages = frappe.get_all(
+        "WhatsApp Message",
+        filters={
+            "whatsapp_account": whatsapp_account,
+            "whatsapp_contact": ["in", contact_ids],
+        },
+        fields=[
+            "whatsapp_contact",
+            "message",
+            "type",
+            "status",
+            "creation",
+            "use_template",
+            "to",
+            "from",
+        ],
+        order_by="creation desc",
+    )
+    last_msg_map = {}
+    unread_map = {}
+    for msg in all_messages:
+        contact = msg.get("whatsapp_contact")
+        if not contact:
+            continue
+        if contact not in last_msg_map:
+            last_msg_map[contact] = msg
+        if msg.get("type") == "Incoming" and msg.get("status") == "draft":
+            unread_map[contact] = unread_map.get(contact, 0) + 1
+
+    # ── Batch: preferences for the current user ──
     prefs_list = frappe.get_all(
         "WhatsApp Chat Preference",
-        filters={"user": user},
+        filters={"user": frappe.session.user},
         fields=["whatsapp_contact", "is_pinned", "is_starred", "is_archived"],
     )
     prefs_map = {
@@ -306,42 +344,54 @@ def get(email, whatsapp_account=None):
         for p in prefs_list
     }
 
+    # ── Batch: latest session per contact+account in one query ──
+    session_rows = frappe.get_all(
+        "WhatsApp Session",
+        filters={
+            "whatsapp_account": whatsapp_account,
+            "whatsapp_contact": ["in", contact_ids],
+        },
+        fields=["whatsapp_contact", "status", "expires_at"],
+        order_by="creation desc",
+    )
+    session_map = {}
+    for s in session_rows:
+        if s.whatsapp_contact and s.whatsapp_contact not in session_map:
+            session_map[s.whatsapp_contact] = s
+
+    # ── Batch: labels assigned to these contacts ──
+    assignments = frappe.get_all(
+        "WhatsApp Chat Label Assignment",
+        filters={
+            "whatsapp_account": whatsapp_account,
+            "whatsapp_contact": ["in", contact_ids],
+        },
+        fields=["whatsapp_contact", "whatsapp_chat_label"],
+    )
+    label_ids = {
+        a.whatsapp_chat_label for a in assignments if a.whatsapp_chat_label
+    }
+    label_map = {
+        lbl.name: lbl
+        for lbl in frappe.get_all(
+            "WhatsApp Chat Label",
+            filters={"name": ["in", list(label_ids)], "disabled": 0},
+            fields=["name", "label_name", "color"],
+        )
+    }
+    labels_by_contact = {}
+    for a in assignments:
+        lbl = label_map.get(a.whatsapp_chat_label)
+        if lbl:
+            labels_by_contact.setdefault(a.whatsapp_contact, []).append(lbl)
+
     for contact in contacts:
-        last_message = frappe.get_all(
-            "WhatsApp Message",
-            filters={
-                "whatsapp_contact": contact.name,
-                "whatsapp_account": whatsapp_account,
-            },
-            fields=[
-                "name",
-                "message",
-                "type",
-                "status",
-                "creation",
-                "whatsapp_account",
-                "use_template",
-                "to",
-                "from",
-            ],
-            order_by="creation desc",
-            limit=1,
-        )
-        contact["last_message"] = last_message[0] if last_message else None
+        last = last_msg_map.get(contact.name)
+        contact["last_message"] = last if last else None
 
-        contact["unread_incoming"] = frappe.db.count(
-            "WhatsApp Message",
-            filters={
-                "whatsapp_contact": contact.name,
-                "whatsapp_account": whatsapp_account,
-                "type": "Incoming",
-                "status": "draft",
-            },
-        )
+        contact["unread_incoming"] = unread_map.get(contact.name, 0)
 
-        # Expose the single session (status + expiry) for the contact+account.
-        # is_session_expired is computed from the session's expires_at.
-        session = get_session(contact.name, whatsapp_account)
+        session = session_map.get(contact.name)
         contact["session_status"] = session.status if session else None
         contact["session_expires_at"] = (
             str(session.expires_at) if session and session.expires_at else None
@@ -354,9 +404,7 @@ def get(email, whatsapp_account=None):
         contact["is_archived"] = pref.get("is_archived", False)
         contact["preference"] = prefs_list
 
-        # Include labels assigned to this contact for chat filtering,
-        # scoped to the current WhatsApp account.
-        contact["labels"] = get_for_contact(contact.name, whatsapp_account)
+        contact["labels"] = labels_by_contact.get(contact.name, [])
 
     contacts.sort(
         key=lambda x: x.get("last_message", {}).get("creation")
