@@ -248,9 +248,15 @@ export const WhatsAppHome: React.FC = () => {
 
   useEffect(() => {
     if (accountsData?.message) {
-      const { accounts: accs } = accountsData.message;
-      if (accs && Array.isArray(accs)) {
+      const { accounts: accs, default_account } = accountsData.message;
+      if (accs && Array.isArray(accs) && accs.length > 0) {
         setAccounts(accs);
+        // Fresh-load fallback: on a brand-new browser (or after a build that
+        // cleared/upgraded IndexedDB) the route & account caches are empty, so
+        // no account is restored and the chat list (rooms) would never load.
+        // Default to the server-provided account so data renders immediately.
+        // The functional update avoids clobbering an account restored from cache.
+        setCurrentAccount((prev) => prev || default_account || accs[0].name);
       }
     }
   }, [accountsData]);
