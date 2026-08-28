@@ -19,7 +19,7 @@ app_license = "agpl-3.0"
 
 # Assets injected into the desk (chat UI bundle + core JS).
 app_include_css = ["whatsapp_chat.bundle.css"]
-app_include_js = ["whatsapp_chat.bundle.js", "/assets/waba_suite/js/wabasuite_js.js"]
+app_include_js = ["whatsapp_chat.bundle.js", "/assets/waba_suite/js/wabasuitejs.js"]
 
 # Scheduled jobs: trigger WhatsApp notifications by frequency and expire
 # customer-service sessions once their 24h window elapses.

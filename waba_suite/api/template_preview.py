@@ -9,10 +9,25 @@ Key dependencies:
 """
 
 import json
+import os
 import re
+from urllib.parse import urlparse
 
 import frappe
 from frappe import _
+
+
+def _basename(url):
+    """Return the file name portion of a URL or path.
+
+    Args:
+        url: File URL or path (may include query string).
+
+    Returns:
+        The base file name, or "attachment" if it cannot be determined.
+    """
+    name = os.path.basename(urlparse(url).path)
+    return name or "attachment"
 
 
 @frappe.whitelist()
@@ -22,6 +37,8 @@ def preview_template(
     reference_name=None,
     whatsapp_account=None,
     print_format=None,
+    letterhead=None,
+    attachment_url=None,
     send=False,
     variable_overrides=None,
     to=None,
@@ -31,12 +48,19 @@ def preview_template(
     If send=True and to is provided, creates and sends the WhatsApp Message.
     Otherwise returns preview data only.
 
+    For IMAGE/DOCUMENT header types the generated file (attachment) is either
+    the user-provided ``attachment_url`` (custom upload) or, for DOCUMENT, a PDF
+    print of the source document built with ``print_format``/``letterhead``.
+    IMAGE headers never auto-generate — they rely on the uploaded file.
+
     Args:
         template: Name of the WhatsApp Templates doctype.
         reference_doctype: Optional source document type for variable resolution.
         reference_name: Optional source document name for variable resolution.
         whatsapp_account: WhatsApp account identifier.
         print_format: Optional print format for document header type.
+        letterhead: Optional letterhead for the printed document header.
+        attachment_url: Optional user-uploaded file URL used instead of printing.
         send: If True, sends the message instead of returning preview.
         variable_overrides: JSON dict of variable index -> value overrides.
         to: Recipient phone number (required when send=True).
@@ -128,12 +152,19 @@ def preview_template(
 
     file_url = None
     filename = None
-    if template_doc.header_type == "DOCUMENT" and source_doc:
+    if attachment_url:
+        file_url = attachment_url
+        filename = _basename(attachment_url)
+    elif source_doc and template_doc.header_type == "DOCUMENT":
+        # Generate the source document's print whenever the template has a
+        # DOCUMENT header, so the PDF is always available for preview and send.
+        # IMAGE headers never auto-generate; they rely on a user-uploaded file.
         pdf = frappe.attach_print(
             doctype=source_doc.doctype,
             name=source_doc.name,
             doc=source_doc,
             print_format=print_format,
+            letterhead=letterhead,
         )
         fn = pdf.get("fname", f"{source_doc.name}.pdf")
         fc = pdf.get("fcontent")
