@@ -604,11 +604,19 @@ class WhatsAppMessage(Document):
 		if existing_lead:
 			return
 
+		lead_name = (
+			f"{whatsapp_contact.contact_name} ({whatsapp_contact.mobile_no})"
+			if whatsapp_contact.contact_name
+			and whatsapp_contact.mobile_no
+			and whatsapp_contact.contact_name != whatsapp_contact.mobile_no
+			else whatsapp_contact.contact_name or whatsapp_contact.mobile_no
+		)
+
 		lead_data = {
 			"doctype": lead_doctype,
-			"lead_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-			"company_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-			"first_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
+			"lead_name": lead_name,
+			"company_name": lead_name,
+			"first_name": lead_name,
 			"mobile_no": whatsapp_contact.mobile_no,
 		}
 
