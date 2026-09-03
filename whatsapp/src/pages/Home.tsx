@@ -35,7 +35,9 @@ export const WhatsAppHome: React.FC = () => {
   const [currentUserName, setCurrentUserName] = useState<string>("User");
   const [allLabels, setAllLabels] = useState<ChatLabel[]>([]);
   // Chat currently having labels edited (the LabelPickerModal target chat id)
-  const [labelPickerChatId, setLabelPickerChatId] = useState<string | null>(null);
+  const [labelPickerChatId, setLabelPickerChatId] = useState<string | null>(
+    null,
+  );
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
@@ -54,7 +56,11 @@ export const WhatsAppHome: React.FC = () => {
   } = useCache();
 
   const { data: accountsData } = useFrappeGetCall<{
-    message: { accounts: Account[]; default_account: string; has_accounts: boolean };
+    message: {
+      accounts: Account[];
+      default_account: Account | null;
+      has_accounts: boolean;
+    };
   }>(
     "waba_suite.api.accounts.get_user_accounts_with_default",
     {},
@@ -66,7 +72,7 @@ export const WhatsAppHome: React.FC = () => {
     if (accountsData?.message) {
       const { accounts: accs, default_account } = accountsData.message;
       if (accs && Array.isArray(accs) && accs.length > 0) {
-        cacheAccounts(accs, default_account);
+        cacheAccounts(accs, default_account?.name || "");
       }
     }
   }, [accountsData, cacheAccounts]);
@@ -87,8 +93,7 @@ export const WhatsAppHome: React.FC = () => {
   useEffect(() => {
     if (userSettingsData?.message) {
       cacheUserSettings({
-        enableMessageTone:
-          userSettingsData.message.enable_message_tone === 1,
+        enableMessageTone: userSettingsData.message.enable_message_tone === 1,
         enableNotifications:
           userSettingsData.message.enable_notifications === 1,
         fullName: userSettingsData.message.full_name || "User",
@@ -109,9 +114,7 @@ export const WhatsAppHome: React.FC = () => {
       email: "",
       whatsapp_account: currentAccount,
     },
-    shouldFetchRooms
-      ? undefined
-      : { enabled: false, revalidateOnFocus: false },
+    shouldFetchRooms ? undefined : { enabled: false, revalidateOnFocus: false },
   );
 
   const { call: sendMessageCall } = useFrappePostCall(
@@ -174,8 +177,7 @@ export const WhatsAppHome: React.FC = () => {
   useEffect(() => {
     if (userSettingsData?.message) {
       setUserSettings({
-        enableMessageTone:
-          userSettingsData.message.enable_message_tone === 1,
+        enableMessageTone: userSettingsData.message.enable_message_tone === 1,
         enableNotifications:
           userSettingsData.message.enable_notifications === 1,
       });
@@ -235,8 +237,7 @@ export const WhatsAppHome: React.FC = () => {
         }
 
         // Hydrate chats from cache
-        const defaultName =
-          defaultAcc?.name || cachedAccounts[0].name;
+        const defaultName = defaultAcc?.name || cachedAccounts[0].name;
         const cachedChats = await hydrateChats(defaultName);
         if (cachedChats.length > 0) {
           setChats(cachedChats);
@@ -256,7 +257,11 @@ export const WhatsAppHome: React.FC = () => {
         // no account is restored and the chat list (rooms) would never load.
         // Default to the server-provided account so data renders immediately.
         // The functional update avoids clobbering an account restored from cache.
-        setCurrentAccount((prev) => prev || default_account || accs[0].name);
+        // `default_account` from the server is the full account object, so only
+        // its name may seed currentAccount (used as whatsapp_account filter).
+        setCurrentAccount(
+          (prev) => prev || default_account?.name || accs[0].name,
+        );
       }
     }
   }, [accountsData]);
@@ -344,7 +349,8 @@ export const WhatsAppHome: React.FC = () => {
         // Single WhatsApp Session status + expiry for the contact+account.
         sessionStatus: room.session_status || undefined,
         sessionExpiresAt: room.session_expires_at || undefined,
-        sessionExpired: room.is_session_expired === true || room.is_session_expired === 1,
+        sessionExpired:
+          room.is_session_expired === true || room.is_session_expired === 1,
       };
     });
   }, [roomsData]);
@@ -531,7 +537,11 @@ export const WhatsAppHome: React.FC = () => {
         setChats((prev) =>
           prev.map((c) =>
             c.id === labelPickerChatId
-              ? { ...c, labels: updatedLabels, labelIds: updatedLabels.map((l) => l.name) }
+              ? {
+                  ...c,
+                  labels: updatedLabels,
+                  labelIds: updatedLabels.map((l) => l.name),
+                }
               : c,
           ),
         );
@@ -631,7 +641,7 @@ export const WhatsAppHome: React.FC = () => {
   const deniedAccess = useMemo(() => {
     if (accountsData && accountsData.message) {
       // `has_accounts` reflects only the accounts linked to this user via the
-      // Users (POS Profile User) child table. Administrator is always allowed
+      // Users (WhatsApp Account User) child table. Administrator is always allowed
       // and receives accounts from the backend.
       return accountsData.message.has_accounts === false;
     }
@@ -649,7 +659,7 @@ export const WhatsAppHome: React.FC = () => {
   return (
     <div
       className="flex w-full h-dvh bg-[#111b21] overflow-hidden"
-      style={{ height: '100dvh' }}
+      style={{ height: "100dvh" }}
     >
       {/* Strict permissions: deny access when user has no WhatsApp Account access */}
       {deniedAccess && (
@@ -669,61 +679,59 @@ export const WhatsAppHome: React.FC = () => {
 
       {/* Chat List Sidebar - fully hidden when access is denied */}
       {!deniedAccess && (
-      <div
-        className={`${
-          showSidebar ? "flex" : "hidden"
-        } ${
-          isMobile
-            ? "absolute inset-0 z-20 w-full"
-            : "relative w-full max-w-[400px] min-w-[320px] flex-shrink-0 border-r border-[#2a3942]"
-        } flex-col overflow-hidden`}
-      >
-        <SyncStatusBar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <ChatList
-            key={currentAccount}
-            chats={chats}
-            selectedChatId={selectedChatId}
-            onSelectChat={handleSelectChat}
-            onClose={handleBack}
-            isMobile={isMobile}
-            currentAccount={currentAccount}
-            accounts={accounts}
-            onSwitchAccount={handleSwitchAccount}
-            currentUserName={currentUserName}
-            onLogout={handleLogout}
-            onTogglePin={handleTogglePin}
-            onToggleStar={handleToggleStar}
-            onToggleArchive={handleToggleArchive}
-            onOpenLabels={handleOpenLabels}
-            labels={allLabels}
-            onNewContact={handleOpenNewContact}
-          />
+        <div
+          className={`${showSidebar ? "flex" : "hidden"} ${
+            isMobile
+              ? "absolute inset-0 z-20 w-full"
+              : "relative w-full max-w-[400px] min-w-[320px] flex-shrink-0 border-r border-[#2a3942]"
+          } flex-col overflow-hidden`}
+        >
+          <SyncStatusBar />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <ChatList
+              key={currentAccount}
+              chats={chats}
+              selectedChatId={selectedChatId}
+              onSelectChat={handleSelectChat}
+              onClose={handleBack}
+              isMobile={isMobile}
+              currentAccount={currentAccount}
+              accounts={accounts}
+              onSwitchAccount={handleSwitchAccount}
+              currentUserName={currentUserName}
+              onLogout={handleLogout}
+              onTogglePin={handleTogglePin}
+              onToggleStar={handleToggleStar}
+              onToggleArchive={handleToggleArchive}
+              onOpenLabels={handleOpenLabels}
+              labels={allLabels}
+              onNewContact={handleOpenNewContact}
+            />
+          </div>
         </div>
-      </div>
       )}
 
       {/* Chat Space - fully hidden when access is denied */}
       {!deniedAccess && (
-      <div
-        className={`flex-1 flex flex-col min-w-0 ${
-          isMobile && showSidebar ? "hidden" : "flex"
-        }`}
-      >
-        <ChatSpace
-          chat={selectedChat}
-          currentAccount={currentAccount}
-          onSendMessage={handleSendMessage}
-          onMarkAsRead={handleMarkAsRead}
-          onBack={handleBack}
-          isMobile={isMobile}
-          onTogglePin={handleTogglePin}
-          onToggleStar={handleToggleStar}
-          onToggleArchive={handleToggleArchive}
-          onOpenLabels={handleOpenLabels}
-          sessionExpired={selectedChat?.sessionExpired}
-        />
-      </div>
+        <div
+          className={`flex-1 flex flex-col min-w-0 ${
+            isMobile && showSidebar ? "hidden" : "flex"
+          }`}
+        >
+          <ChatSpace
+            chat={selectedChat}
+            currentAccount={currentAccount}
+            onSendMessage={handleSendMessage}
+            onMarkAsRead={handleMarkAsRead}
+            onBack={handleBack}
+            isMobile={isMobile}
+            onTogglePin={handleTogglePin}
+            onToggleStar={handleToggleStar}
+            onToggleArchive={handleToggleArchive}
+            onOpenLabels={handleOpenLabels}
+            sessionExpired={selectedChat?.sessionExpired}
+          />
+        </div>
       )}
       {/* Label Picker Modal — keyed by chat id so the selection resets per chat */}
       <LabelPickerModal
