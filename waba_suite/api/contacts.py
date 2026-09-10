@@ -391,6 +391,10 @@ def get(email, whatsapp_account=None):
 
         contact["unread_incoming"] = unread_map.get(contact.name, 0)
 
+        # Scope every contact to the account it was fetched for so the UI can
+        # bind each chat to (and filter by) its WhatsApp Account.
+        contact["whatsapp_account"] = whatsapp_account
+
         session = session_map.get(contact.name)
         contact["session_status"] = session.status if session else None
         contact["session_expires_at"] = (

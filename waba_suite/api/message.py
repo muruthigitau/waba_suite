@@ -17,8 +17,8 @@ from datetime import timedelta
 import frappe
 
 from waba_suite.api.message_utils import (
+    mark_messages_read,
     resolve_template_message,
-    send_whatsapp_read_receipts_sync,
 )
 from waba_suite.api.message_templates import build_template_message_data
 from waba_suite.api.contact_helpers import (
@@ -124,8 +124,9 @@ def get_all(room, user_no, whatsapp_account=None):
 def mark_as_read(room, whatsapp_account=None):
     """Mark all incoming messages in a room as read.
 
-    Updates the contact's is_read flag and sends read receipts for unread
-    incoming messages.
+    Updates the contact's is_read flag, marks every unread inbound message as
+    read and sends read receipts. Idempotent: calling it when there is nothing
+    unread is a safe no-op.
 
     Args:
         room: WhatsApp Contact name.
@@ -136,22 +137,8 @@ def mark_as_read(room, whatsapp_account=None):
     """
     require_whatsapp_access()
     try:
-        frappe.db.set_value("WhatsApp Contact", room, "is_read", 1, update_modified=False)
-        if whatsapp_account:
-            contact = frappe.get_doc("WhatsApp Contact", room)
-            if contact.mobile_no:
-                frappe.db.set_value(
-                    "WhatsApp Message",
-                    {
-                        "from": contact.mobile_no,
-                        "type": "Incoming",
-                        "status": ["not in", ["read", "marked_as_read"]],
-                    },
-                    "status",
-                    "marked_as_read",
-                )
+        mark_messages_read(room, whatsapp_account)
         frappe.db.commit()
-        send_whatsapp_read_receipts_sync(room, whatsapp_account)
         return "ok"
     except Exception:
         frappe.log_error(
@@ -401,43 +388,20 @@ def send_template(
 def mark_multiple_as_read(whatsapp_contact, whatsapp_account=None):
     """Mark multiple incoming messages as read for a contact.
 
-    Sends read receipts for all unread incoming messages from a contact.
+    Marks every unread inbound message for the contact as read and sends read
+    receipts. Idempotent: returns success even when there is nothing unread, so
+    the frontend can safely call it on every chat open.
 
     Args:
         whatsapp_contact: WhatsApp Contact name.
         whatsapp_account: Optional WhatsApp account identifier.
 
     Returns:
-        Dict with status and message count on success, or error on failure.
+        Dict with status and the number of messages marked as read.
     """
     require_whatsapp_access()
     try:
-        unread = frappe.get_all(
-            "WhatsApp Message",
-            filters={
-                "from": frappe.db.get_value(
-                    "WhatsApp Contact", whatsapp_contact, "mobile_no"
-                ),
-                "type": "Incoming",
-                "status": ["not in", ["read", "marked_as_read"]],
-                "whatsapp_account": whatsapp_account,
-            },
-            fields=["name"],
-        )
-        if not unread:
-            return {"status": "error", "message": "No unread messages found"}
-        marked = 0
-        for mid in [m.name for m in unread]:
-            try:
-                d = frappe.get_doc("WhatsApp Message", mid)
-                if d.type == "Incoming" and d.status not in [
-                    "read",
-                    "marked_as_read",
-                ]:
-                    d.send_read_receipt()
-                    marked += 1
-            except Exception:
-                continue
+        marked = mark_messages_read(whatsapp_contact, whatsapp_account)
         frappe.db.commit()
         return {"status": "success", "message": f"Marked {marked} messages as read"}
     except Exception as e:
