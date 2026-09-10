@@ -1,11 +1,9 @@
 import db, {
   type DexieChat,
   type DexieMessage,
-  type DexieRoute,
   type DexiePendingMessage,
   type DexieAccount,
   type DexieUserSettings,
-  type DexieUiState,
 } from "./db";
 
 const SYNCED_AT = new Date().toISOString();
@@ -161,32 +159,6 @@ export const messageRepo = {
   },
 };
 
-// ─── Route/Memory Repository ──────────────────────────────────
-
-export const routeRepo = {
-  async get(): Promise<DexieRoute | undefined> {
-    return db.routes.get("current");
-  },
-
-  async save(data: {
-    path: string;
-    selectedChatId: string | null;
-    currentAccount: string;
-  }): Promise<void> {
-    await db.routes.put({
-      id: "current",
-      path: data.path,
-      selectedChatId: data.selectedChatId,
-      currentAccount: data.currentAccount,
-      updatedAt: SYNCED_AT,
-    });
-  },
-
-  async clear(): Promise<void> {
-    await db.routes.delete("current");
-  },
-};
-
 // ─── Pending Messages Queue Repository ────────────────────────
 
 export const pendingMessageRepo = {
@@ -309,29 +281,6 @@ export const userSettingsRepo = {
 };
 
 // ─── Database Maintenance ─────────────────────────────────────
-
-export const uiStateRepo = {
-  async get(account: string): Promise<DexieUiState | undefined> {
-    return db.uiState.get(account);
-  },
-
-  async save(data: {
-    account: string;
-    activeFilter: string;
-    labelFilters: string[];
-  }): Promise<void> {
-    await db.uiState.put({
-      id: data.account,
-      activeFilter: data.activeFilter,
-      labelFilters: data.labelFilters,
-      updatedAt: SYNCED_AT,
-    });
-  },
-
-  async clear(account: string): Promise<void> {
-    await db.uiState.delete(account);
-  },
-};
 
 export const dbMaintenance = {
   async clearAllData(): Promise<void> {

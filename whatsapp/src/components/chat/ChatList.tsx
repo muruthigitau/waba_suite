@@ -8,16 +8,14 @@ import {
   Smartphone,
   Star,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import type { Account, Chat, ChatLabel } from "../../types";
+import type { ChatFilter } from "../../hooks/useUrlState";
 import { Avatar } from "../common/Avatar";
 import { SearchBar } from "../common/SearchBar";
 import { AccountSwitcher } from "../modals/AccountSwitcher";
 import { AddRoomModal } from "../modals/AddRoomModal";
-import { uiStateRepo } from "../../services/repository";
 import { ChatRoom } from "./ChatRoom";
-
-type ChatFilter = "all" | "unread" | "starred" | "archived";
 
 interface ChatListProps {
   chats: Chat[];
@@ -45,6 +43,16 @@ interface ChatListProps {
     within24hWindow?: boolean;
     canSendDirect?: boolean;
   }) => void;
+  /** Active chat-list filter tab (URL-driven). */
+  activeFilter: ChatFilter;
+  /** Change the active filter tab (writes to the URL). */
+  onFilterChange: (filter: ChatFilter) => void;
+  /** Selected label ids used to filter chats (URL-driven). */
+  selectedLabelFilters: string[];
+  /** Toggle a label id on/off (writes to the URL). */
+  onToggleLabelFilter: (labelId: string) => void;
+  /** Clear all label filters (writes to the URL). */
+  onClearLabelFilters: () => void;
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
@@ -64,22 +72,21 @@ export const ChatList: React.FC<ChatListProps> = ({
   onOpenLabels,
   labels = [],
   onNewContact,
+  activeFilter,
+  onFilterChange,
+  selectedLabelFilters,
+  onToggleLabelFilter,
+  onClearLabelFilters,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<ChatFilter>("all");
   const [showArchivedBanner, setShowArchivedBanner] = useState(true);
-  const [selectedLabelFilters, setSelectedLabelFilters] = useState<string[]>(
-    [],
-  );
-  // Guard: prevent the save effect from overwriting persisted state with
-  // default values before the async restore completes on mount/account switch.
-  const restoredRef = useRef(false);
 
-  // Filter stats
+  // Filter stats. Counts are derived from the server-provided unread totals so
+  // the tab badges always match the backend source of truth.
   const unreadCount = useMemo(() => {
     return chats.filter((c) => c.unreadCount > 0 && !c.isArchived).length;
   }, [chats]);
@@ -91,65 +98,6 @@ export const ChatList: React.FC<ChatListProps> = ({
   const archivedCount = useMemo(() => {
     return chats.filter((c) => c.isArchived).length;
   }, [chats]);
-
-  // Restore persisted filter tab + label filters from IndexedDB on load,
-  // scoped per WhatsApp account. `restoredRef` is set only after the async
-  // restore completes so the save effect won't clobber persisted values
-  // with the component's default initial state.
-  useEffect(() => {
-    let cancelled = false;
-    restoredRef.current = false;
-    (async () => {
-      try {
-        const state = await uiStateRepo.get(currentAccount);
-        if (cancelled) return;
-        if (state) {
-          if (
-            state.activeFilter === "all" ||
-            state.activeFilter === "unread" ||
-            state.activeFilter === "starred" ||
-            state.activeFilter === "archived"
-          ) {
-            setActiveFilter(state.activeFilter);
-          }
-          if (Array.isArray(state.labelFilters)) {
-            setSelectedLabelFilters(state.labelFilters);
-          }
-        }
-      } catch {
-        // ignore malformed stored values
-      } finally {
-        if (!cancelled) {
-          restoredRef.current = true;
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [currentAccount]);
-
-  const toggleLabelFilter = useCallback((labelId: string) => {
-    setSelectedLabelFilters((prev) =>
-      prev.includes(labelId)
-        ? prev.filter((id) => id !== labelId)
-        : [...prev, labelId],
-    );
-  }, []);
-
-  // Persist the active filter tab + label filters to IndexedDB when they
-  // change. Skip until after the async restore has completed so we never
-  // save default "all" + [] over the user's persisted selection on mount.
-  useEffect(() => {
-    if (!restoredRef.current) return;
-    uiStateRepo
-      .save({
-        account: currentAccount,
-        activeFilter,
-        labelFilters: selectedLabelFilters,
-      })
-      .catch(() => {});
-  }, [currentAccount, activeFilter, selectedLabelFilters]);
 
   // Sort and filter chats
   const processedChats = useMemo(() => {
@@ -273,7 +221,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             icon={<Home className="w-4 h-4" />}
             label="All"
             isActive={activeFilter === "all"}
-            onClick={() => setActiveFilter("all")}
+            onClick={() => onFilterChange("all")}
           />
           <FilterTab
             icon={
@@ -286,28 +234,28 @@ export const ChatList: React.FC<ChatListProps> = ({
             label="Unread"
             count={unreadCount}
             isActive={activeFilter === "unread"}
-            onClick={() => setActiveFilter("unread")}
+            onClick={() => onFilterChange("unread")}
           />
           <FilterTab
             icon={<Star className="w-4 h-4" />}
             label="Starred"
             count={starredCount}
             isActive={activeFilter === "starred"}
-            onClick={() => setActiveFilter("starred")}
+            onClick={() => onFilterChange("starred")}
           />
           <FilterTab
             icon={<Archive className="w-4 h-4" />}
             label="Archived"
             count={archivedCount}
             isActive={activeFilter === "archived"}
-            onClick={() => setActiveFilter("archived")}
+            onClick={() => onFilterChange("archived")}
           />
         </div>
 
         {/* Archived Banner (shown on "all" when archived chats exist) */}
         {activeFilter === "all" && archivedCount > 0 && showArchivedBanner && (
           <div
-            onClick={() => setActiveFilter("archived")}
+            onClick={() => onFilterChange("archived")}
             className="flex items-center justify-between px-4 py-2.5 bg-[#182229] border-b border-[#2a3942] cursor-pointer hover:bg-[#1f2d33] transition"
           >
             <div className="flex items-center gap-2">
@@ -339,7 +287,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
               {selectedLabelFilters.length > 0 && (
                 <button
-                  onClick={() => setSelectedLabelFilters([])}
+                  onClick={onClearLabelFilters}
                   className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-[#2a3942] text-white hover:bg-[#3b4a54] transition"
                   title="Clear label filters"
                 >
@@ -351,7 +299,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                 return (
                   <button
                     key={label.name}
-                    onClick={() => toggleLabelFilter(label.name)}
+                    onClick={() => onToggleLabelFilter(label.name)}
                     className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition ${
                       isChecked
                         ? "text-white shadow"
@@ -451,7 +399,7 @@ export const ChatList: React.FC<ChatListProps> = ({
           <div className="flex items-center justify-around">
             <button
               onClick={() => {
-                setActiveFilter("all");
+                onFilterChange("all");
                 setShowArchivedBanner(true);
               }}
               className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group"
