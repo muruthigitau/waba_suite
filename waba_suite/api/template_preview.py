@@ -31,6 +31,28 @@ def _basename(url):
 
 
 @frappe.whitelist()
+def get_default_print_format(reference_doctype):
+    """Return a DocType's default print format, ignoring permissions.
+
+    The client cannot read the ``DocType`` doctype directly because
+    ``frappe.client.get_value`` enforces read permission, which regular users
+    typically lack. This exposes only the non-sensitive
+    ``default_print_format`` value used to pre-fill the send dialog.
+
+    Args:
+        reference_doctype: DocType whose default print format is requested.
+
+    Returns:
+        The default print format name, or None when unset.
+    """
+    if not reference_doctype:
+        return None
+    return frappe.db.get_value(
+        "DocType", reference_doctype, "default_print_format"
+    )
+
+
+@frappe.whitelist()
 def preview_template(
     template,
     reference_doctype=None,

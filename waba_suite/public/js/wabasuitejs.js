@@ -100,6 +100,11 @@ $(document).on("app_ready", function () {
             } else openDialog();
 
             function openDialog() {
+              // Last chosen account, kept in sync by the account field's change
+              // handler so the template query can filter without touching the
+              // dialog while it is still being constructed.
+              let selectedAccount = "";
+              let dialogShown = false;
               const dialog = new frappe.ui.Dialog({
                 title: __("Send WhatsApp Message"),
                 fields: [
@@ -136,6 +141,23 @@ $(document).on("app_ready", function () {
                     get_query: () => ({
                       filters: { status: "Active" },
                     }),
+                    change() {
+                      if (!dialogShown) return;
+                      selectedAccount =
+                        dialog.get_value("whatsapp_account") || "";
+                      // A different account invalidates the account-scoped
+                      // template pick.
+                      if (dialog.get_value("template")) {
+                        dialog.set_value("template", "");
+                      }
+                      // Templates are account-scoped: reveal the picker only
+                      // once an account has been chosen.
+                      dialog.set_df_property(
+                        "template",
+                        "hidden",
+                        !selectedAccount
+                      );
+                    },
                   },
                   {
                     fieldname: "template",
@@ -143,9 +165,17 @@ $(document).on("app_ready", function () {
                     fieldtype: "Link",
                     options: "WhatsApp Templates",
                     reqd: 1,
-                    // Only offer templates that are meant for the current doctype.
+                    // Hidden until a WhatsApp Account is chosen — templates are
+                    // only meaningful once we know which account sends them.
+                    hidden: 1,
+                    // Show templates matching BOTH the current doctype and the
+                    // selected WhatsApp Account. Until an account is selected,
+                    // match nothing so no template is offered.
                     get_query: () => ({
-                      filters: { for_doctype: reference_doctype },
+                      filters: {
+                        for_doctype: reference_doctype,
+                        whatsapp_account: selectedAccount || "__none__",
+                      },
                     }),
                     change() {
                       refreshDocumentFields();
@@ -292,8 +322,10 @@ $(document).on("app_ready", function () {
               }
 
               dialog.show();
+              dialogShown = true;
               // Auto-select the WhatsApp Account when there is exactly one active
-              // account — saves a manual pick and prevents ambiguity.
+              // account — saves a manual pick and prevents ambiguity. The
+              // account field's change handler reveals the template picker.
               frappe.db
                 .get_list("WhatsApp Account", {
                   filters: { status: "Active" },
@@ -307,14 +339,17 @@ $(document).on("app_ready", function () {
                 });
               // Pre-fill the doctype's default print format and the default
               // letterhead, unless the user has already chosen one.
-              frappe.db
-                .get_value("DocType", reference_doctype, "default_print_format")
-                .then((r) => {
-                  const pf = r && r.message && r.message.default_print_format;
+              frappe.call({
+                method:
+                  "waba_suite.api.template_preview.get_default_print_format",
+                args: { reference_doctype },
+                callback(r) {
+                  const pf = r && r.message;
                   if (pf && !dialog.get_value("print_format")) {
                     dialog.set_value("print_format", pf);
                   }
-                });
+                },
+              });
               frappe.db
                 .get_value("Letter Head", { is_default: 1 }, "name")
                 .then((r) => {
