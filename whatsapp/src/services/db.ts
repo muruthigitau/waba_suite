@@ -31,6 +31,8 @@ export interface DexieReplyTo {
   sender: string;
   messageId: string;
   contentType?: string;
+  attach?: string;
+  caption?: string;
 }
 
 export interface DexieLocationData {

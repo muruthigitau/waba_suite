@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import React, { useState } from "react";
 import type { Message } from "../../types";
+import { fileNameFromUrl } from "../../utils/messagePreview";
 import { ContactMessage } from "../messages/ContactMessage";
 import { DocumentMessage } from "../messages/DocumentMessage";
 import { ImageMessage } from "../messages/ImageMessage";
@@ -16,12 +17,15 @@ import { LocationMessage } from "../messages/LocationMessage";
 import { ReactionMessage } from "../messages/ReactionMessage";
 import { TemplateMessage } from "../messages/TemplateMessage";
 import { VideoMessage } from "../messages/VideoMessage";
+import { MessageReference } from "./MessageReference";
 
 interface MessageBubbleProps {
   message: Message;
   onReply?: (message: Message) => void;
   onReact?: (messageId: string, emoji: string) => void;
   onDelete?: (messageId: string) => void;
+  /** Called when the reply reference is clicked (scroll to the source). */
+  onJumpToMessage?: (messageId: string) => void;
   isGroup?: boolean;
   setGlobalEmojiPicker: React.Dispatch<
     React.SetStateAction<{
@@ -31,18 +35,12 @@ interface MessageBubbleProps {
   >;
 }
 
-const stripHtml = (html: string) => {
-  if (!html) return "";
-  const temp = document.createElement("div");
-  temp.innerHTML = html;
-  return temp.textContent || temp.innerText || "";
-};
-
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   onReply,
   onReact,
   onDelete,
+  onJumpToMessage,
   isGroup = false,
   setGlobalEmojiPicker,
 }) => {
@@ -114,7 +112,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         return (
           <DocumentMessage
             fileUrl={message.attach || message.content}
-            fileName={message.content}
+            fileName={
+              fileNameFromUrl(message.attach || message.content) ||
+              message.caption ||
+              "Document"
+            }
             caption={hasCaption ? captionText : undefined}
           />
         );
@@ -187,12 +189,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <div className="max-w-[70%] relative">
         {message.replyTo && (
           <div className="mb-1.5 p-1.5 bg-black bg-opacity-20 rounded text-xs border-l-2 border-[#25D366]">
-            <p className="font-semibold text-[#25D366] text-[11px]">
-              {message.replyTo.sender}
-            </p>
-            <p className="text-[11px] text-[#d1d7db] truncate">
-              {stripHtml(message.replyTo.content).substring(0, 80)}
-            </p>
+            <MessageReference
+              sender={message.replyTo.sender}
+              type={message.replyTo.contentType}
+              content={message.replyTo.content}
+              attach={message.replyTo.attach}
+              caption={message.replyTo.caption}
+              onClick={
+                onJumpToMessage
+                  ? () => onJumpToMessage(message.replyTo!.messageId)
+                  : undefined
+              }
+            />
           </div>
         )}
 

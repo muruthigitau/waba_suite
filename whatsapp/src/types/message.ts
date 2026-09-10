@@ -25,6 +25,10 @@ export interface Message {
     sender: string;
     messageId: string;
     contentType?: string;
+    /** Attachment URL of the referenced message (media/document replies). */
+    attach?: string;
+    /** Caption of the referenced message (used for a richer doc reference). */
+    caption?: string;
   };
   senderName?: string;
   caption?: string;
