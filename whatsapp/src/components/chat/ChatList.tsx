@@ -4,20 +4,20 @@ import {
   LogOut,
   Mail,
   MailOpen,
+  Megaphone,
   Plus,
-  Settings,
+  Smartphone,
   Star,
 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
-import type { Account, Chat } from "../../types";
+import { useNavigate } from "react-router-dom";
+import type { Account, Chat, ChatLabel } from "../../types";
+import type { ChatFilter } from "../../hooks/useUrlState";
 import { Avatar } from "../common/Avatar";
 import { SearchBar } from "../common/SearchBar";
 import { AccountSwitcher } from "../modals/AccountSwitcher";
 import { AddRoomModal } from "../modals/AddRoomModal";
-import { UserSettingsModal } from "../modals/UserSettingsModal";
 import { ChatRoom } from "./ChatRoom";
-
-type ChatFilter = "all" | "unread" | "starred" | "archived";
 
 interface ChatListProps {
   chats: Chat[];
@@ -28,14 +28,13 @@ interface ChatListProps {
   currentAccount: string;
   accounts: Account[];
   onSwitchAccount: (accountName: string) => Promise<void>;
-  userSettings: {
-    enableNotifications: boolean;
-  };
   currentUserName?: string;
   onLogout: () => Promise<void>;
   onTogglePin?: (chatId: string) => void;
   onToggleStar?: (chatId: string) => void;
   onToggleArchive?: (chatId: string) => void;
+  onOpenLabels?: (chatId: string) => void;
+  labels?: ChatLabel[];
   onNewContact?: (contact?: {
     id?: string;
     name?: string;
@@ -46,6 +45,16 @@ interface ChatListProps {
     within24hWindow?: boolean;
     canSendDirect?: boolean;
   }) => void;
+  /** Active chat-list filter tab (URL-driven). */
+  activeFilter: ChatFilter;
+  /** Change the active filter tab (writes to the URL). */
+  onFilterChange: (filter: ChatFilter) => void;
+  /** Selected label ids used to filter chats (URL-driven). */
+  selectedLabelFilters: string[];
+  /** Toggle a label id on/off (writes to the URL). */
+  onToggleLabelFilter: (labelId: string) => void;
+  /** Clear all label filters (writes to the URL). */
+  onClearLabelFilters: () => void;
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
@@ -57,24 +66,30 @@ export const ChatList: React.FC<ChatListProps> = ({
   currentAccount,
   accounts,
   onSwitchAccount,
-  userSettings,
   currentUserName = "User",
   onLogout,
   onTogglePin,
   onToggleStar,
   onToggleArchive,
+  onOpenLabels,
+  labels = [],
   onNewContact,
+  activeFilter,
+  onFilterChange,
+  selectedLabelFilters,
+  onToggleLabelFilter,
+  onClearLabelFilters,
 }) => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddRoom, setShowAddRoom] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<ChatFilter>("all");
   const [showArchivedBanner, setShowArchivedBanner] = useState(true);
 
-  // Filter stats
+  // Filter stats. Counts are derived from the server-provided unread totals so
+  // the tab badges always match the backend source of truth.
   const unreadCount = useMemo(() => {
     return chats.filter((c) => c.unreadCount > 0 && !c.isArchived).length;
   }, [chats]);
@@ -109,6 +124,14 @@ export const ChatList: React.FC<ChatListProps> = ({
         break;
     }
 
+    // Apply label filters (multichoice — show chats that have ANY selected label)
+    if (selectedLabelFilters.length > 0) {
+      filtered = filtered.filter((chat) => {
+        const chatLabelIds = new Set((chat.labels || []).map((l) => l.name));
+        return selectedLabelFilters.some((id) => chatLabelIds.has(id));
+      });
+    }
+
     // Apply search
     if (searchQuery.trim()) {
       filtered = filtered.filter(
@@ -126,12 +149,7 @@ export const ChatList: React.FC<ChatListProps> = ({
     });
 
     return filtered;
-  }, [chats, activeFilter, searchQuery]);
-
-
-  const currentAccountInfo = useMemo(() => {
-    return accounts.find((acc) => acc.name === currentAccount);
-  }, [accounts, currentAccount]);
+  }, [chats, activeFilter, searchQuery, selectedLabelFilters]);
 
   const formatTime = useCallback((timestamp: string) => {
     if (!timestamp) return "";
@@ -198,37 +216,7 @@ export const ChatList: React.FC<ChatListProps> = ({
               <p className="text-xs text-[#8696a0]">Online</p>
             </div>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => setShowAddRoom(true)}
-              className="w-10 h-10 flex items-center justify-center hover:bg-[#2a3942] rounded-full transition text-[#25D366]"
-              title="New message"
-            >
-              <Plus className="w-6 h-6" />
-            </button>
-          </div>
         </div>
-
-        {/* Account Switcher */}
-        {accounts.length > 1 && (
-          <div
-            onClick={() => setShowAccountSwitcher(true)}
-            className="flex items-center justify-between px-4 py-2 bg-[#2a3942] cursor-pointer hover:bg-[#3b4a54] transition"
-          >
-            <div className="flex items-center space-x-2">
-              <span className="text-lg">📱</span>
-              <div>
-                <div className="text-sm font-medium text-white">
-                  {currentAccountInfo?.account_name || currentAccount}
-                </div>
-                <div className="text-xs text-[#8696a0]">
-                  Active WhatsApp Account
-                </div>
-              </div>
-            </div>
-            <div className="text-xs text-[#25D366]">Switch</div>
-          </div>
-        )}
 
         {/* Filter Tabs — All | Unread | Starred | Archived */}
         <div className="flex border-b border-[#2a3942] bg-[#202c33] overflow-x-auto no-scrollbar">
@@ -236,35 +224,41 @@ export const ChatList: React.FC<ChatListProps> = ({
             icon={<Home className="w-4 h-4" />}
             label="All"
             isActive={activeFilter === "all"}
-            onClick={() => setActiveFilter("all")}
+            onClick={() => onFilterChange("all")}
           />
           <FilterTab
-            icon={unreadCount > 0 ? <Mail className="w-4 h-4" /> : <MailOpen className="w-4 h-4" />}
+            icon={
+              unreadCount > 0 ? (
+                <Mail className="w-4 h-4" />
+              ) : (
+                <MailOpen className="w-4 h-4" />
+              )
+            }
             label="Unread"
             count={unreadCount}
             isActive={activeFilter === "unread"}
-            onClick={() => setActiveFilter("unread")}
+            onClick={() => onFilterChange("unread")}
           />
           <FilterTab
             icon={<Star className="w-4 h-4" />}
             label="Starred"
             count={starredCount}
             isActive={activeFilter === "starred"}
-            onClick={() => setActiveFilter("starred")}
+            onClick={() => onFilterChange("starred")}
           />
           <FilterTab
             icon={<Archive className="w-4 h-4" />}
             label="Archived"
             count={archivedCount}
             isActive={activeFilter === "archived"}
-            onClick={() => setActiveFilter("archived")}
+            onClick={() => onFilterChange("archived")}
           />
         </div>
 
         {/* Archived Banner (shown on "all" when archived chats exist) */}
         {activeFilter === "all" && archivedCount > 0 && showArchivedBanner && (
           <div
-            onClick={() => setActiveFilter("archived")}
+            onClick={() => onFilterChange("archived")}
             className="flex items-center justify-between px-4 py-2.5 bg-[#182229] border-b border-[#2a3942] cursor-pointer hover:bg-[#1f2d33] transition"
           >
             <div className="flex items-center gap-2">
@@ -289,6 +283,52 @@ export const ChatList: React.FC<ChatListProps> = ({
         <div className="p-3 bg-[#202c33]">
           <SearchBar value={searchQuery} onChange={setSearchQuery} />
         </div>
+
+        {/* Label Filter — horizontal chip/pill row (toggles directly) */}
+        {labels.length > 0 && (
+          <div className="px-3 pb-3 bg-[#202c33]">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+              {selectedLabelFilters.length > 0 && (
+                <button
+                  onClick={onClearLabelFilters}
+                  className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium bg-[#2a3942] text-white hover:bg-[#3b4a54] transition"
+                  title="Clear label filters"
+                >
+                  ✕ All
+                </button>
+              )}
+              {labels.map((label) => {
+                const isChecked = selectedLabelFilters.includes(label.name);
+                return (
+                  <button
+                    key={label.name}
+                    onClick={() => onToggleLabelFilter(label.name)}
+                    className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                      isChecked
+                        ? "text-white shadow"
+                        : "bg-[#2a3942] text-[#d1d7db] hover:bg-[#3b4a54]"
+                    }`}
+                    style={
+                      isChecked
+                        ? { backgroundColor: label.color || "#25D366" }
+                        : undefined
+                    }
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full ${isChecked ? "bg-white/80" : ""}`}
+                      style={
+                        isChecked
+                          ? undefined
+                          : { backgroundColor: label.color || "#8696a0" }
+                      }
+                    />
+                    {label.label_name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Empty State */}
         {processedChats.length === 0 && (
@@ -324,47 +364,92 @@ export const ChatList: React.FC<ChatListProps> = ({
                     ? "Star a chat to see it here"
                     : activeFilter === "archived"
                       ? "Archive a chat to see it here"
-                      : 'Start a new conversation by clicking the + button'}
+                      : "Start a new conversation by clicking the + button"}
             </p>
           </div>
         )}
 
-        {/* Chat List */}
-        <div className="flex-1 overflow-y-auto">
-          {processedChats.map((chat) => (
-            <ChatRoom
-              key={chat.id}
-              chat={chat}
-              isActive={selectedChatId === chat.id}
-              onClick={() => handleSelectChat(chat.id)}
-              formatTime={formatTime}
-              onTogglePin={onTogglePin}
-              onToggleStar={onToggleStar}
-              onToggleArchive={onToggleArchive}
-            />
-          ))}
+        {/* Chat List + Floating New Chat Button (WhatsApp-style) */}
+        <div className="relative flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-y-auto">
+            {processedChats.map((chat) => (
+              <ChatRoom
+                key={chat.id}
+                chat={chat}
+                isActive={selectedChatId === chat.id}
+                onClick={() => handleSelectChat(chat.id)}
+                formatTime={formatTime}
+                onTogglePin={onTogglePin}
+                onToggleStar={onToggleStar}
+                onToggleArchive={onToggleArchive}
+                onOpenLabels={onOpenLabels}
+              />
+            ))}
+          </div>
+
+          {/* Floating circular + (like real WhatsApp) — opens new chat */}
+          <button
+            onClick={() => setShowAddRoom(true)}
+            className="absolute bottom-4 right-4 z-20 w-14 h-14 rounded-full bg-[#25D366] hover:bg-[#20b859] text-white shadow-lg shadow-black/40 flex items-center justify-center transition transform hover:scale-105"
+            title="New message"
+          >
+            <Plus className="w-7 h-7" />
+          </button>
         </div>
 
-        {/* Bottom Navigation — Chats | Settings | Logout */}
+        {/* Bottom Navigation — Chats | Account Switcher (if >1) | Logout */}
         <div className="border-t border-[#2a3942] p-2">
           <div className="flex items-center justify-around">
             <button
               onClick={() => {
-                setActiveFilter("all");
+                onFilterChange("all");
                 setShowArchivedBanner(true);
               }}
               className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group"
             >
-              <Home className={`w-5 h-5 transition ${activeFilter === "all" ? "text-[#25D366]" : "text-[#aebac1] group-hover:text-white"}`} />
-              <span className={`text-[10px] transition ${activeFilter === "all" ? "text-[#25D366]" : "text-[#aebac1] group-hover:text-white"}`}>Chats</span>
+              <Home
+                className={`w-5 h-5 transition ${activeFilter === "all" ? "text-[#25D366]" : "text-[#aebac1] group-hover:text-white"}`}
+              />
+              <span
+                className={`text-[10px] transition ${activeFilter === "all" ? "text-[#25D366]" : "text-[#aebac1] group-hover:text-white"}`}
+              >
+                Chats
+              </span>
             </button>
-            <button onClick={() => setShowSettings(true)} className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group">
-              <Settings className="w-5 h-5 text-[#aebac1] group-hover:text-white transition" />
-              <span className="text-[10px] text-[#aebac1] group-hover:text-white transition">Settings</span>
+            <button
+              onClick={() =>
+                navigate(
+                  currentAccount
+                    ? `/bulk?account=${encodeURIComponent(currentAccount)}`
+                    : "/bulk",
+                )
+              }
+              className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group"
+            >
+              <Megaphone className="w-5 h-5 text-[#aebac1] group-hover:text-white transition" />
+              <span className="text-[10px] text-[#aebac1] group-hover:text-white transition">
+                Bulk
+              </span>
             </button>
-            <button onClick={() => setShowLogoutConfirm(true)} className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group">
+            {accounts.length > 1 && (
+              <button
+                onClick={() => setShowAccountSwitcher(true)}
+                className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group"
+              >
+                <Smartphone className="w-5 h-5 text-[#aebac1] group-hover:text-white transition" />
+                <span className="text-[10px] text-[#aebac1] group-hover:text-white transition">
+                  Accounts
+                </span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group"
+            >
               <LogOut className="w-5 h-5 text-[#aebac1] group-hover:text-red-500 transition" />
-              <span className="text-[10px] text-[#aebac1] group-hover:text-red-500 transition">Logout</span>
+              <span className="text-[10px] text-[#aebac1] group-hover:text-red-500 transition">
+                Logout
+              </span>
             </button>
           </div>
         </div>
@@ -387,10 +472,6 @@ export const ChatList: React.FC<ChatListProps> = ({
           }
           if (onClose) onClose();
         }}
-      />
-      <UserSettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
       />
 
       {showLogoutConfirm && (
@@ -435,7 +516,13 @@ interface FilterTabProps {
   onClick: () => void;
 }
 
-const FilterTab: React.FC<FilterTabProps> = ({ icon, label, count, isActive, onClick }) => (
+const FilterTab: React.FC<FilterTabProps> = ({
+  icon,
+  label,
+  count,
+  isActive,
+  onClick,
+}) => (
   <button
     onClick={onClick}
     className={`flex items-center justify-center gap-1 py-2.5 px-3 text-xs font-medium transition border-b-2 flex-shrink-0 ${

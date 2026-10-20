@@ -1,4 +1,4 @@
-import { Archive, ChevronLeft, MoreVertical, Phone, Pin, Star, Video } from "lucide-react";
+import { Archive, ChevronLeft, MoreVertical, Phone, Pin, Star, Tag, Video } from "lucide-react";
 import React, { useState } from "react";
 import type { Chat } from "../../types";
 import { Avatar } from "../common/Avatar";
@@ -13,6 +13,7 @@ interface ChatHeaderProps {
   onTogglePin?: (chatId: string) => void;
   onToggleStar?: (chatId: string) => void;
   onToggleArchive?: (chatId: string) => void;
+  onOpenLabels?: (chatId: string) => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -25,6 +26,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onTogglePin,
   onToggleStar,
   onToggleArchive,
+  onOpenLabels,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -48,31 +50,46 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           src={chat.profilePicture}
         />
         <div>
-          <div className="flex items-center gap-1">
-            <h3 className="font-semibold text-white text-sm">{chat.name}</h3>
-            {chat.isPinned && <Pin className="w-3 h-3 text-[#25D366]" />}
-            {chat.isStarred && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
-            {chat.isArchived && <Archive className="w-3 h-3 text-[#8696a0]" />}
-          </div>
-          <div className="flex items-center space-x-2">
-            <p className="text-xs text-[#8696a0]">
-              {chat.typing ? (
-                <span className="text-[#25D366]">Typing...</span>
-              ) : chat.online ? (
-                "Online"
-              ) : (
-                "Offline"
+            <div className="flex items-center gap-1">
+              <h3 className="font-semibold text-white text-sm">{chat.name}</h3>
+              {chat.isPinned && <Pin className="w-3 h-3 text-[#25D366]" />}
+              {chat.isStarred && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
+              {chat.isArchived && <Archive className="w-3 h-3 text-[#8696a0]" />}
+            </div>
+            <div className="flex items-center gap-2 min-w-0">
+              <p className="text-xs text-[#8696a0] whitespace-nowrap">
+                {chat.typing ? (
+                  <span className="text-[#25D366]">Typing...</span>
+                ) : chat.online ? (
+                  "Online"
+                ) : (
+                  "Offline"
+                )}
+              </p>
+              {chat.mobileNo && (
+                <p className="text-xs text-[#8696a0] truncate">
+                  • {chat.mobileNo}
+                </p>
               )}
-            </p>
-            {chat.mobileNo && (
-              <>
-                <span className="text-xs text-[#8696a0]">•</span>
-                <p className="text-xs text-[#8696a0]">{chat.mobileNo}</p>
-              </>
-            )}
-          </div>
+            </div>
         </div>
       </div>
+      {/* Label chips far right at the end */}
+      {chat.labels && chat.labels.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap justify-end min-w-0 px-2 flex-1">
+          {chat.labels.map((l) => (
+            <span
+              key={l.name}
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium text-white whitespace-nowrap"
+              style={{ backgroundColor: l.color || "#8696a0" }}
+              title={l.label_name}
+            >
+              <span className="w-1 h-1 rounded-full bg-white opacity-80" />
+              {l.label_name}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="relative flex items-center">
         <button
           onClick={() => setShowMenu(!showMenu)}
@@ -99,6 +116,23 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               >
                 <Star className={`w-4 h-4 ${chat.isStarred ? "text-yellow-400 fill-yellow-400" : "text-[#8696a0]"}`} />
                 <span>{chat.isStarred ? "Unstar" : "Star"}</span>
+              </button>
+              <button
+                onClick={() => { setShowMenu(false); onOpenLabels?.(chat.id) }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-[#d1d7db] hover:bg-[#2a3942] transition"
+              >
+                <Tag
+                  className={`w-4 h-4 ${
+                    chat.labels && chat.labels.length > 0
+                      ? "text-[#25D366]"
+                      : "text-[#8696a0]"
+                  }`}
+                />
+                <span>
+                  {chat.labels && chat.labels.length > 0
+                    ? `Labels (${chat.labels.length})`
+                    : "Add labels"}
+                </span>
               </button>
               <div className="h-px bg-[#2a3942] my-1" />
               <button

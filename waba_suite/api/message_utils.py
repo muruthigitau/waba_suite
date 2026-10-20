@@ -95,7 +95,7 @@ def send_whatsapp_read_receipts_sync(room, whatsapp_account=None):
             filters={
                 "from": contact.mobile_no,
                 "type": "Incoming",
-                "status": ["not in", ["marked as read", "read"]],
+                "status": "draft",
             },
             fields=["name", "whatsapp_account", "message_id"],
             order_by="creation desc",
@@ -119,3 +119,44 @@ def send_whatsapp_read_receipts_sync(room, whatsapp_account=None):
                     pass
     except Exception:
         pass
+
+
+def mark_messages_read(room, whatsapp_account=None):
+    """Mark every inbound message in a room as read and send read receipts.
+
+    Read receipts are sent first, while the messages are still unread, because
+    the receipts endpoint needs each message's provider id. Any inbound messages
+    left unacknowledged (receipts disabled, missing provider id, or beyond the
+    receipt batch limit) are then flipped to ``marked_as_read`` so the unread
+    counters clear regardless of the WhatsApp API outcome.
+
+    Args:
+        room: WhatsApp Contact name.
+        whatsapp_account: Optional WhatsApp account identifier.
+
+    Returns:
+        Number of inbound messages that were still unread.
+    """
+    mobile_no = frappe.db.get_value("WhatsApp Contact", room, "mobile_no")
+    if not mobile_no:
+        return 0
+
+    send_whatsapp_read_receipts_sync(room, whatsapp_account)
+
+    filters = {
+        "from": mobile_no,
+        "type": "Incoming",
+        "status": ["not in", ["marked_as_read", "read"]],
+    }
+    if whatsapp_account:
+        filters["whatsapp_account"] = whatsapp_account
+
+    unread = frappe.get_all("WhatsApp Message", filters=filters, fields=["name"])
+    if unread:
+        frappe.db.set_value(
+            "WhatsApp Message", filters, "status", "marked_as_read"
+        )
+    frappe.db.set_value(
+        "WhatsApp Contact", room, "is_read", 1, update_modified=False
+    )
+    return len(unread)

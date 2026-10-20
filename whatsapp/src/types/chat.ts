@@ -2,6 +2,14 @@
 
 import type { Message } from "./message";
 
+/** A WhatsApp Chat Label used to categorise and filter chats. */
+export interface ChatLabel {
+  name: string;
+  label_name: string;
+  color?: string;
+  description?: string;
+}
+
 export interface Chat {
   id: string;
   name: string;
@@ -22,6 +30,10 @@ export interface Chat {
   isPinned?: boolean;
   isStarred?: boolean;
   isArchived?: boolean;
+  /** Labels assigned to this chat (contact). */
+  labels?: ChatLabel[];
+  /** Convenience list of label ids for filtering. */
+  labelIds?: string[];
   /** WhatsApp Session status (Active/Expired/Ended) for the contact+account. */
   sessionStatus?: string;
   /** WhatsApp Session expiry timestamp (message datetime + 24h). */

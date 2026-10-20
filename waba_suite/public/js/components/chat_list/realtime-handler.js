@@ -1,3 +1,5 @@
+import { account_name } from "../chat_utils.js";
+
 export class RealtimeHandler {
 	constructor(chatList, roomManager) {
 		this.chatList = chatList;
@@ -147,7 +149,7 @@ export class RealtimeHandler {
 			method: "waba_suite.api.contacts.get",
 			args: {
 				email: this.chatList.user_email,
-				whatsapp_account: this.chatList.whatsapp_account,
+				whatsapp_account: account_name(this.chatList.whatsapp_account),
 			},
 			callback: (response) => {
 				if (response.message && this.chatList.refresh_rooms) {

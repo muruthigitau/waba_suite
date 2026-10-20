@@ -1,5 +1,12 @@
 import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
-import { MessageCircleCheck, MessageSquareText, Paperclip, Send, Smile, X } from "lucide-react";
+import {
+  MessageCircleCheck,
+  MessageSquareText,
+  Paperclip,
+  Send,
+  Smile,
+  X,
+} from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -14,10 +21,16 @@ import type { Chat, Message } from "../../types";
 import { FileUploadField } from "../common/FileUploadField";
 import { Loader } from "../common/Loader";
 import { MessageBubble } from "../common/MessageBubble";
+import { MessageReference } from "../common/MessageReference";
 import { ChatHeader } from "../layout/ChatHeader";
 import { TemplateMessage } from "../messages/TemplateMessage";
 import { EmojiPicker } from "../modals/EmojiPicker";
 import { TemplateModal } from "../modals/TemplateModal";
+
+// How often to poll the server for new messages in an open chat (ms).
+// Kept short enough to pick up new inbound messages promptly (so they can be
+// marked as read immediately) while limiting load on waba_suite.api.message.get_all.
+const MESSAGE_POLL_INTERVAL_MS = 15000;
 
 // If true, the contact's WhatsApp Session is expired and only template
 // messages may be sent (free-form text/media/reactions are not allowed).
@@ -36,6 +49,7 @@ interface ChatSpaceProps {
   onTogglePin?: (chatId: string) => void;
   onToggleStar?: (chatId: string) => void;
   onToggleArchive?: (chatId: string) => void;
+  onOpenLabels?: (chatId: string) => void;
   sessionExpired?: boolean;
 }
 
@@ -49,13 +63,11 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   onTogglePin,
   onToggleStar,
   onToggleArchive,
+  onOpenLabels,
   sessionExpired,
 }) => {
   const {
     isOnline,
-    hydrateMessages,
-    cacheMessages,
-    syncNewChatMessages,
     queueOfflineMessage,
   } = useCache();
   const [messageInput, setMessageInput] = useState("");
@@ -72,6 +84,10 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  // Message briefly highlighted after jumping from a reply reference.
+  const [highlightedMessageId, setHighlightedMessageId] = useState<
+    string | null
+  >(null);
 
   // Templates-only when the WhatsApp Session is expired (or unknown). Free-form
   // messages (text, media, reactions) are only allowed within an Active session.
@@ -88,7 +104,9 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
   const fileUploadRef = useRef<{
     openSelector: () => void;
     uploadDirectFile: (file: File) => Promise<void>;
@@ -176,6 +194,8 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
                   chat?.name ||
                   "Contact",
             contentType: parentMsg.content_type || "text",
+            attach: parentMsg.attach || undefined,
+            caption: parentMsg.caption || undefined,
           };
         } else {
           parsedReplyTo = {
@@ -189,7 +209,9 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
       // For template messages, use the message field (JSON) for TemplateMessage component
       // Also pass raw template definition fields for proper rendering
-      const templateContent = msg.use_template ? (msg.message || msg.content || "") : (msg.content || msg.message || "");
+      const templateContent = msg.use_template
+        ? msg.message || msg.content || ""
+        : msg.content || msg.message || "";
 
       return {
         id: msg.name,
@@ -212,50 +234,31 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         buttonData: msg.button_data,
         interactiveData: msg.interactive_data,
         replyTo: parsedReplyTo,
-        templateRaw: msg.use_template ? {
-          header: msg.template_header_raw || "",
-          body: msg.template_body_raw || "",
-          footer: msg.template_footer_raw || "",
-        } : undefined,
+        templateRaw: msg.use_template
+          ? {
+              header: msg.template_header_raw || "",
+              body: msg.template_body_raw || "",
+              footer: msg.template_footer_raw || "",
+            }
+          : undefined,
       };
     });
   }, [messagesData, chat]);
 
-  // ─── Offline-first: hydrate messages from Dexie immediately ───
-  // We only clear state when the chat actually changes, not on every render.
+  // Clear the message list whenever the selected chat changes. Messages are
+  // loaded straight from the server (get_all) — no local IndexedDB cache.
   useEffect(() => {
     const chatId = chat?.id ?? null;
     if (chatId !== lastChatIdRef.current) {
       lastChatIdRef.current = chatId;
-      if (!chatId) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setMessages([]);
-      } else {
-        // Reset to empty so the previous chat's messages don't flash
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setMessages([]);
-        const hydrate = async () => {
-          const cached = await hydrateMessages(chatId);
-          if (cached.length > 0 && lastChatIdRef.current === chatId) {
-            setMessages(cached);
-          }
-        };
-        hydrate();
-      }
+      setMessages([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat?.id]);
 
-  // Merge hydrated Dexie data with optimistic/sent messages. This runs in an
-  // effect only when formattedMessages changes (server data arrives/updates).
+  // Merge server messages (from get_all) with in-memory optimistic messages.
+  // No local IndexedDB cache — the server response is the source of truth.
   useEffect(() => {
     if (formattedMessages.length > 0) {
-      // Cache the server messages to Dexie for offline use
-      if (chat) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        cacheMessages(formattedMessages as any, chat.id).catch(() => {});
-      }
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages((prev) => {
         const mergedMap = new Map<string, Message>();
         formattedMessages.forEach((m) => mergedMap.set(m.id, m));
@@ -270,60 +273,44 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         );
       });
     }
-  }, [formattedMessages, chat, cacheMessages]);
+  }, [formattedMessages]);
 
-  // Incremental sync: when online, fetch only messages newer than the last
-  // cached timestamp and store them in Dexie.
+  // Number of inbound messages in the open chat still awaiting a read receipt.
+  const unreadIncomingCount = useMemo(
+    () =>
+      formattedMessages.filter((m) => !m.isSent && m.status === "draft").length,
+    [formattedMessages],
+  );
+
+  // Mark the whole conversation as read whenever a chat is opened — always,
+  // even when the badge is already zero — so read receipts are sent and the
+  // unread totals clear. The backend endpoint is idempotent.
   useEffect(() => {
     if (!chat || !isOnline) return;
-
-    let cancelled = false;
-    const syncIncremental = async () => {
-      try {
-        const count = await syncNewChatMessages(
-          chat.id,
-          chat.mobileNo,
-          chat.whatsappAccount || currentAccount,
-        );
-        if (!cancelled && count > 0) {
-          const updated = await hydrateMessages(chat.id);
-          if (!cancelled) {
-            setMessages((prev) => {
-              const mergedMap = new Map<string, Message>();
-              updated.forEach((m) => mergedMap.set(m.id, m));
-              prev.forEach((m) => mergedMap.set(m.id, m));
-              return Array.from(mergedMap.values()).sort(
-                (a, b) => a.fullTimestamp.getTime() - b.fullTimestamp.getTime(),
-              );
-            });
-          }
-        }
-      } catch (e) {
-        // Offline or server error — Dexie data is already shown
-        console.debug("Incremental sync skipped:", e);
-      }
-    };
-    syncIncremental();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [chat, isOnline, currentAccount, syncNewChatMessages, hydrateMessages]);
-
-  // Trigger read calls whenever a session/chat is opened so all unread
-  // messages are marked as read and read receipts are sent immediately on
-  // open, not only when the unread badge count is non-zero. The parent's
-  // onMarkAsRead (Home.tsx) handles both the API call and unread-count reset.
-  useEffect(() => {
-    if (!chat || !isOnline) return;
-    // Fire on every chat open / account switch (chat id change). The backend
-    // mark_multiple_as_read endpoint is idempotent and reports a no-op if
-    // there are no unread messages.
     onMarkAsRead?.(chat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat?.id, chat?.mobileNo, chat?.whatsappAccount, currentAccount, isOnline]);
+  }, [
+    chat?.id,
+    chat?.mobileNo,
+    chat?.whatsappAccount,
+    currentAccount,
+    isOnline,
+  ]);
 
-  // Poll for new messages every 5s — but only while online
+  // A new inbound message can arrive while the chat is already open (its id
+  // never changes), so also re-mark whenever an unread inbound message shows
+  // up. This is what keeps an open conversation from accumulating unread
+  // messages and stale badges.
+  useEffect(() => {
+    if (!chat || !isOnline) return;
+    if (unreadIncomingCount > 0) {
+      onMarkAsRead?.(chat);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadIncomingCount, chat?.id, isOnline]);
+
+  // Poll for new messages on a fixed interval — but only while online.
+  // See MESSAGE_POLL_INTERVAL_MS above.
   useEffect(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
@@ -334,7 +321,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       mutateMessages();
       pollingIntervalRef.current = setInterval(() => {
         mutateMessages();
-      }, 5000);
+      }, MESSAGE_POLL_INTERVAL_MS);
     }
 
     return () => {
@@ -364,6 +351,20 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     scrollToBottom();
     setShowScrollBtn(false);
   }, [scrollToBottom]);
+
+  // Scroll to the message a reply points at and briefly highlight it so the
+  // reference is actionable (clicking a reply quote jumps to the original).
+  const handleJumpToMessage = useCallback((messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedMessageId(messageId);
+    window.setTimeout(() => {
+      setHighlightedMessageId((current) =>
+        current === messageId ? null : current,
+      );
+    }, 1600);
+  }, []);
 
   // Group messages the way WhatsApp does: date chips between days, and
   // consecutive messages from the same sender collapsed together.
@@ -430,6 +431,8 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
                 : replyToMessage.senderName || chat.name,
               messageId: replyToMessage.id,
               contentType: replyToMessage.type,
+              attach: replyToMessage.attach,
+              caption: replyToMessage.caption,
             }
           : undefined,
         attach: fileUrl || undefined,
@@ -645,6 +648,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         onTogglePin={onTogglePin}
         onToggleStar={onToggleStar}
         onToggleArchive={onToggleArchive}
+        onOpenLabels={onOpenLabels}
       />
 
       {/* Templates-only banner when outside the 24h window */}
@@ -706,7 +710,12 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
                 return (
                   <div
                     key={g.key}
-                    className={`flex ${message.isSent ? "justify-end" : "justify-start"} ${g.isFirstOfBatch ? "mt-3" : "mt-0.5"}`}
+                    id={`msg-${message.id}`}
+                    className={`flex ${message.isSent ? "justify-end" : "justify-start"} ${g.isFirstOfBatch ? "mt-3" : "mt-0.5"} ${
+                      highlightedMessageId === message.id
+                        ? "ring-2 ring-[#25D366] ring-offset-2 ring-offset-[#0b141a] rounded-lg transition"
+                        : ""
+                    }`}
                   >
                     <div
                       className={`max-w-[70%] ${
@@ -727,12 +736,21 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
               }
 
               return (
-                <div key={g.key} className={g.isFirstOfBatch ? "mt-3" : "mt-0.5"}>
+                <div
+                  key={g.key}
+                  id={`msg-${message.id}`}
+                  className={`${g.isFirstOfBatch ? "mt-3" : "mt-0.5"} ${
+                    highlightedMessageId === message.id
+                      ? "ring-2 ring-[#25D366] ring-offset-2 ring-offset-[#0b141a] rounded-lg transition"
+                      : ""
+                  }`}
+                >
                   <MessageBubble
                     message={message}
                     // Outside the 24h window, hide replies/reactions
                     onReply={templateOnly ? undefined : handleReply}
                     onReact={templateOnly ? undefined : handleReact}
+                    onJumpToMessage={handleJumpToMessage}
                     isGroup={chat.isGroup}
                     setGlobalEmojiPicker={setGlobalEmojiPicker}
                   />
@@ -760,13 +778,16 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         <div className="px-4 pt-2 bg-[#202c33] border-t border-[#2a3942] flex-shrink-0">
           <div className="flex items-center justify-between bg-[#2a3942] rounded-lg p-2 text-sm">
             <div className="flex-1 min-w-0">
-              <span className="font-semibold text-[#25D366] text-xs">
-                Replying to{" "}
-                {replyTo.isSent ? "yourself" : replyTo.senderName || chat.name}
-              </span>
-              <p className="text-[#d1d7db] text-xs truncate">
-                {replyTo.content}
-              </p>
+              <MessageReference
+                sender={`Replying to ${
+                  replyTo.isSent ? "yourself" : replyTo.senderName || chat.name
+                }`}
+                type={replyTo.type}
+                content={replyTo.content}
+                attach={replyTo.attach}
+                caption={replyTo.caption}
+                onClick={() => handleJumpToMessage(replyTo.id)}
+              />
             </div>
             <button
               onClick={() => setReplyTo(null)}

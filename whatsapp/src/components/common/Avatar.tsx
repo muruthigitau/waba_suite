@@ -1,7 +1,7 @@
 import React from "react";
 
 interface AvatarProps {
-  name: string;
+  name?: string;
   size?: "xs" | "sm" | "md" | "lg" | "xl";
   online?: boolean;
   src?: string;
@@ -17,7 +17,7 @@ const sizeClasses = {
 };
 
 export const Avatar: React.FC<AvatarProps> = ({
-  name,
+  name = "",
   size = "md",
   online,
   src,
@@ -25,10 +25,13 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
   const initials = name
     .split(" ")
-    .map((n) => n[0])
+    .map((part) => part[0])
+    .filter(Boolean)
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  const displayName = name || "Avatar";
 
   return (
     <div className="relative">
@@ -39,11 +42,11 @@ export const Avatar: React.FC<AvatarProps> = ({
         {src ? (
           <img
             src={src}
-            alt={name}
+            alt={displayName}
             className="w-full h-full rounded-full object-cover"
           />
         ) : (
-          initials
+          initials || "?"
         )}
       </div>
       {online && (

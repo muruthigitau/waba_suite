@@ -1,6 +1,9 @@
 # Copyright (c) 2025, Shridhar Patil and Contributors
 # See license.txt
 
+from datetime import datetime
+from unittest.mock import patch
+
 import frappe
 from waba_suite.testing import IntegrationTestCase
 
@@ -162,3 +165,91 @@ class TestWhatsAppAccount(IntegrationTestCase):
         doc.reload()
         self.assertEqual(doc.is_default_incoming, 1)
         self.assertEqual(doc.is_default_outgoing, 1)
+
+    def _make_account_with_hours(self, **kwargs):
+        """Helper to create an account with business hours."""
+        doc = self._make_account(**kwargs)
+        doc.enable_away_auto_reply = 1
+        doc.away_message = "We are away. Please try again later."
+        doc.business_hours = [
+            {
+                "day_of_week": "Monday",
+                "start_time": "09:00:00",
+                "end_time": "17:00:00",
+            },
+            {
+                "day_of_week": "Wednesday",
+                "start_time": "09:00:00",
+                "end_time": "17:00:00",
+            },
+        ]
+        doc.save(ignore_permissions=True)
+        return doc
+
+    def test_within_business_hours_on_matching_day(self):
+        """Return True when current time falls inside a configured window."""
+        doc = self._make_account_with_hours(account_name="Test WA Account Hours1")
+        with patch(
+            "waba_suite.waba_suite.doctype.whatsapp_account.whatsapp_account.get_datetime_in_timezone",
+            return_value=datetime(2026, 8, 24, 10, 30, 0),
+        ):  # Monday 10:30
+            self.assertTrue(doc.is_within_business_hours())
+
+    def test_outside_business_hours_on_matching_day(self):
+        """Return False when current time is outside the window on a matching day."""
+        doc = self._make_account_with_hours(account_name="Test WA Account Hours2")
+        with patch(
+            "waba_suite.waba_suite.doctype.whatsapp_account.whatsapp_account.get_datetime_in_timezone",
+            return_value=datetime(2026, 8, 24, 18, 0, 0),
+        ):  # Monday 18:00
+            self.assertFalse(doc.is_within_business_hours())
+
+    def test_outside_business_hours_on_non_matching_day(self):
+        """Return False when the current day has no configured window."""
+        doc = self._make_account_with_hours(account_name="Test WA Account Hours3")
+        with patch(
+            "waba_suite.waba_suite.doctype.whatsapp_account.whatsapp_account.get_datetime_in_timezone",
+            return_value=datetime(2026, 8, 28, 10, 0, 0),
+        ):  # Friday
+            self.assertFalse(doc.is_within_business_hours())
+
+    def test_within_business_hours_with_microseconds(self):
+        """Return True inside a 00:00-18:00 window even when the time has microseconds."""
+        doc = self._make_account(account_name="Test WA Account Hours6")
+        doc.enable_away_auto_reply = 1
+        doc.away_message = "We are away."
+        doc.business_hours = [
+            {
+                "day_of_week": "Thursday",
+                "start_time": "00:00:00",
+                "end_time": "18:00:00",
+            }
+        ]
+        doc.save(ignore_permissions=True)
+        with patch(
+            "waba_suite.waba_suite.doctype.whatsapp_account.whatsapp_account.get_datetime_in_timezone",
+            return_value=datetime(2026, 8, 27, 5, 46, 8, 485927),
+        ):  # Thursday 05:46:08.485927
+            self.assertTrue(doc.is_within_business_hours())
+            self.assertFalse(doc.send_away_reply_if_outside_hours(frappe._dict({"from": "1"})))
+
+    def test_away_reply_sent_when_disabled(self):
+        """No away reply when the feature is disabled."""
+        doc = self._make_account(account_name="Test WA Account Hours4")
+        doc.enable_away_auto_reply = 0
+        doc.save(ignore_permissions=True)
+        message_doc = frappe._dict({"from": "919876543210"})
+        self.assertFalse(doc.send_away_reply_if_outside_hours(message_doc))
+
+    def test_invalid_business_hours_rejected(self):
+        """Raise validation error when end time is before start time."""
+        doc = self._make_account(account_name="Test WA Account Hours5")
+        doc.business_hours = [
+            {
+                "day_of_week": "Monday",
+                "start_time": "17:00:00",
+                "end_time": "09:00:00",
+            }
+        ]
+        with self.assertRaises(frappe.ValidationError):
+            doc.validate()

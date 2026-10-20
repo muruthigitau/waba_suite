@@ -31,6 +31,8 @@ export interface DexieReplyTo {
   sender: string;
   messageId: string;
   contentType?: string;
+  attach?: string;
+  caption?: string;
 }
 
 export interface DexieLocationData {
@@ -60,6 +62,7 @@ export interface DexieInteractiveData {
 export interface DexieMessage {
   id: string;
   chatId: string;
+  whatsappAccount: string;
   content: string;
   timestamp: string;
   fullTimestamp: Date;
@@ -126,6 +129,18 @@ export interface DexieUserSettings {
   syncedAt: string;
 }
 
+/**
+ * Persisted chat-list UI state (filter tab + selected label filters),
+ * scoped per WhatsApp account so each account keeps its own filter state.
+ * `id` is the account name.
+ */
+export interface DexieUiState {
+  id: string;
+  activeFilter: string;
+  labelFilters: string[];
+  updatedAt: string;
+}
+
 const db = new Dexie("WhatsAppDB") as Dexie & {
   chats: EntityTable<DexieChat, "id">;
   messages: EntityTable<DexieMessage, "id">;
@@ -133,6 +148,7 @@ const db = new Dexie("WhatsAppDB") as Dexie & {
   pendingMessages: EntityTable<DexiePendingMessage, "id">;
   accounts: EntityTable<DexieAccount, "name">;
   userSettings: EntityTable<DexieUserSettings, "id">;
+  uiState: EntityTable<DexieUiState, "id">;
 };
 
 db.version(1).stores({
@@ -142,6 +158,29 @@ db.version(1).stores({
   pendingMessages: "id, chatId, status, createdAt",
   accounts: "name, isDefault",
   userSettings: "id",
+});
+
+// Add uiState table (filter tab + label filters) — persisted in IndexedDB.
+db.version(2).stores({
+  chats: "id, whatsappAccount, timestamp, name, mobileNo",
+  messages: "id, chatId, timestamp, status, isPending, fullTimestamp",
+  routes: "id",
+  pendingMessages: "id, chatId, status, createdAt",
+  accounts: "name, isDefault",
+  userSettings: "id",
+  uiState: "id",
+});
+
+// v3: Add whatsappAccount index to messages so each account's messages are
+// isolated. Messages are scoped per (chatId + whatsappAccount).
+db.version(3).stores({
+  chats: "id, whatsappAccount, timestamp, name, mobileNo",
+  messages: "id, chatId, whatsappAccount, timestamp, status, isPending, fullTimestamp",
+  routes: "id",
+  pendingMessages: "id, chatId, status, createdAt, whatsappAccount",
+  accounts: "name, isDefault",
+  userSettings: "id",
+  uiState: "id",
 });
 
 export default db;

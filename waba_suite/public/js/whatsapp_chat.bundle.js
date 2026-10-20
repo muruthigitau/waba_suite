@@ -158,8 +158,9 @@ frappe.Chat = class {
 
 	setup_events() {
 		const me = this;
-		$(".waba-sidebar-item, .waba-navbar-icon").on("click", function () {
-			me.chat_bubble.change_bubble();
+		$(".waba-navbar-icon").on("click", function () {
+			// me.chat_bubble.change_bubble();
+			window.open("/whatsapp", "_blank");
 		});
 
 		$(document).mouseup(function (e) {

@@ -10,16 +10,42 @@ Key dependencies:
 import frappe
 from frappe.utils import get_system_timezone
 
+from waba_suite.api.contact_helpers import is_user_allowed
+
 no_cache = 1
 
 
 def get_context():
-    """Build the page context with CSRF token and boot data."""
+    """Build the page context with CSRF token and boot data.
+
+    Strict permissions: only users on a WhatsApp Account's Users table
+    (or Administrators) may view the WhatsApp page. The access flag is
+    exposed in the boot context for the frontend to enforce.
+    """
     csrf_token = frappe.sessions.get_csrf_token()
     context = frappe._dict()
     context.boot = get_boot()
     context.boot.csrf_token = csrf_token
+    context.boot.has_whatsapp_access = is_user_allowed()
     return context
+
+
+@frappe.whitelist(methods=["POST"])
+def get_access_status():
+    """Return the current user's WhatsApp access status.
+
+    Returns:
+        Dict with has_access (bool) and user (str).
+    """
+    if not is_user_allowed():
+        frappe.throw(
+            "You do not have access to WhatsApp. Please contact your administrator.",
+            frappe.PermissionError,
+        )
+    return {
+        "has_access": True,
+        "user": frappe.session.user,
+    }
 
 
 @frappe.whitelist(methods=["POST"], allow_guest=True)

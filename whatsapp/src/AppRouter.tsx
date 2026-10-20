@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import App from "./App";
 import { useUser } from "./contexts/UserProvider";
+import BulkMessages from "./pages/BulkMessages";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 
@@ -33,6 +34,14 @@ const AppRouter = () => {
           element={
             <ProtectedRoute>
               <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bulk"
+          element={
+            <ProtectedRoute>
+              <BulkMessages />
             </ProtectedRoute>
           }
         />

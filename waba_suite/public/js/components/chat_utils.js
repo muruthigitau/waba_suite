@@ -45,13 +45,30 @@ function is_image(filename) {
 	return true;
 }
 
+/**
+ * Resolve a WhatsApp Account to its name string for frappe API calls.
+ *
+ * API endpoints filter on the account name (e.g. "WhatsApp Settings" account
+ * doc), not the account document/object. Some call sites receive the full
+ * account object (from accounts.* APIs), so normalise before sending.
+ *
+ * @param {object|string|undefined|null} account - Account name or object.
+ * @returns {string} The account name, or "" if nothing usable is given.
+ */
+function account_name(account) {
+	if (account && typeof account === "object") {
+		return account.name || "";
+	}
+	return account || "";
+}
+
 async function get_rooms(email, whatsapp_account) {
 	const res = await frappe.call({
 		type: "GET",
 		method: "waba_suite.api.contacts.get",
 		args: {
 			email: email,
-			whatsapp_account: whatsapp_account,
+			whatsapp_account: account_name(whatsapp_account),
 		},
 	});
 
@@ -270,6 +287,7 @@ async function get_active_account() {
 }
 
 export {
+	account_name,
 	create_guest,
 	create_private_room,
 	get_active_account,

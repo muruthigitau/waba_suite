@@ -16,7 +16,7 @@ class SyncEngine {
   private statusCallback: SyncStatusCallback | null = null;
   private networkCallbacks: NetworkStatusCallback[] = [];
   private isOnline = navigator.onLine;
-  private syncIntervalMs = 15000; // 15 seconds
+  private syncIntervalMs = 30000; // 30 seconds
   private pendingMessageCall: ApiCall | null = null;
   private markAsReadCall: ApiCall | null = null;
   private getMessagesCall: MessagesApiCall | null = null;
@@ -107,6 +107,7 @@ class SyncEngine {
     const dexieMessages: DexieMessage[] = rawList.map((rm: any) => ({
       id: rm.name,
       chatId,
+      whatsappAccount,
       content: rm.content || rm.message || "",
       timestamp: new Date(rm.creation).toLocaleTimeString([], {
         hour: "2-digit",

@@ -1,4 +1,5 @@
 import { useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
+import { MessageCircleCheck } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -9,60 +10,69 @@ import React, {
 import { ChatList } from "../components/chat/ChatList";
 import { ChatSpace } from "../components/chat/ChatSpace";
 import { SyncStatusBar } from "../components/common/SyncStatusBar";
-import { useCache } from "../contexts/CacheContext";
+import { LabelPickerModal } from "../components/modals/LabelPickerModal";
 import { useUser } from "../contexts/UserProvider";
 import { useChatPreferences } from "../hooks/useChatPreferences";
+import { useUrlState } from "../hooks/useUrlState";
 import syncEngine from "../services/syncEngine";
-import type { Account, Chat, Message, UserSettings } from "../types";
+import type { Account, Chat, ChatLabel, Message, UserSettings } from "../types";
 
 export const WhatsAppHome: React.FC = () => {
   const { logout } = useUser();
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  // Navigation state lives in the URL so it survives reloads, back/forward and
+  // is shareable — no IndexedDB cache involved.
+  const {
+    account: urlAccount,
+    chatId: selectedChatId,
+    filter: activeFilter,
+    labels: selectedLabelFilters,
+    setAccount: setUrlAccount,
+    setChatId: setSelectedChatId,
+    setFilter: setActiveFilter,
+    setLabels: setSelectedLabelFilters,
+  } = useUrlState();
   // A draft chat is a selected contact that has no message history yet —
   // no room/chat exists until the first message is sent.
   const [draftChat, setDraftChat] = useState<Chat | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [chats, setChats] = useState<Chat[]>([]);
-  const [currentAccount, setCurrentAccount] = useState<string>("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [userSettings, setUserSettings] = useState<UserSettings>({
     enableMessageTone: true,
     enableNotifications: true,
   });
   const [currentUserName, setCurrentUserName] = useState<string>("User");
+  const [allLabels, setAllLabels] = useState<ChatLabel[]>([]);
+  // Chat currently having labels edited (the LabelPickerModal target chat id)
+  const [labelPickerChatId, setLabelPickerChatId] = useState<string | null>(
+    null,
+  );
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
-  const {
-    isReady,
-    hydrateChats,
-    cacheChats,
-    cacheRoute,
-    restoreRoute,
-    restoreAccounts,
-    cacheAccounts,
-    cacheUserSettings,
-    restoreUserSettings,
-  } = useCache();
 
   const { data: accountsData } = useFrappeGetCall<{
-    message: { accounts: Account[]; default_account: string };
-  }>(
-    "waba_suite.api.accounts.get_user_accounts_with_default",
-    {},
-    isReady ? undefined : { enabled: false },
-  );
+    message: {
+      accounts: Account[];
+      default_account: Account | null;
+      has_accounts: boolean;
+    };
+  }>("waba_suite.api.accounts.get_user_accounts_with_default", {});
 
-  // Cache accounts when data arrives
-  useEffect(() => {
-    if (accountsData?.message) {
-      const { accounts: accs, default_account } = accountsData.message;
-      if (accs && Array.isArray(accs) && accs.length > 0) {
-        cacheAccounts(accs, default_account);
-      }
+  const serverDefaultAccount =
+    accountsData?.message?.default_account?.name || "";
+
+  // Resolve the active account: prefer the URL (when it points to an account
+  // the user can access), then the server default, then the first account.
+  const currentAccount = useMemo(() => {
+    if (urlAccount && accounts.some((a) => a.name === urlAccount)) {
+      return urlAccount;
     }
-  }, [accountsData, cacheAccounts]);
+    if (serverDefaultAccount) return serverDefaultAccount;
+    if (accounts.length > 0) return accounts[0].name;
+    return urlAccount;
+  }, [urlAccount, accounts, serverDefaultAccount]);
 
   const { data: userSettingsData } = useFrappeGetCall<{
     message: {
@@ -70,24 +80,7 @@ export const WhatsAppHome: React.FC = () => {
       enable_notifications: number;
       full_name: string;
     };
-  }>(
-    "waba_suite.api.config.get_user_settings",
-    {},
-    isReady ? undefined : { enabled: false },
-  );
-
-  // Cache user settings when data arrives
-  useEffect(() => {
-    if (userSettingsData?.message) {
-      cacheUserSettings({
-        enableMessageTone:
-          userSettingsData.message.enable_message_tone === 1,
-        enableNotifications:
-          userSettingsData.message.enable_notifications === 1,
-        fullName: userSettingsData.message.full_name || "User",
-      });
-    }
-  }, [userSettingsData, cacheUserSettings]);
+  }>("waba_suite.api.config.get_user_settings", {});
 
   const shouldFetchRooms = useMemo(() => {
     return !!currentAccount;
@@ -102,9 +95,7 @@ export const WhatsAppHome: React.FC = () => {
       email: "",
       whatsapp_account: currentAccount,
     },
-    shouldFetchRooms
-      ? undefined
-      : { enabled: false, revalidateOnFocus: false },
+    shouldFetchRooms ? undefined : { enabled: false, revalidateOnFocus: false },
   );
 
   const { call: sendMessageCall } = useFrappePostCall(
@@ -122,6 +113,21 @@ export const WhatsAppHome: React.FC = () => {
   const { call: toggleArchiveCall } = useFrappePostCall(
     "waba_suite.api.chat_preferences.toggle_archive",
   );
+  const { data: allLabelsData } = useFrappeGetCall<{
+    message: ChatLabel[];
+  }>("waba_suite.api.labels.get_all", {});
+  const { call: setAssignmentsCall, loading: isSavingLabels } =
+    useFrappePostCall("waba_suite.api.labels.set_assignments");
+
+  // Normalise the URL once accounts are known: if the URL has no (or an
+  // invalid) account, write the resolved default into it so reloads and
+  // shared links stay consistent with what is on screen.
+  useEffect(() => {
+    if (accounts.length === 0 || !currentAccount) return;
+    if (urlAccount !== currentAccount) {
+      setUrlAccount(currentAccount);
+    }
+  }, [accounts, currentAccount, urlAccount, setUrlAccount]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -138,28 +144,10 @@ export const WhatsAppHome: React.FC = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, [selectedChatId]);
 
-  // Hydrate settings from cache first
-  useEffect(() => {
-    const hydrate = async () => {
-      const cached = await restoreUserSettings();
-      if (cached) {
-        setUserSettings({
-          enableMessageTone: cached.enableMessageTone,
-          enableNotifications: cached.enableNotifications,
-        });
-        if (cached.fullName) {
-          setCurrentUserName(cached.fullName);
-        }
-      }
-    };
-    if (!isReady) hydrate();
-  }, [isReady, restoreUserSettings]);
-
   useEffect(() => {
     if (userSettingsData?.message) {
       setUserSettings({
-        enableMessageTone:
-          userSettingsData.message.enable_message_tone === 1,
+        enableMessageTone: userSettingsData.message.enable_message_tone === 1,
         enableNotifications:
           userSettingsData.message.enable_notifications === 1,
       });
@@ -169,78 +157,12 @@ export const WhatsAppHome: React.FC = () => {
     }
   }, [userSettingsData]);
 
-  // Hydrate accounts from cache on mount, restore route
-  useEffect(() => {
-    const init = async () => {
-      if (!isReady) return;
-
-      // 1. Restore previous route FIRST — it has the most recent user state
-      const route = await restoreRoute();
-      if (route && route.currentAccount) {
-        setCurrentAccount(route.currentAccount);
-        const cachedChats = await hydrateChats(route.currentAccount);
-        if (cachedChats.length > 0) {
-          setChats(cachedChats);
-        }
-        if (route.selectedChatId) {
-          setSelectedChatId(route.selectedChatId);
-        }
-        return; // Route takes priority over cached accounts
-      }
-
-      // 2. No stored route — fall back to cached accounts
-      const cachedAccounts = await restoreAccounts();
-      if (cachedAccounts && cachedAccounts.length > 0) {
-        setAccounts(
-          cachedAccounts.map(
-            (a: {
-              name: string;
-              accountName: string;
-              phoneId: string;
-              unreadCount: number;
-              isDefault: boolean;
-            }) => ({
-              name: a.name,
-              account_name: a.accountName,
-              phone_id: a.phoneId,
-              unread_count: a.unreadCount,
-              is_default: a.isDefault,
-            }),
-          ),
-        );
-
-        const defaultAcc = cachedAccounts.find(
-          (a: { isDefault: boolean }) => a.isDefault,
-        );
-        if (defaultAcc) {
-          setCurrentAccount(defaultAcc.name);
-        }
-
-        // Hydrate chats from cache
-        const defaultName =
-          defaultAcc?.name || cachedAccounts[0].name;
-        const cachedChats = await hydrateChats(defaultName);
-        if (cachedChats.length > 0) {
-          setChats(cachedChats);
-        }
-      }
-    };
-    init();
-  }, [isReady, hydrateChats, restoreRoute, restoreAccounts]);
-
+  // Accounts come straight from the server (no cache).
   useEffect(() => {
     if (accountsData?.message) {
-      const { accounts: accs, default_account } = accountsData.message;
+      const accs = accountsData.message.accounts;
       if (accs && Array.isArray(accs)) {
         setAccounts(accs);
-        const defaultAccName = (() => {
-          if (typeof default_account === "string" && default_account) return default_account;
-          if (default_account && typeof default_account === "object" && "name" in default_account) return (default_account as {name: string}).name;
-          return accs.length > 0 ? accs[0].name : "";
-        })();
-        if (defaultAccName) {
-          setCurrentAccount(defaultAccName);
-        }
       }
     }
   }, [accountsData]);
@@ -265,6 +187,12 @@ export const WhatsAppHome: React.FC = () => {
       }
     };
   }, [currentAccount, mutateRooms]);
+
+  useEffect(() => {
+    if (allLabelsData?.message) {
+      setAllLabels(allLabelsData.message);
+    }
+  }, [allLabelsData]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formattedChats = useMemo(() => {
@@ -314,10 +242,16 @@ export const WhatsAppHome: React.FC = () => {
         isPinned: room.is_pinned === true || room.is_pinned === 1,
         isStarred: room.is_starred === true || room.is_starred === 1,
         isArchived: room.is_archived === true || room.is_archived === 1,
+        // Labels assigned to this contact for filtering
+        labels: Array.isArray(room.labels) ? room.labels : [],
+        labelIds: Array.isArray(room.labels)
+          ? room.labels.map((l: { name: string }) => l.name)
+          : [],
         // Single WhatsApp Session status + expiry for the contact+account.
         sessionStatus: room.session_status || undefined,
         sessionExpiresAt: room.session_expires_at || undefined,
-        sessionExpired: room.is_session_expired === true || room.is_session_expired === 1,
+        sessionExpired:
+          room.is_session_expired === true || room.is_session_expired === 1,
       };
     });
   }, [roomsData]);
@@ -347,35 +281,35 @@ export const WhatsAppHome: React.FC = () => {
     }
   }, [formattedChats]);
 
-  // Cache chats when rooms data comes from server
-  useEffect(() => {
-    if (
-      roomsData?.message &&
-      Array.isArray(roomsData.message) &&
-      currentAccount
-    ) {
-      cacheChats(roomsData.message, currentAccount);
-    }
-  }, [roomsData, currentAccount, cacheChats]);
+  // Chats belong to a specific account; only surface those for the active
+  // account so stale rows from a previous account never leak into the new one
+  // (no clearing effect required).
+  const visibleChats = useMemo(
+    () => chats.filter((c) => c.whatsappAccount === currentAccount),
+    [chats, currentAccount],
+  );
 
   const handleMarkAsRead = useCallback(
     async (chat: Chat) => {
       if (!chat) return;
-      // Fire on every session open so all unread messages get marked as read
-      // and read receipts are sent, regardless of the unread badge count.
+      // Fire on every chat open and whenever a new inbound message arrives so
+      // all unread messages are acknowledged, regardless of the badge count.
       try {
         await markMultipleAsReadCall({
           whatsapp_contact: chat.id,
-          whatsapp_account: chat.whatsappAccount,
+          whatsapp_account: chat.whatsappAccount || currentAccount,
         });
+        // Optimistically clear the badge, then reconcile with the server so
+        // the total always matches the backend source of truth.
         setChats((prev) =>
           prev.map((c) => (c.id === chat.id ? { ...c, unreadCount: 0 } : c)),
         );
+        mutateRooms();
       } catch (error) {
         console.error("Failed to mark as read:", error);
       }
     },
-    [markMultipleAsReadCall],
+    [markMultipleAsReadCall, currentAccount, mutateRooms],
   );
 
   const handleSendMessage = useCallback(
@@ -422,20 +356,20 @@ export const WhatsAppHome: React.FC = () => {
 
   const handleSwitchAccount = useCallback(
     async (accountName: string) => {
-      setCurrentAccount(accountName);
-      setSelectedChatId(null);
-      setChats([]);
-      // Cache route with new account
-      cacheRoute(null, accountName);
+      // Switching account is a pure URL change: the rooms query re-runs for the
+      // new account and `visibleChats` only surfaces the new account's rows.
+      setDraftChat(null);
+      setShowSidebar(true);
+      setUrlAccount(accountName);
     },
-    [cacheRoute],
+    [setUrlAccount],
   );
 
   const selectedChat = useMemo(() => {
-    if (!selectedChatId) return draftChat || null;
-    const existing = chats.find((c) => c.id === selectedChatId);
+    if (!selectedChatId) return null;
+    const existing = visibleChats.find((c) => c.id === selectedChatId);
     return existing || draftChat || null;
-  }, [chats, selectedChatId, draftChat]);
+  }, [visibleChats, selectedChatId, draftChat]);
 
   const { togglePin, toggleStar, toggleArchive } = useChatPreferences({
     togglePinCall,
@@ -480,16 +414,70 @@ export const WhatsAppHome: React.FC = () => {
     [chats, toggleArchive],
   );
 
+  // Open the label picker for a specific chat (sets the target chat id).
+  const handleOpenLabels = useCallback((chatId: string) => {
+    setLabelPickerChatId(chatId);
+  }, []);
+
+  // Save the updated label assignments for the target chat.
+  const handleSaveLabels = useCallback(
+    async (labelIds: string[]) => {
+      if (!labelPickerChatId) return;
+      try {
+        const res = (await setAssignmentsCall({
+          whatsapp_contact: labelPickerChatId,
+          whatsapp_account: currentAccount,
+          label_ids: labelIds,
+        })) as { message?: { labels?: ChatLabel[] } };
+        const updatedLabels = res?.message?.labels || [];
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === labelPickerChatId
+              ? {
+                  ...c,
+                  labels: updatedLabels,
+                  labelIds: updatedLabels.map((l) => l.name),
+                }
+              : c,
+          ),
+        );
+        setLabelPickerChatId(null);
+      } catch (error) {
+        console.error("Failed to save labels:", error);
+      }
+    },
+    [labelPickerChatId, setAssignmentsCall, currentAccount],
+  );
+
+  const labelPickerChat = useMemo(() => {
+    if (!labelPickerChatId) return null;
+    return visibleChats.find((c) => c.id === labelPickerChatId) || null;
+  }, [visibleChats, labelPickerChatId]);
+
   const handleSelectChat = useCallback(
     (id: string) => {
       setSelectedChatId(id);
       setDraftChat(null);
       if (isMobile) setShowSidebar(false);
-      // Cache the current route
-      cacheRoute(id, currentAccount);
     },
-    [isMobile, currentAccount, cacheRoute],
+    [isMobile, setSelectedChatId],
   );
+
+  // Toggle a label filter on/off (persisted in the URL, no cache).
+  const handleToggleLabelFilter = useCallback(
+    (labelId: string) => {
+      setSelectedLabelFilters(
+        selectedLabelFilters.includes(labelId)
+          ? selectedLabelFilters.filter((id) => id !== labelId)
+          : [...selectedLabelFilters, labelId],
+      );
+    },
+    [selectedLabelFilters, setSelectedLabelFilters],
+  );
+
+  const handleClearLabelFilters = useCallback(() => {
+    setSelectedLabelFilters([]);
+  }, [setSelectedLabelFilters]);
 
   // Handle a contact selected/created from the "New Message" dialog.
   // We open a chat view for the contact. If the contact has an existing
@@ -542,18 +530,38 @@ export const WhatsAppHome: React.FC = () => {
       }
 
       if (isMobile) setShowSidebar(false);
-      cacheRoute(contact.id, contact.whatsappAccount || currentAccount);
     },
-    [isMobile, currentAccount, cacheRoute],
+    [isMobile, currentAccount, setSelectedChatId],
   );
 
+  // "Back" from the chat view clears the selection (URL) and returns to the list.
   const handleBack = useCallback(() => {
+    setSelectedChatId(null);
+    setDraftChat(null);
+    setShowSidebar(true);
+  }, [setSelectedChatId]);
+
+  // Closing the chat list on mobile (after selecting a chat) must keep the
+  // selected chat — it only reveals the chat view.
+  const handleChatListClose = useCallback(() => {
     setShowSidebar(true);
   }, []);
 
   const handleLogout = useCallback(async () => {
     await logout();
   }, [logout]);
+
+  // Strict permissions: a non-admin user with no accounts is not listed on
+  // any WhatsApp Account's Users table — deny access to the WhatsApp page.
+  const deniedAccess = useMemo(() => {
+    if (accountsData && accountsData.message) {
+      // `has_accounts` reflects only the accounts linked to this user via the
+      // Users (WhatsApp Account User) child table. Administrator is always allowed
+      // and receives accounts from the backend.
+      return accountsData.message.has_accounts === false;
+    }
+    return false;
+  }, [accountsData]);
 
   // Setup sync engine with actual API callbacks when available
   useEffect(() => {
@@ -566,59 +574,96 @@ export const WhatsAppHome: React.FC = () => {
   return (
     <div
       className="flex w-full h-dvh bg-[#111b21] overflow-hidden"
-      style={{ height: '100dvh' }}
+      style={{ height: "100dvh" }}
     >
-      {/* Chat List Sidebar - takes full screen on mobile when shown */}
-      <div
-        className={`${
-          showSidebar ? "flex" : "hidden"
-        } ${
-          isMobile
-            ? "absolute inset-0 z-20 w-full"
-            : "relative w-full max-w-[400px] min-w-[320px] flex-shrink-0 border-r border-[#2a3942]"
-        } flex-col overflow-hidden`}
-      >
-        <SyncStatusBar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <ChatList
-            chats={chats}
-            selectedChatId={selectedChatId}
-            onSelectChat={handleSelectChat}
-            onClose={handleBack}
-            isMobile={isMobile}
+      {/* Strict permissions: deny access when user has no WhatsApp Account access */}
+      {deniedAccess && (
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#111b21] text-center px-6">
+          <div className="w-20 h-20 rounded-full bg-[#202c33] flex items-center justify-center mb-4">
+            <MessageCircleCheck className="w-10 h-10 text-[#8696a0]" />
+          </div>
+          <h2 className="text-xl font-semibold text-white mb-2">
+            Access Denied
+          </h2>
+          <p className="text-[#8696a0] text-sm max-w-sm">
+            You do not have access to WhatsApp. Please contact your
+            administrator to be added to a WhatsApp Account's Users list.
+          </p>
+        </div>
+      )}
+
+      {/* Chat List Sidebar - fully hidden when access is denied */}
+      {!deniedAccess && (
+        <div
+          className={`${showSidebar ? "flex" : "hidden"} ${
+            isMobile
+              ? "absolute inset-0 z-20 w-full"
+              : "relative w-full max-w-[400px] min-w-[320px] flex-shrink-0 border-r border-[#2a3942]"
+          } flex-col overflow-hidden`}
+        >
+          <SyncStatusBar />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <ChatList
+              key={currentAccount}
+              chats={visibleChats}
+              selectedChatId={selectedChatId}
+              onSelectChat={handleSelectChat}
+              onClose={handleChatListClose}
+              isMobile={isMobile}
+              currentAccount={currentAccount}
+              accounts={accounts}
+              onSwitchAccount={handleSwitchAccount}
+              currentUserName={currentUserName}
+              onLogout={handleLogout}
+              onTogglePin={handleTogglePin}
+              onToggleStar={handleToggleStar}
+              onToggleArchive={handleToggleArchive}
+              onOpenLabels={handleOpenLabels}
+              labels={allLabels}
+              onNewContact={handleOpenNewContact}
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              selectedLabelFilters={selectedLabelFilters}
+              onToggleLabelFilter={handleToggleLabelFilter}
+              onClearLabelFilters={handleClearLabelFilters}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Chat Space - fully hidden when access is denied */}
+      {!deniedAccess && (
+        <div
+          className={`flex-1 flex flex-col min-w-0 ${
+            isMobile && showSidebar ? "hidden" : "flex"
+          }`}
+        >
+          <ChatSpace
+            chat={selectedChat}
             currentAccount={currentAccount}
-            accounts={accounts}
-            onSwitchAccount={handleSwitchAccount}
-            userSettings={userSettings}
-            currentUserName={currentUserName}
-            onLogout={handleLogout}
+            onSendMessage={handleSendMessage}
+            onMarkAsRead={handleMarkAsRead}
+            onBack={handleBack}
+            isMobile={isMobile}
             onTogglePin={handleTogglePin}
             onToggleStar={handleToggleStar}
             onToggleArchive={handleToggleArchive}
-            onNewContact={handleOpenNewContact}
+            onOpenLabels={handleOpenLabels}
+            sessionExpired={selectedChat?.sessionExpired}
           />
         </div>
-      </div>
-
-      {/* Chat Space - takes full screen on mobile when sidebar is hidden */}
-      <div
-        className={`flex-1 flex flex-col min-w-0 ${
-          isMobile && showSidebar ? "hidden" : "flex"
-        }`}
-      >
-        <ChatSpace
-          chat={selectedChat}
-          currentAccount={currentAccount}
-          onSendMessage={handleSendMessage}
-          onMarkAsRead={handleMarkAsRead}
-          onBack={handleBack}
-          isMobile={isMobile}
-          onTogglePin={handleTogglePin}
-          onToggleStar={handleToggleStar}
-          onToggleArchive={handleToggleArchive}
-          sessionExpired={selectedChat?.sessionExpired}
-        />
-      </div>
+      )}
+      {/* Label Picker Modal — keyed by chat id so the selection resets per chat */}
+      <LabelPickerModal
+        key={labelPickerChatId || "none"}
+        isOpen={!!labelPickerChat}
+        onClose={() => setLabelPickerChatId(null)}
+        title={`Labels — ${labelPickerChat?.name || ""}`}
+        labels={allLabels}
+        selectedLabelIds={labelPickerChat?.labelIds || []}
+        onSave={handleSaveLabels}
+        isSaving={isSavingLabels}
+      />
     </div>
   );
 };

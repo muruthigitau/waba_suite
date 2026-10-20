@@ -1,0 +1,92 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-15 13:04:55.724073",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "label_name",
+  "disabled",
+  "column_break_gzws",
+  "color",
+  "section_break_yxun",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "label_name",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Label Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "color",
+   "fieldtype": "Color",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_preview": 1,
+   "in_standard_filter": 1,
+   "label": "Color",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_yxun",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "column_break_gzws",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "link_doctype": "WhatsApp Chat Label Assignment",
+   "link_fieldname": "whatsapp_chat_label"
+  }
+ ],
+ "modified": "2026-08-15 14:03:50.464514",
+ "modified_by": "Administrator",
+ "module": "Whatsapp Chat",
+ "name": "WhatsApp Chat Label",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "label_name",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "label_name",
+ "translated_doctype": 1
+}

@@ -604,11 +604,19 @@ class WhatsAppMessage(Document):
 		if existing_lead:
 			return
 
+		lead_name = (
+			f"{whatsapp_contact.contact_name} ({whatsapp_contact.mobile_no})"
+			if whatsapp_contact.contact_name
+			and whatsapp_contact.mobile_no
+			and whatsapp_contact.contact_name != whatsapp_contact.mobile_no
+			else whatsapp_contact.contact_name or whatsapp_contact.mobile_no
+		)
+
 		lead_data = {
 			"doctype": lead_doctype,
-			"lead_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-			"company_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
-			"first_name": whatsapp_contact.contact_name or whatsapp_contact.mobile_no,
+			"lead_name": lead_name,
+			"company_name": lead_name,
+			"first_name": lead_name,
 			"mobile_no": whatsapp_contact.mobile_no,
 		}
 
@@ -641,6 +649,10 @@ def process_incoming_sync(docname):
 	    docname: Name of the WhatsApp Message document to process.
 	"""
 	doc = frappe.get_doc("WhatsApp Message", docname)
+
+	account = frappe.get_doc("WhatsApp Account", doc.whatsapp_account)
+	if account.send_away_reply_if_outside_hours(doc):
+		return
 
 	session = get_or_create_session(
 		mobile_no=doc.get("from"),

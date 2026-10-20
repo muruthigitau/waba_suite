@@ -17,6 +17,18 @@ export const DocumentMessage: React.FC<DocumentMessageProps> = ({
 }) => {
   const ext = fileName.split(".").pop()?.toLowerCase();
   const isPdf = ext === "pdf";
+  const isImage = [
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "webp",
+    "bmp",
+    "svg",
+    "avif",
+    "heic",
+    "heif",
+  ].includes(ext || "");
 
   const getFileIconColor = () => {
     switch (ext) {
@@ -39,6 +51,26 @@ export const DocumentMessage: React.FC<DocumentMessageProps> = ({
 
   return (
     <div className="flex flex-col gap-2 max-w-sm w-full">
+      {isImage && (
+        <a
+          href={fileUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="relative w-full max-h-64 rounded-lg overflow-hidden bg-[#111b21] border border-[#2a3942] flex items-center justify-center p-1 select-none hover:opacity-90 transition group"
+        >
+          <img
+            src={fileUrl}
+            alt={fileName}
+            className="max-w-full max-h-64 object-contain rounded shadow-sm"
+          />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+            <span className="text-xs bg-[#202c33] text-white px-3 py-1.5 rounded-full border border-[#2a3942] shadow-md font-medium">
+              Open Image
+            </span>
+          </div>
+        </a>
+      )}
+
       {isPdf && (
         <a
           href={fileUrl}

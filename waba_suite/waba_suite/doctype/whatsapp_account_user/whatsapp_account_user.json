@@ -1,52 +1,42 @@
 {
  "actions": [],
- "allow_rename": 1,
- "creation": "2026-06-12 00:23:09.970886",
+ "creation": "2026-09-03 09:56:12.692597",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "default",
-  "column_break_syzx",
   "user"
  ],
  "fields": [
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Default"
+  },
   {
    "fieldname": "user",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "User",
-   "options": "User",
-   "reqd": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "default",
-   "fieldtype": "Check",
-   "in_filter": 1,
-   "in_list_view": 1,
-   "in_preview": 1,
-   "in_standard_filter": 1,
-   "label": "Default"
-  },
-  {
-   "fieldname": "column_break_syzx",
-   "fieldtype": "Column Break"
+   "options": "User"
   }
  ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-12 00:24:21.520428",
+ "modified": "2026-09-03 09:56:12.692597",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Account User",
  "owner": "Administrator",
  "permissions": [],
+ "quick_entry": 1,
  "row_format": "Dynamic",
- "sort_field": "creation",
+ "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }

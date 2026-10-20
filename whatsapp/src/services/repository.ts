@@ -1,7 +1,6 @@
 import db, {
   type DexieChat,
   type DexieMessage,
-  type DexieRoute,
   type DexiePendingMessage,
   type DexieAccount,
   type DexieUserSettings,
@@ -63,15 +62,21 @@ export const chatRepo = {
   async clearAll(): Promise<void> {
     await db.chats.clear();
   },
+
+  async clearByAccount(whatsappAccount: string): Promise<void> {
+    await db.chats.where("whatsappAccount").equals(whatsappAccount).delete();
+  },
 };
 
 // ─── Messages Repository ──────────────────────────────────────
 
 export const messageRepo = {
-  async getByChatId(chatId: string): Promise<DexieMessage[]> {
+  async getByChatId(
+    chatId: string,
+    whatsappAccount: string,
+  ): Promise<DexieMessage[]> {
     return db.messages
-      .where("chatId")
-      .equals(chatId)
+      .where({ chatId, whatsappAccount })
       .reverse()
       .sortBy("fullTimestamp");
   },
@@ -107,50 +112,50 @@ export const messageRepo = {
     await db.messages.where("chatId").equals(chatId).delete();
   },
 
+  async deleteByAccount(whatsappAccount: string): Promise<void> {
+    await db.messages.where("whatsappAccount").equals(whatsappAccount).delete();
+  },
+
+  async clearByAccount(whatsappAccount: string): Promise<void> {
+    await db.messages.where("whatsappAccount").equals(whatsappAccount).delete();
+  },
+
   async clearAll(): Promise<void> {
     await db.messages.clear();
   },
 
-  async getPendingMessages(chatId: string): Promise<DexieMessage[]> {
+  async getPendingMessages(
+    chatId: string,
+    whatsappAccount?: string,
+  ): Promise<DexieMessage[]> {
+    if (whatsappAccount) {
+      return db.messages
+        .where({ chatId, isPending: 1, whatsappAccount })
+        .toArray();
+    }
     return db.messages
       .where({ chatId, isPending: 1 })
       .toArray();
   },
 
-  async getLastTimestamp(chatId: string): Promise<string | undefined> {
-    const latest = await db.messages
-      .where("chatId")
-      .equals(chatId)
-      .reverse()
-      .sortBy("fullTimestamp");
+  async getLastTimestamp(
+    chatId: string,
+    whatsappAccount?: string,
+  ): Promise<string | undefined> {
+    let latest: DexieMessage[];
+    if (whatsappAccount) {
+      latest = await db.messages
+        .where({ chatId, whatsappAccount })
+        .reverse()
+        .sortBy("fullTimestamp");
+    } else {
+      latest = await db.messages
+        .where({ chatId, whatsappAccount: "unknown" })
+        .reverse()
+        .sortBy("fullTimestamp");
+    }
     // sortBy with reverse() returns newest-first, so latest[0] is the newest
     return latest.length > 0 ? latest[0].fullTimestamp.toISOString() : undefined;
-  },
-};
-
-// ─── Route/Memory Repository ──────────────────────────────────
-
-export const routeRepo = {
-  async get(): Promise<DexieRoute | undefined> {
-    return db.routes.get("current");
-  },
-
-  async save(data: {
-    path: string;
-    selectedChatId: string | null;
-    currentAccount: string;
-  }): Promise<void> {
-    await db.routes.put({
-      id: "current",
-      path: data.path,
-      selectedChatId: data.selectedChatId,
-      currentAccount: data.currentAccount,
-      updatedAt: SYNCED_AT,
-    });
-  },
-
-  async clear(): Promise<void> {
-    await db.routes.delete("current");
   },
 };
 
@@ -221,6 +226,13 @@ export const pendingMessageRepo = {
   async clearAll(): Promise<void> {
     await db.pendingMessages.clear();
   },
+
+  async clearByAccount(whatsappAccount: string): Promise<void> {
+    await db.pendingMessages
+      .where("whatsappAccount")
+      .equals(whatsappAccount)
+      .delete();
+  },
 };
 
 // ─── Accounts Repository ──────────────────────────────────────
@@ -279,6 +291,7 @@ export const dbMaintenance = {
       db.pendingMessages.clear(),
       db.accounts.clear(),
       db.userSettings.clear(),
+      db.uiState.clear(),
     ]);
   },
 
