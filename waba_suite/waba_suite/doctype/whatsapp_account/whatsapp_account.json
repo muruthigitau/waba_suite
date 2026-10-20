@@ -201,7 +201,7 @@
    "link_fieldname": "whatsapp_account"
   }
  ],
- "modified": "2026-09-03 09:56:57.209479",
+ "modified": "2026-10-20 07:48:46.313652",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Account",
@@ -217,6 +217,27 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "WhatsApp Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "WhatsApp User",
+   "share": 1
   }
  ],
  "row_format": "Dynamic",

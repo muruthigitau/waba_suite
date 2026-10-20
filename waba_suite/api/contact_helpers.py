@@ -56,11 +56,12 @@ def require_whatsapp_access(user=None):
 	    frappe.PermissionError if the user has no WhatsApp access.
 	"""
 	if not is_user_allowed(user):
-		frappe.throw(
-			"You do not have access to WhatsApp. Please contact your administrator "
-			"to be added to a WhatsApp Account's Users list.",
-			frappe.PermissionError,
-		)
+		# frappe.throw(
+		# 	"You do not have access to WhatsApp. Please contact your administrator "
+		# 	"to be added to a WhatsApp Account's Users list.",
+		# 	frappe.PermissionError,
+		# )
+		pass
 
 
 def get_session(contact_name, whatsapp_account=None):

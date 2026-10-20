@@ -1,250 +1,272 @@
 {
-    "actions": [],
-    "autoname": "format:{title}-{#####}",
-    "creation": "2024-01-01 00:00:00.000000",
-    "doctype": "DocType",
-    "editable_grid": 1,
-    "engine": "InnoDB",
-    "field_order": [
-        "title",
-        "enabled",
-        "priority",
-        "column_break_basic",
-        "whatsapp_account",
-        "section_break_keywords",
-        "keywords",
-        "match_type",
-        "case_sensitive",
-        "section_break_response",
-        "response_type",
-        "response_text",
-        "column_break_response",
-        "response_template",
-        "template_parameters",
-        "section_break_media",
-        "media_type",
-        "media_url",
-        "media_caption",
-        "section_break_flow",
-        "trigger_flow",
-        "section_break_script",
-        "script",
-        "section_break_conditions",
-        "conditions",
-        "active_from",
-        "active_until"
-    ],
-    "fields": [
-        {
-            "fieldname": "title",
-            "fieldtype": "Data",
-            "in_list_view": 1,
-            "in_standard_filter": 1,
-            "label": "Title",
-            "reqd": 1,
-            "unique": 1
-        },
-        {
-            "default": "1",
-            "fieldname": "enabled",
-            "fieldtype": "Check",
-            "in_list_view": 1,
-            "label": "Enabled"
-        },
-        {
-            "default": "10",
-            "fieldname": "priority",
-            "fieldtype": "Int",
-            "in_list_view": 1,
-            "label": "Priority",
-            "description": "Higher priority rules are matched first"
-        },
-        {
-            "fieldname": "column_break_basic",
-            "fieldtype": "Column Break"
-        },
-        {
-            "fieldname": "whatsapp_account",
-            "fieldtype": "Link",
-            "label": "WhatsApp Account",
-            "options": "WhatsApp Account",
-            "description": "Leave empty to apply to all accounts"
-        },
-        {
-            "fieldname": "section_break_keywords",
-            "fieldtype": "Section Break",
-            "label": "Keyword Matching"
-        },
-        {
-            "fieldname": "keywords",
-            "fieldtype": "Small Text",
-            "label": "Keywords",
-            "reqd": 1,
-            "description": "Comma-separated list of keywords to match (e.g., hello, hi, hey)"
-        },
-        {
-            "default": "Contains",
-            "fieldname": "match_type",
-            "fieldtype": "Select",
-            "label": "Match Type",
-            "options": "Exact\nContains\nStarts With\nRegex",
-            "reqd": 1
-        },
-        {
-            "default": "0",
-            "fieldname": "case_sensitive",
-            "fieldtype": "Check",
-            "label": "Case Sensitive"
-        },
-        {
-            "fieldname": "section_break_response",
-            "fieldtype": "Section Break",
-            "label": "Response Configuration"
-        },
-        {
-            "default": "Text",
-            "fieldname": "response_type",
-            "fieldtype": "Select",
-            "in_list_view": 1,
-            "label": "Response Type",
-            "options": "Text\nTemplate\nMedia\nFlow\nScript",
-            "reqd": 1
-        },
-        {
-            "fieldname": "response_text",
-            "fieldtype": "Text",
-            "label": "Response Text",
-            "depends_on": "eval:doc.response_type=='Text'",
-            "mandatory_depends_on": "eval:doc.response_type=='Text'"
-        },
-        {
-            "fieldname": "column_break_response",
-            "fieldtype": "Column Break"
-        },
-        {
-            "fieldname": "response_template",
-            "fieldtype": "Link",
-            "label": "Response Template",
-            "options": "WhatsApp Templates",
-            "depends_on": "eval:doc.response_type=='Template'",
-            "mandatory_depends_on": "eval:doc.response_type=='Template'"
-        },
-        {
-            "fieldname": "template_parameters",
-            "fieldtype": "JSON",
-            "label": "Template Parameters",
-            "depends_on": "eval:doc.response_type=='Template'",
-            "description": "JSON object with template parameter values"
-        },
-        {
-            "fieldname": "section_break_media",
-            "fieldtype": "Section Break",
-            "label": "Media Response",
-            "depends_on": "eval:doc.response_type=='Media'",
-            "collapsible": 1
-        },
-        {
-            "fieldname": "media_type",
-            "fieldtype": "Select",
-            "label": "Media Type",
-            "options": "Image\nVideo\nAudio\nDocument",
-            "depends_on": "eval:doc.response_type=='Media'",
-            "mandatory_depends_on": "eval:doc.response_type=='Media'"
-        },
-        {
-            "fieldname": "media_url",
-            "fieldtype": "Data",
-            "label": "Media URL",
-            "depends_on": "eval:doc.response_type=='Media'",
-            "mandatory_depends_on": "eval:doc.response_type=='Media'",
-            "description": "Public URL of the media file"
-        },
-        {
-            "fieldname": "media_caption",
-            "fieldtype": "Small Text",
-            "label": "Media Caption",
-            "depends_on": "eval:doc.response_type=='Media'"
-        },
-        {
-            "fieldname": "section_break_flow",
-            "fieldtype": "Section Break",
-            "label": "Flow Trigger",
-            "depends_on": "eval:doc.response_type=='Flow'",
-            "collapsible": 1
-        },
-        {
-            "fieldname": "trigger_flow",
-            "fieldtype": "Link",
-            "label": "Trigger Flow",
-            "options": "WhatsApp Chatbot Flow",
-            "depends_on": "eval:doc.response_type=='Flow'",
-            "mandatory_depends_on": "eval:doc.response_type=='Flow'"
-        },
-        {
-            "fieldname": "section_break_script",
-            "fieldtype": "Section Break",
-            "label": "Script Configuration",
-            "depends_on": "eval:doc.response_type=='Script'",
-            "collapsible": 1
-        },
-        {
-            "fieldname": "script",
-            "fieldtype": "Data",
-            "label": "Script",
-            "depends_on": "eval:doc.response_type=='Script'",
-            "mandatory_depends_on": "eval:doc.response_type=='Script'",
-            "description": "Server Script name (API type) or method path (e.g., myapp.api.escalate_to_agent)"
-        },
-        {
-            "fieldname": "section_break_conditions",
-            "fieldtype": "Section Break",
-            "label": "Additional Conditions",
-            "collapsible": 1
-        },
-        {
-            "fieldname": "conditions",
-            "fieldtype": "Code",
-            "label": "Conditions",
-            "options": "Python",
-            "description": "Python expression for additional conditions. Use 'message' variable for the incoming message text. Example: len(message) > 10"
-        },
-        {
-            "fieldname": "active_from",
-            "fieldtype": "Datetime",
-            "label": "Active From",
-            "description": "Rule is active from this date/time"
-        },
-        {
-            "fieldname": "active_until",
-            "fieldtype": "Datetime",
-            "label": "Active Until",
-            "description": "Rule is active until this date/time"
-        }
-    ],
-    "index_web_pages_for_search": 1,
-    "links": [],
-    "modified": "2024-01-01 00:00:00.000000",
-    "modified_by": "Administrator",
-    "module": "Frappe WhatsApp Chatbot",
-    "name": "WhatsApp Keyword Reply",
-    "naming_rule": "Expression",
-    "owner": "Administrator",
-    "permissions": [
-        {
-            "create": 1,
-            "delete": 1,
-            "email": 1,
-            "export": 1,
-            "print": 1,
-            "read": 1,
-            "report": 1,
-            "role": "System Manager",
-            "share": 1,
-            "write": 1
-        }
-    ],
-    "sort_field": "priority",
-    "sort_order": "DESC",
-    "states": [],
-    "track_changes": 1
+ "actions": [],
+ "autoname": "format:{title}-{#####}",
+ "creation": "2024-01-01 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "enabled",
+  "priority",
+  "column_break_basic",
+  "whatsapp_account",
+  "section_break_keywords",
+  "keywords",
+  "match_type",
+  "case_sensitive",
+  "section_break_response",
+  "response_type",
+  "response_text",
+  "column_break_response",
+  "response_template",
+  "template_parameters",
+  "section_break_media",
+  "media_type",
+  "media_url",
+  "media_caption",
+  "section_break_flow",
+  "trigger_flow",
+  "section_break_script",
+  "script",
+  "section_break_conditions",
+  "conditions",
+  "active_from",
+  "active_until"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Title",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "default": "10",
+   "description": "Higher priority rules are matched first",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Priority"
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Leave empty to apply to all accounts",
+   "fieldname": "whatsapp_account",
+   "fieldtype": "Link",
+   "label": "WhatsApp Account",
+   "options": "WhatsApp Account"
+  },
+  {
+   "fieldname": "section_break_keywords",
+   "fieldtype": "Section Break",
+   "label": "Keyword Matching"
+  },
+  {
+   "description": "Comma-separated list of keywords to match (e.g., hello, hi, hey)",
+   "fieldname": "keywords",
+   "fieldtype": "Small Text",
+   "label": "Keywords",
+   "reqd": 1
+  },
+  {
+   "default": "Contains",
+   "fieldname": "match_type",
+   "fieldtype": "Select",
+   "label": "Match Type",
+   "options": "Exact\nContains\nStarts With\nRegex",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "case_sensitive",
+   "fieldtype": "Check",
+   "label": "Case Sensitive"
+  },
+  {
+   "fieldname": "section_break_response",
+   "fieldtype": "Section Break",
+   "label": "Response Configuration"
+  },
+  {
+   "default": "Text",
+   "fieldname": "response_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Response Type",
+   "options": "Text\nTemplate\nMedia\nFlow\nScript",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.response_type=='Text'",
+   "fieldname": "response_text",
+   "fieldtype": "Text",
+   "label": "Response Text",
+   "mandatory_depends_on": "eval:doc.response_type=='Text'"
+  },
+  {
+   "fieldname": "column_break_response",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.response_type=='Template'",
+   "fieldname": "response_template",
+   "fieldtype": "Link",
+   "label": "Response Template",
+   "mandatory_depends_on": "eval:doc.response_type=='Template'",
+   "options": "WhatsApp Templates"
+  },
+  {
+   "depends_on": "eval:doc.response_type=='Template'",
+   "description": "JSON object with template parameter values",
+   "fieldname": "template_parameters",
+   "fieldtype": "JSON",
+   "label": "Template Parameters"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.response_type=='Media'",
+   "fieldname": "section_break_media",
+   "fieldtype": "Section Break",
+   "label": "Media Response"
+  },
+  {
+   "depends_on": "eval:doc.response_type=='Media'",
+   "fieldname": "media_type",
+   "fieldtype": "Select",
+   "label": "Media Type",
+   "mandatory_depends_on": "eval:doc.response_type=='Media'",
+   "options": "Image\nVideo\nAudio\nDocument"
+  },
+  {
+   "depends_on": "eval:doc.response_type=='Media'",
+   "description": "Public URL of the media file",
+   "fieldname": "media_url",
+   "fieldtype": "Data",
+   "label": "Media URL",
+   "mandatory_depends_on": "eval:doc.response_type=='Media'"
+  },
+  {
+   "depends_on": "eval:doc.response_type=='Media'",
+   "fieldname": "media_caption",
+   "fieldtype": "Small Text",
+   "label": "Media Caption"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.response_type=='Flow'",
+   "fieldname": "section_break_flow",
+   "fieldtype": "Section Break",
+   "label": "Flow Trigger"
+  },
+  {
+   "depends_on": "eval:doc.response_type=='Flow'",
+   "fieldname": "trigger_flow",
+   "fieldtype": "Link",
+   "label": "Trigger Flow",
+   "mandatory_depends_on": "eval:doc.response_type=='Flow'",
+   "options": "WhatsApp Chatbot Flow"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.response_type=='Script'",
+   "fieldname": "section_break_script",
+   "fieldtype": "Section Break",
+   "label": "Script Configuration"
+  },
+  {
+   "depends_on": "eval:doc.response_type=='Script'",
+   "description": "Server Script name (API type) or method path (e.g., myapp.api.escalate_to_agent)",
+   "fieldname": "script",
+   "fieldtype": "Data",
+   "label": "Script",
+   "mandatory_depends_on": "eval:doc.response_type=='Script'"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_conditions",
+   "fieldtype": "Section Break",
+   "label": "Additional Conditions"
+  },
+  {
+   "description": "Python expression for additional conditions. Use 'message' variable for the incoming message text. Example: len(message) > 10",
+   "fieldname": "conditions",
+   "fieldtype": "Code",
+   "label": "Conditions",
+   "options": "Python"
+  },
+  {
+   "description": "Rule is active from this date/time",
+   "fieldname": "active_from",
+   "fieldtype": "Datetime",
+   "label": "Active From"
+  },
+  {
+   "description": "Rule is active until this date/time",
+   "fieldname": "active_until",
+   "fieldtype": "Datetime",
+   "label": "Active Until"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-20 07:53:54.308499",
+ "modified_by": "Administrator",
+ "module": "Frappe WhatsApp Chatbot",
+ "name": "WhatsApp Keyword Reply",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "WhatsApp Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "WhatsApp User",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "priority",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
 }

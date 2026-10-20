@@ -360,7 +360,7 @@
    "link_fieldname": "reply_to_message"
   }
  ],
- "modified": "2026-07-30 09:29:26.507479",
+ "modified": "2026-10-20 07:51:07.564616",
  "modified_by": "Administrator",
  "module": "WABA Suite",
  "name": "WhatsApp Message",
@@ -375,6 +375,29 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "WhatsApp Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "WhatsApp User",
    "share": 1,
    "write": 1
   }

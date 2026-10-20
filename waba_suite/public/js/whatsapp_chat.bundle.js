@@ -26,10 +26,10 @@ frappe.Chat = class {
 		this.$chat_element = $(document.createElement("div")).addClass("waba-chat-element").hide();
 
 		this.$chat_element.append(`
-			<span class="waba-chat-cross-button" style="display: none;">
-				${frappe.utils.icon("close", "lg")}
-			</span>
-		`);
+            <span class="waba-chat-cross-button" style="display: none;">
+                ${frappe.utils.icon("close", "lg")}
+            </span>
+        `);
 		this.$chat_element.append(this.$chat_container);
 		this.$chat_element.appendTo(this.$app_element);
 
@@ -37,34 +37,26 @@ frappe.Chat = class {
 		window.wabaChatBubble = this.chat_bubble;
 		this.chat_bubble.render();
 
-		const userMenuElement = $(".nav-item.dropdown.dropdown-navbar-user.dropdown-mobile.mt-3");
-		if (userMenuElement.length > 0) {
-			const sidebarIconHTML = `
-				<div class="nav-item dropdown dropdown-navbar-user dropdown-mobile mt-3 waba-sidebar-item" style="border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 8px !important;">
-					<a class="align-center btn-reset flex nav-link sidebar-user-button" style="width: 100%; min-height: 40px; position: relative;" title="WhatsApp Chat">
-						<div class="position-relative" style="display: inline-block;">
-							<span class="avatar avatar-medium">
-								<div class="avatar-frame standard-image" color: white;">
-									<img src="/assets/waba_suite/whatsapp.png" alt="WhatsApp" style="width: 30px; height: 30px; object-fit: contain;" />
-								</div>
-							</span>
-							<span class="badge waba-notification-badge" id="waba-chat-notification-count" style="position: absolute; top: -5px; right: -5px; background-color: #dc3545; color: white; border-radius: 50%; padding: 2px 5px; font-size: 10px; min-width: 18px; text-align: center;"></span>
-						</div>
-						<div class="avatar-name-email ml-2 text-small overflow-hidden w-75">
-							<span class="d-block text-truncate">WhatsApp Chat</span>
-							<span class="d-block text-secondary text-truncate">View Messages</span>
-						</div>
-					</a>
-				</div>
-			`;
-			userMenuElement.before(sidebarIconHTML);
+		const deskDockUser = $(".dock-user");
+
+		if (deskDockUser.length > 0) {
+			const dockItemHTML = `
+                <button class="dock-item waba-navbar-icon" aria-label="WhatsApp Chat" title="Show Chats" style="display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; background: none; border: none; width: 100%; padding: 8px 0; cursor: pointer;">
+                    <span class="dock-item-icon" style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
+                        <img src="/assets/waba_suite/whatsapp.png" alt="WhatsApp" style="width: 24px; height: 24px; object-fit: contain;" />
+                        <span class="badge waba-notification-badge" id="waba-chat-notification-count" style="position: absolute; top: -5px; right: -5px; background-color: #dc3545; color: white; border-radius: 50%; padding: 2px 5px; font-size: 10px; min-width: 16px; text-align: center;"></span>
+                    </span>
+                    <span class="dock-item-label" style="font-size: 11px; margin-top: 4px;">WhatsApp</span>
+                </button>
+            `;
+			deskDockUser.before(dockItemHTML);
 		} else if (this.is_desk === true) {
 			const navbarIconHTML = `
-				<li class='nav-item dropdown dropdown-notifications dropdown-mobile waba-navbar-icon' title="Show Chats" style="display: flex; align-items: center; justify-content: center;">
-					<img src="/assets/waba_suite/whatsapp.png" alt="WhatsApp" style="width: 24px; height: 24px; object-fit: contain;" />
-					<span class="badge waba-notification-badge" id="waba-chat-notification-count"></span>
-				</li>
-			`;
+                <li class='nav-item dropdown dropdown-notifications dropdown-mobile waba-navbar-icon' title="Show Chats" style="display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                    <img src="/assets/waba_suite/whatsapp.png" alt="WhatsApp" style="width: 24px; height: 24px; object-fit: contain;" />
+                    <span class="badge waba-notification-badge" id="waba-chat-notification-count"></span>
+                </li>
+            `;
 			$("header.navbar > .container > .navbar-collapse > ul").prepend(navbarIconHTML);
 		}
 
@@ -143,14 +135,14 @@ frappe.Chat = class {
 		const chat_app = $(".waba-chat-app");
 		const navbar = $(".navbar");
 		const modal = $(".modal");
-		const sidebarItem = $(".waba-sidebar-item");
+		const dock = $("#desk-dock");
 		return (
 			!chat_app.is(e.target) &&
 			chat_app.has(e.target).length === 0 &&
 			!navbar.is(e.target) &&
 			navbar.has(e.target).length === 0 &&
-			!sidebarItem.is(e.target) &&
-			sidebarItem.has(e.target).length === 0 &&
+			!dock.is(e.target) &&
+			dock.has(e.target).length === 0 &&
 			!modal.is(e.target) &&
 			modal.has(e.target).length === 0
 		);
@@ -158,8 +150,7 @@ frappe.Chat = class {
 
 	setup_events() {
 		const me = this;
-		$(".waba-navbar-icon").on("click", function () {
-			// me.chat_bubble.change_bubble();
+		$(document).on("click", ".waba-navbar-icon", function () {
 			window.open("/whatsapp", "_blank");
 		});
 

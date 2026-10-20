@@ -17,6 +17,16 @@ app_description = (
 app_email = "muruthigitau@gmail.com"
 app_license = "agpl-3.0"
 
+add_to_apps_screen = [
+	{
+		"name": "WABA Suite",
+		"logo": "/assets/waba_suite/whatsapp.png",
+		"title": "WABA Suite",
+		"route": "/desk/waba-suite",
+		# "has_permission": "whatsapp.api.permission.has_app_permission",
+	}
+]
+
 # Assets injected into the desk (chat UI bundle + core JS).
 app_include_css = ["whatsapp_chat.bundle.css"]
 app_include_js = ["whatsapp_chat.bundle.js", "/assets/waba_suite/js/wabasuitejs.js"]

@@ -1,0 +1,32 @@
+{
+ "app": "waba_suite",
+ "creation": "2026-10-20 07:08:14.649417",
+ "docstatus": 0,
+ "doctype": "Dock",
+ "idx": 0,
+ "items": [
+  {
+   "added": 1,
+   "hidden": 0,
+   "icon": "tablet-smartphone",
+   "link_to": "WABA Suite",
+   "link_type": "Sidebar",
+   "title": "WhatsApp"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "airplay",
+   "link_to": "Chat",
+   "link_type": "Sidebar",
+   "title": "WhatsApp Chat"
+  }
+ ],
+ "modified": "2026-10-20 07:41:57.656879",
+ "modified_by": "Administrator",
+ "mount_on": "",
+ "name": "waba_suite",
+ "owner": "Administrator",
+ "standard": 1,
+ "user": ""
+}
