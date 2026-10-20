@@ -1,28 +1,36 @@
 {
  "app": "waba_suite",
- "creation": "2026-10-20 07:08:14.649417",
+ "creation": "2026-10-20 09:07:30.000000",
  "docstatus": 0,
  "doctype": "Dock",
  "idx": 0,
  "items": [
   {
-   "added": 1,
+   "added": 0,
    "hidden": 0,
-   "icon": "tablet-smartphone",
-   "link_to": "WABA Suite",
+   "icon": "message-circle",
+   "link_to": "WhatsApp",
    "link_type": "Sidebar",
    "title": "WhatsApp"
   },
   {
    "added": 0,
    "hidden": 0,
-   "icon": "airplay",
-   "link_to": "Chat",
+   "icon": "bot-message-square",
+   "link_to": "WhatsApp Chatbot",
    "link_type": "Sidebar",
-   "title": "WhatsApp Chat"
+   "title": "WhatsApp Chatbot"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "headset",
+   "link_to": "WhatsApp Chats",
+   "link_type": "Sidebar",
+   "title": "WhatsApp Chats"
   }
  ],
- "modified": "2026-10-20 07:41:57.656879",
+ "modified": "2026-10-20 09:21:00.000000",
  "modified_by": "Administrator",
  "mount_on": "",
  "name": "waba_suite",

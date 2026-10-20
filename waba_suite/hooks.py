@@ -19,10 +19,9 @@ app_license = "agpl-3.0"
 
 add_to_apps_screen = [
 	{
-		"name": "WABA Suite",
+		"name": "waba_suite",
 		"logo": "/assets/waba_suite/whatsapp.png",
-		"title": "WABA Suite",
-		"route": "/desk/waba-suite",
+		"title": "WhatsApp",
 		# "has_permission": "whatsapp.api.permission.has_app_permission",
 	}
 ]
