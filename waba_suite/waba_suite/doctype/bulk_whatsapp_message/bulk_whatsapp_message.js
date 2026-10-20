@@ -10,22 +10,35 @@ frappe.ui.form.on("Bulk WhatsApp Message", {
 					},
 					callback: function (r) {
 						if (r.message) {
-							let progress = r.message;
-							let html = `
+							const progress = r.message;
+							const percent = Math.min(100, Math.round(progress.percent || 0));
+							const counts = {
+								sent: progress.sent || 0,
+								delivered: progress.delivered || 0,
+								read: progress.read || 0,
+								queued: progress.queued || 0,
+								pending: progress.pending || 0,
+								failed: progress.failed || 0,
+								total: progress.total || 0,
+							};
+							const html = `
                                 <div class="progress" style="height: 20px;">
-                                    <div class="progress-bar bg-success" role="progressbar" 
-                                        style="width: ${progress.percent}%;" 
-                                        aria-valuenow="${progress.percent}" 
-                                        aria-valuemin="0" 
+                                    <div class="progress-bar bg-success" role="progressbar"
+                                        style="width: ${percent}%;"
+                                        aria-valuenow="${percent}"
+                                        aria-valuemin="0"
                                         aria-valuemax="100">
-                                        ${Math.round(progress.percent)}%
+                                        ${percent}%
                                     </div>
                                 </div>
                                 <div class="mt-2">
-                                    <span class="badge badge-success">Sent: ${progress.sent}</span>
-                                    <span class="badge badge-danger ml-2">Failed: ${progress.failed}</span>
-                                    <span class="badge badge-warning ml-2">Queued: ${progress.queued}</span>
-                                    <span class="badge badge-info ml-2">Total: ${progress.total}</span>
+                                    <span class="badge badge-success">Sent: ${counts.sent}</span>
+                                    <span class="badge badge-info ml-2">Delivered: ${counts.delivered}</span>
+                                    <span class="badge badge-primary ml-2">Read: ${counts.read}</span>
+                                    <span class="badge badge-warning ml-2">Queued: ${counts.queued}</span>
+                                    <span class="badge badge-secondary ml-2">Pending: ${counts.pending}</span>
+                                    <span class="badge badge-danger ml-2">Failed: ${counts.failed}</span>
+                                    <span class="badge badge-dark ml-2">Total: ${counts.total}</span>
                                 </div>
                             `;
 

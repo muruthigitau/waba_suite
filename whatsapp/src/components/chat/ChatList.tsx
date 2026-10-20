@@ -4,11 +4,13 @@ import {
   LogOut,
   Mail,
   MailOpen,
+  Megaphone,
   Plus,
   Smartphone,
   Star,
 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Account, Chat, ChatLabel } from "../../types";
 import type { ChatFilter } from "../../hooks/useUrlState";
 import { Avatar } from "../common/Avatar";
@@ -78,6 +80,7 @@ export const ChatList: React.FC<ChatListProps> = ({
   onToggleLabelFilter,
   onClearLabelFilters,
 }) => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddRoom, setShowAddRoom] = useState(false);
@@ -411,6 +414,21 @@ export const ChatList: React.FC<ChatListProps> = ({
                 className={`text-[10px] transition ${activeFilter === "all" ? "text-[#25D366]" : "text-[#aebac1] group-hover:text-white"}`}
               >
                 Chats
+              </span>
+            </button>
+            <button
+              onClick={() =>
+                navigate(
+                  currentAccount
+                    ? `/bulk?account=${encodeURIComponent(currentAccount)}`
+                    : "/bulk",
+                )
+              }
+              className="flex flex-col items-center space-y-0.5 p-2 rounded-lg transition flex-1 group"
+            >
+              <Megaphone className="w-5 h-5 text-[#aebac1] group-hover:text-white transition" />
+              <span className="text-[10px] text-[#aebac1] group-hover:text-white transition">
+                Bulk
               </span>
             </button>
             {accounts.length > 1 && (
