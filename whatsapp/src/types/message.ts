@@ -18,8 +18,17 @@ export interface Message {
     | "button"
     | "interactive"
     | "flow"
+    | "template"
     | "reaction";
   reactions?: { emoji: string; count: number; users?: string[] }[];
+  /** Raw template text used to resolve placeholders in template messages. */
+  templateRaw?: {
+    header?: string;
+    body?: string;
+    footer?: string;
+  };
+  /** Media header attachment of a template message. */
+  templateFileUrl?: string;
   replyTo?: {
     content: string;
     sender: string;
@@ -45,7 +54,6 @@ export interface Message {
   buttonData?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   interactiveData?: any;
-  isTemplate?: boolean;
 }
 
 export interface RawMessage {
@@ -67,6 +75,7 @@ export interface RawMessage {
     | "button"
     | "interactive"
     | "flow"
+    | "template"
     | "reaction";
   attach?: string;
   caption?: string;

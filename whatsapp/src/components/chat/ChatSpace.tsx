@@ -14,16 +14,13 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useCache } from "../../contexts/CacheContext";
 import { useMessageGrouping } from "../../hooks/useMessageGrouping";
-import syncEngine from "../../services/syncEngine";
 import type { Chat, Message } from "../../types";
 import { FileUploadField } from "../common/FileUploadField";
 import { Loader } from "../common/Loader";
 import { MessageBubble } from "../common/MessageBubble";
 import { MessageReference } from "../common/MessageReference";
 import { ChatHeader } from "../layout/ChatHeader";
-import { TemplateMessage } from "../messages/TemplateMessage";
 import { EmojiPicker } from "../modals/EmojiPicker";
 import { TemplateModal } from "../modals/TemplateModal";
 
@@ -66,10 +63,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   onOpenLabels,
   sessionExpired,
 }) => {
-  const {
-    isOnline,
-    queueOfflineMessage,
-  } = useCache();
   const [messageInput, setMessageInput] = useState("");
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [globalEmojiPicker, setGlobalEmojiPicker] = useState<{
@@ -99,7 +92,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       return sessionExpired;
     }
     return chat?.sessionExpired ?? true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionExpired, chat?.sessionExpired]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -137,20 +129,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     };
   }>("waba_suite.api.message.send");
 
-  // Register get_all as the incremental sync callable so syncEngine can
-  // fetch only messages newer than the last cached timestamp.
-  const { call: getMessagesCallBack } = useFrappePostCall<{
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    message: any[];
-  }>("waba_suite.api.message.get_all");
-
-  useEffect(() => {
-    syncEngine.setGetMessagesCall(getMessagesCallBack);
-    return () => {
-      syncEngine.setGetMessagesCall(null);
-    };
-  }, [getMessagesCallBack]);
-
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -185,7 +163,9 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         if (parentMsg) {
           parsedReplyTo = {
             messageId: parentMsg.name,
-            content: parentMsg.content || parentMsg.message || "",
+            content: parentMsg.use_template
+              ? parentMsg.message || parentMsg.content || ""
+              : parentMsg.content || parentMsg.message || "",
             sender:
               parentMsg.type === "Outgoing"
                 ? "You"
@@ -224,7 +204,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         isSent: msg.type === "Outgoing",
         status: msg.status || "sent",
         type: msg.content_type || "text",
-        isTemplate: msg.use_template === 1 || msg.use_template === true,
         reactions: reactions,
         senderName: msg.sender_name || msg.sender,
         caption: msg.caption,
@@ -241,6 +220,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
               footer: msg.template_footer_raw || "",
             }
           : undefined,
+        templateFileUrl: msg.use_template ? msg.file_url || msg.attach || undefined : undefined,
       };
     });
   }, [messagesData, chat]);
@@ -286,7 +266,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   // even when the badge is already zero — so read receipts are sent and the
   // unread totals clear. The backend endpoint is idempotent.
   useEffect(() => {
-    if (!chat || !isOnline) return;
+    if (!chat) return;
     onMarkAsRead?.(chat);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -294,7 +274,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
     chat?.mobileNo,
     chat?.whatsappAccount,
     currentAccount,
-    isOnline,
   ]);
 
   // A new inbound message can arrive while the chat is already open (its id
@@ -302,22 +281,22 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
   // up. This is what keeps an open conversation from accumulating unread
   // messages and stale badges.
   useEffect(() => {
-    if (!chat || !isOnline) return;
+    if (!chat) return;
     if (unreadIncomingCount > 0) {
       onMarkAsRead?.(chat);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unreadIncomingCount, chat?.id, isOnline]);
+  }, [unreadIncomingCount, chat?.id]);
 
-  // Poll for new messages on a fixed interval — but only while online.
-  // See MESSAGE_POLL_INTERVAL_MS above.
+  // Poll for new messages on a fixed interval. See MESSAGE_POLL_INTERVAL_MS
+  // above.
   useEffect(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
 
-    if (chat && isOnline) {
+    if (chat) {
       mutateMessages();
       pollingIntervalRef.current = setInterval(() => {
         mutateMessages();
@@ -330,7 +309,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         pollingIntervalRef.current = null;
       }
     };
-  }, [chat, mutateMessages, isOnline]);
+  }, [chat, mutateMessages]);
 
   useEffect(() => {
     scrollToBottom();
@@ -422,7 +401,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
         isSent: true,
         status: "sending",
         type: fileData?.content_type || "text",
-        isTemplate: false,
         replyTo: replyToMessage
           ? {
               content: replyToMessage.content,
@@ -441,18 +419,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
 
       setMessages((prev) => [...prev, optimisticMessage]);
       scrollToBottom();
-
-      // ─── Offline path: persist to Dexie + queue for background sync ───
-      if (!isOnline) {
-        await queueOfflineMessage(
-          chat,
-          messageContent,
-          messageId,
-          replyToMessage || undefined,
-          fileUrl || undefined,
-        );
-        return;
-      }
 
       try {
         const response = await sendMessageCall({
@@ -499,15 +465,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
           console.error("Failed to send message:", response?.message);
         }
       } catch (error) {
-        // ─── Network failure: queue for retry when back online ───
-        console.error("Failed to send message, queuing for retry:", error);
-        await queueOfflineMessage(
-          chat,
-          messageContent,
-          messageId,
-          replyToMessage || undefined,
-          fileUrl || undefined,
-        );
+        console.error("Failed to send message:", error);
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === messageId ? { ...msg, status: "failed" } : msg,
@@ -522,8 +480,7 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
       scrollToBottom,
       isSending,
       currentAccount,
-      isOnline,
-      queueOfflineMessage,
+      templateOnly,
     ],
   );
 
@@ -705,35 +662,6 @@ export const ChatSpace: React.FC<ChatSpaceProps> = ({
               }
 
               const message = g.message!;
-
-              if (message.isTemplate) {
-                return (
-                  <div
-                    key={g.key}
-                    id={`msg-${message.id}`}
-                    className={`flex ${message.isSent ? "justify-end" : "justify-start"} ${g.isFirstOfBatch ? "mt-3" : "mt-0.5"} ${
-                      highlightedMessageId === message.id
-                        ? "ring-2 ring-[#25D366] ring-offset-2 ring-offset-[#0b141a] rounded-lg transition"
-                        : ""
-                    }`}
-                  >
-                    <div
-                      className={`max-w-[70%] ${
-                        message.isSent
-                          ? "bg-[#005c4b] text-white"
-                          : "bg-[#202c33] text-white"
-                      } rounded-lg px-3 py-1.5 shadow-sm`}
-                    >
-                      <TemplateMessage content={message.content} />
-                      <div className="flex items-center justify-end space-x-1 mt-1">
-                        <span className="text-[10px] text-[#8696a0]">
-                          {message.timestamp}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
 
               return (
                 <div

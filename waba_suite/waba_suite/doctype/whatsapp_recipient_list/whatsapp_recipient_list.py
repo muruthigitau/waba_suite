@@ -1,17 +1,46 @@
-import frappe
 import json
+
+import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import cint
 
 
 class WhatsAppRecipientList(Document):
 	def validate(self):
 		self.validate_recipients()
-	
+
+	def on_update(self):
+		self.sync_draft_campaign_counts()
+
 	def validate_recipients(self):
 		if not self.is_new():
 			if not self.recipients:
 				frappe.throw(_("At least one recipient is required"))
+
+	def sync_draft_campaign_counts(self):
+		"""Refresh `recipient_count` on draft campaigns using this list.
+
+		Draft campaigns read their recipient list at submit time, so their
+		cached count must follow edits made here. Submitted campaigns keep the
+		historical count they were queued with.
+		"""
+		count = frappe.db.count("WhatsApp Recipient", {"parent": self.name})
+		campaigns = frappe.get_all(
+			"Bulk WhatsApp Message",
+			filters={
+				"recipient_list": self.name,
+				"recipient_type": "Recipient List",
+				"docstatus": 0,
+			},
+			fields=["name", "recipient_count"],
+		)
+		for campaign in campaigns:
+			if cint(campaign.recipient_count) == count:
+				continue
+			frappe.get_doc("Bulk WhatsApp Message", campaign.name).db_set(
+				"recipient_count", count, notify=True
+			)
 	
 	def import_list_from_doctype(self, doctype, mobile_field, name_field=None, filters=None, limit=None, data_fields=None):
 		"""Import recipients from another DocType"""

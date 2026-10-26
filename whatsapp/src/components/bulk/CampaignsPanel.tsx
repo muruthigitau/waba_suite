@@ -6,6 +6,7 @@
  */
 
 import {
+  useFrappeDocTypeEventListener,
   useFrappeGetDocList,
   useFrappePostCall,
 } from "frappe-react-sdk";
@@ -66,6 +67,12 @@ export const CampaignsPanel: React.FC<CampaignsPanelProps> = ({
   const { call: submitDoc } = useFrappePostCall("frappe.client.submit");
 
   const campaigns = data || [];
+
+  // Recipient-list edits update draft campaign counts on the server; refresh
+  // the cards as soon as those documents change.
+  useFrappeDocTypeEventListener("Bulk WhatsApp Message", () => {
+    void mutate();
+  });
 
   const handleCheckProgress = async (name: string) => {
     setBusyDoc(name);

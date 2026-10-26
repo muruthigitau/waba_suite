@@ -45,8 +45,6 @@ export const UserProvider = ({ children }: UserProviderProps) => {
   const userData = user?.message;
 
   const handleLogout = async () => {
-    localStorage.removeItem("app-cache");
-
     try {
       if (window.frappePushNotification) {
         await window.frappePushNotification.disableNotification();

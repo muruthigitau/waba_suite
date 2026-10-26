@@ -74,6 +74,50 @@ class TestWhatsAppRecipientList(IntegrationTestCase):
         with self.assertRaises(frappe.ValidationError):
             doc.save()
 
+    def test_draft_campaign_count_matches_edited_list(self):
+        """Draft campaigns see recipient changes made to their list."""
+        doc = self._make_recipient_list(
+            list_name="Test Recipient Sync",
+            recipients=[
+                {"mobile_number": "919900112233"},
+                {"mobile_number": "919900112244"},
+            ],
+        )
+        campaign = frappe.get_doc(
+            {
+                "doctype": "Bulk WhatsApp Message",
+                "title": "Test Recipient Sync Campaign",
+                "recipient_type": "Recipient List",
+                "recipient_list": doc.name,
+                "use_template": 0,
+            }
+        ).insert(ignore_permissions=True)
+
+        try:
+            self.assertEqual(campaign.recipient_count, 2)
+
+            doc.append("recipients", {"mobile_number": "919900112255"})
+            doc.save(ignore_permissions=True)
+            self.assertEqual(
+                frappe.db.get_value(
+                    "Bulk WhatsApp Message", campaign.name, "recipient_count"
+                ),
+                3,
+            )
+
+            doc.recipients = doc.recipients[:2]
+            doc.save(ignore_permissions=True)
+            self.assertEqual(
+                frappe.db.get_value(
+                    "Bulk WhatsApp Message", campaign.name, "recipient_count"
+                ),
+                2,
+            )
+        finally:
+            frappe.delete_doc(
+                "Bulk WhatsApp Message", campaign.name, force=True, ignore_permissions=True
+            )
+
     def test_import_list_from_doctype(self):
         """Test importing recipients from another doctype (User)."""
         doc = self._make_recipient_list(

@@ -1,13 +1,8 @@
 /**
  * Application entry point for the WhatsApp chat frontend.
  *
- * Sets up React with routing, Frappe provider, cache context, and the
- * service worker for PWA/offline support.
- *
- * Key dependencies:
- *   - frappe-react-sdk: Frappe backend integration
- *   - react-router-dom: Client-side routing
- *   - CacheContext: Offline data caching
+ * Sets up React routing and the Frappe provider. Data is always fetched from
+ * the server; no offline cache or service worker is registered.
  */
 
 import { FrappeProvider } from "frappe-react-sdk";
@@ -15,7 +10,6 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import AppRouter from "./AppRouter";
-import { CacheProvider } from "./contexts/CacheContext";
 import "./index.css";
 
 declare global {
@@ -55,11 +49,9 @@ ReactDOM.createRoot(rootElement).render(
       <FrappeProvider
         url={getFrappeUrl()}
         siteName={getSiteName()}
-        enableSocket={false}
+        enableSocket={true}
       >
-        <CacheProvider>
-          <AppRouter />
-        </CacheProvider>
+        <AppRouter />
       </FrappeProvider>
     </BrowserRouter>
   </React.StrictMode>,

@@ -9,12 +9,10 @@ import React, {
 } from "react";
 import { ChatList } from "../components/chat/ChatList";
 import { ChatSpace } from "../components/chat/ChatSpace";
-import { SyncStatusBar } from "../components/common/SyncStatusBar";
 import { LabelPickerModal } from "../components/modals/LabelPickerModal";
 import { useUser } from "../contexts/UserProvider";
 import { useChatPreferences } from "../hooks/useChatPreferences";
 import { useUrlState } from "../hooks/useUrlState";
-import syncEngine from "../services/syncEngine";
 import type { Account, Chat, ChatLabel, Message, UserSettings } from "../types";
 import { getMessagePreview } from "../utils/messagePreview";
 
@@ -577,14 +575,6 @@ export const WhatsAppHome: React.FC = () => {
     return false;
   }, [accountsData]);
 
-  // Setup sync engine with actual API callbacks when available
-  useEffect(() => {
-    syncEngine.setApiCallbacks({
-      sendMessage: sendMessageCall,
-      markAsRead: markMultipleAsReadCall,
-    });
-  }, [sendMessageCall, markMultipleAsReadCall]);
-
   return (
     <div
       className="flex w-full h-dvh bg-[#111b21] overflow-hidden"
@@ -615,7 +605,6 @@ export const WhatsAppHome: React.FC = () => {
               : "relative w-full max-w-[400px] min-w-[320px] flex-shrink-0 border-r border-[#2a3942]"
           } flex-col overflow-hidden`}
         >
-          <SyncStatusBar />
           <div className="flex-1 flex flex-col overflow-hidden">
             <ChatList
               key={currentAccount}

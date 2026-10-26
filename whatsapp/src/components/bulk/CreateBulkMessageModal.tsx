@@ -8,6 +8,7 @@
 
 import {
   useFrappeCreateDoc,
+  useFrappeDocTypeEventListener,
   useFrappeGetCall,
   useFrappeGetDocList,
   useFrappePostCall,
@@ -67,7 +68,7 @@ export const CreateBulkMessageModal: React.FC<
     { whatsapp_account: whatsappAccount },
   );
 
-  const { data: listsData, isLoading: listsLoading } = useFrappeGetDocList<
+  const { data: listsData, isLoading: listsLoading, mutate: mutateLists } = useFrappeGetDocList<
     RecipientList
   >(
     "WhatsApp Recipient List",
@@ -77,6 +78,10 @@ export const CreateBulkMessageModal: React.FC<
       orderBy: { field: "list_name", order: "asc" },
     },
   );
+
+  useFrappeDocTypeEventListener("WhatsApp Recipient List", () => {
+    void mutateLists();
+  });
 
   const { createDoc } = useFrappeCreateDoc<BulkMessage>();
   const { call: submitDoc } = useFrappePostCall("frappe.client.submit");

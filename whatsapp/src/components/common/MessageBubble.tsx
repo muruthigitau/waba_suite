@@ -82,10 +82,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     if (url) window.open(url, "_blank");
   };
 
-  const fileUrl = message.attach || message.content;
-  const isMediaFile = ["image", "video", "document"].includes(
-    message.type || "",
-  );
+  const fileUrl = message.attach || message.templateFileUrl || message.content;
+  const isTemplateMedia = message.type === "template" && Boolean(message.templateFileUrl);
+  const isMediaFile =
+    ["image", "video", "document"].includes(message.type || "") || isTemplateMedia;
 
   const renderContent = () => {
     const captionText = message.caption || message.content;
@@ -118,6 +118,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               "Document"
             }
             caption={hasCaption ? captionText : undefined}
+          />
+        );
+      case "template":
+        return (
+          <TemplateMessage
+            content={message.content}
+            fileUrl={message.templateFileUrl}
+            templateRaw={message.templateRaw}
           />
         );
       case "location":
@@ -291,7 +299,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <>
                 <button
                   onClick={() =>
-                    handleDownloadFile(fileUrl, message.content || "attachment")
+                    handleDownloadFile(
+                      fileUrl,
+                      message.type === "template"
+                        ? fileNameFromUrl(message.templateFileUrl) || "template-attachment"
+                        : message.content || "attachment",
+                    )
                   }
                   className="p-1.5 text-[#aebac1] hover:text-white hover:bg-[#2a3942] rounded-full transition"
                   title="Download"

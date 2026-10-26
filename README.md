@@ -1,12 +1,12 @@
 # WABA Suite
 
 An all-in-one WhatsApp Business API (WABA) integration for the Frappe Framework: multi-account
-messaging, a React/Vite PWA chat client, Meta template and WhatsApp Flow management, bulk
+messaging, a React/Vite chat client, Meta template and WhatsApp Flow management, bulk
 campaigns, rule-based chatbot automation, AI replies, notifications, and analytics.
 
 - **Framework:** Frappe >= 16 (< 17)
 - **Python:** >= 3.10
-- **Frontend:** React 19 + Vite + Dexie (IndexedDB) PWA served at `/whatsapp`
+- **Frontend:** React 19 + Vite chat client served at `/whatsapp`
 - **License:** AGPL-3.0
 
 ## Documentation

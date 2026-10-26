@@ -8,6 +8,8 @@
  * excerpt for normal messages.
  */
 
+import { parseTemplatePayload } from "./templateMessage";
+
 /** Maximum number of characters shown for a reply reference. */
 export const REPLY_PREVIEW_MAX = 64;
 
@@ -115,8 +117,14 @@ export function getMessagePreview(input: {
       return `${icon} Contact`;
     case "reaction":
       return content || `${icon} Reaction`;
-    case "template":
+    case "template": {
+      const payload = parseTemplatePayload(input.content || "");
+      if (payload) {
+        const body = stripMessageHtml(payload.filled_body || payload.template_name);
+        return truncateText(body ? `${icon} ${body}` : `${icon} Template`, max);
+      }
       return truncateText(`${icon} ${caption || content || "Template"}`, max);
+    }
     default:
       return truncateText(content || caption || "Message", max);
   }

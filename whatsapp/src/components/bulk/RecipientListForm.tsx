@@ -5,7 +5,7 @@
  * reconciles them instead of recreating the whole table.
  */
 
-import { useFrappeCreateDoc, useFrappeUpdateDoc } from "frappe-react-sdk";
+import { useFrappeCreateDoc, useFrappeUpdateDoc, useSWRConfig } from "frappe-react-sdk";
 import { Loader2, Trash2, X } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { mergeRecipients } from "../../services/bulkMessaging";
@@ -58,6 +58,7 @@ export const RecipientListForm: React.FC<RecipientListFormProps> = ({
 
   const { createDoc } = useFrappeCreateDoc<RecipientList>();
   const { updateDoc } = useFrappeUpdateDoc<RecipientList>();
+  const { mutate } = useSWRConfig();
 
   const isEditing = Boolean(listName);
 
@@ -103,6 +104,15 @@ export const RecipientListForm: React.FC<RecipientListFormProps> = ({
 
       if (listName) {
         await updateDoc("WhatsApp Recipient List", listName, payload);
+        // Drop the cached document so the next edit/open reads the saved
+        // server state rather than the pre-save snapshot.
+        await mutate(
+          (key) =>
+            typeof key === "string" &&
+            key.includes(`/api/resource/WhatsApp Recipient List/${listName}`),
+          undefined,
+          { revalidate: true },
+        );
       } else {
         await createDoc("WhatsApp Recipient List", payload);
       }

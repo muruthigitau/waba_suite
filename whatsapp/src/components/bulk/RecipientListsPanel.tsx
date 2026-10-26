@@ -2,7 +2,7 @@
  * Recipient list management panel for bulk campaigns.
  */
 
-import { useFrappeDeleteDoc, useFrappeGetDocList } from "frappe-react-sdk";
+import { useFrappeDeleteDoc, useFrappeDocTypeEventListener, useFrappeGetDocList } from "frappe-react-sdk";
 import { Loader2, Pencil, Plus, Trash2, Users } from "lucide-react";
 import React, { useState } from "react";
 import type { RecipientList } from "../../types/bulk";
@@ -29,6 +29,11 @@ export const RecipientListsPanel: React.FC<RecipientListsPanelProps> = ({
   });
 
   const { deleteDoc } = useFrappeDeleteDoc();
+
+  // Keep the portal in step with edits made in Desk or another browser tab.
+  useFrappeDocTypeEventListener("WhatsApp Recipient List", () => {
+    void mutate();
+  });
 
   const lists = data || [];
 
