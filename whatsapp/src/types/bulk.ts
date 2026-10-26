@@ -49,12 +49,28 @@ export interface MessageTemplate {
   name: string;
   template_name: string;
   header: string;
+  /** Header media type (`TEXT`, `IMAGE` or `DOCUMENT`). */
+  header_type?: string;
   footer: string;
   template: string;
   variables: number[];
   header_vars: string[];
   body_vars: string[];
   footer_vars: string[];
+}
+
+/** A selectable contact row returned by `bulk_recipients.get_recipient_options`. */
+export interface RecipientOption {
+  name: string;
+  contact_name: string;
+  mobile_no: string;
+  company_name?: string | null;
+}
+
+/** Paginated payload returned by `bulk_recipients.get_recipient_options`. */
+export interface RecipientOptionsResponse {
+  items: RecipientOption[];
+  has_more: boolean;
 }
 
 /** Contact payload returned by the WhatsApp contacts API. */

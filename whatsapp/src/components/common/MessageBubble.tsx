@@ -121,9 +121,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           />
         );
       case "location":
-        return <LocationMessage location={message.locationData!} />;
+        return message.locationData ? (
+          <LocationMessage location={message.locationData} />
+        ) : (
+          <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
+            {message.content || "Location shared"}
+          </p>
+        );
       case "contact":
-        return <ContactMessage contact={message.contactData!} />;
+        return message.contactData ? (
+          <ContactMessage contact={message.contactData} />
+        ) : (
+          <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
+            {message.content || "Contact shared"}
+          </p>
+        );
       case "reaction":
         return <ReactionMessage emoji={message.content} />;
       default:

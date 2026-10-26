@@ -34,9 +34,10 @@ export interface Message {
   caption?: string;
   attach?: string;
   locationData?: {
-    latitude: number;
-    longitude: number;
-    name?: string;
+    latitude: number | string;
+    longitude: number | string;
+    name?: string | null;
+    address?: string | null;
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contactData?: any;
@@ -72,9 +73,10 @@ export interface RawMessage {
   reply_to_message?: string;
   reactions?: { emoji: string; count: number; users?: string[] }[];
   location_data?: {
-    latitude: number;
-    longitude: number;
-    name?: string;
+    latitude: number | string;
+    longitude: number | string;
+    name?: string | null;
+    address?: string | null;
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contact_data?: any;

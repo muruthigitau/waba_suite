@@ -30,10 +30,29 @@ class BulkWhatsAppMessage(Document):
 	def validate(self):
 		# self.validate_message()
 		self.validate_recipients()
+		self.validate_template_attachment()
 
 	def validate_message(self):
 		if not self.message_content:
 			frappe.throw(_("Message content is required"))
+
+	def validate_template_attachment(self):
+		"""Require a file for templates with an image or document header.
+
+		The WhatsApp Cloud API rejects template messages whose media header is
+		not supplied, so fail fast during validation instead of at send time.
+
+		Raises:
+		    frappe.ValidationError: If the template header needs an attachment
+		    and none is set.
+		"""
+		if not self.use_template or not self.template:
+			return
+		header_type = frappe.db.get_value("WhatsApp Templates", self.template, "header_type")
+		if header_type in ("IMAGE", "DOCUMENT") and not self.attach:
+			frappe.throw(
+				_("Attach a file for this template; its header requires a {0}.").format(header_type.lower())
+			)
 
 	def validate_recipients(self):
 		if not self.recipients and not self.recipient_list:
@@ -103,7 +122,7 @@ class BulkWhatsAppMessage(Document):
 				wa_message.body_param = recipient.get("recipient_data")
 			elif self.template_variables and self.variable_type == "Common":
 				wa_message.body_param = self.template_variables
-				wa_message.message = self.get_common_body_values()
+				wa_message.message = self.get_common_template_values()
 			if self.attach:
 				wa_message.attach = self.attach
 
@@ -116,15 +135,17 @@ class BulkWhatsAppMessage(Document):
 		if self.recipient_count == self.sent_count:
 			self.db_set("status", "Completed")
 
-	def get_common_body_values(self):
+	def get_common_template_values(self):
 		"""Serialise common template variables for the WhatsApp Message sender.
 
-		The WhatsApp Message template sender expects a JSON object in `message`
-		and sends its `body_values` list as the template body parameters.
+		`template_variables` may be stored as an object with ``header``,
+		``body`` and ``footer`` value lists (current React UI) or as a plain
+		list of body values (legacy documents). The WhatsApp Message template
+		sender reads the resulting JSON from the `message` field.
 
 		Returns:
-		    JSON string containing `{"body_values": [...]}`, or None when the
-		    stored `template_variables` value is not a JSON array.
+		    JSON string with header_values, body_values and footer_values, or
+		    None when the stored value cannot be parsed or is empty.
 		"""
 		try:
 			values = json.loads(self.template_variables or "[]")
@@ -134,9 +155,26 @@ class BulkWhatsAppMessage(Document):
 				"WhatsApp Bulk Messaging",
 			)
 			return None
-		if not isinstance(values, list):
+
+		if isinstance(values, list):
+			values = {"body": values}
+		if not isinstance(values, dict):
 			return None
-		return json.dumps({"body_values": [str(value) for value in values if value is not None]})
+
+		def as_text_list(key):
+			items = values.get(key) or []
+			if not isinstance(items, list):
+				return []
+			return [str(item) for item in items if item is not None and str(item) != ""]
+
+		payload = {
+			"header_values": as_text_list("header"),
+			"body_values": as_text_list("body"),
+			"footer_values": as_text_list("footer"),
+		}
+		if not any(payload.values()):
+			return None
+		return json.dumps(payload)
 
 	def retry_failed(self):
 		"""Retry failed messages"""
@@ -171,7 +209,7 @@ class BulkWhatsAppMessage(Document):
 		rows = frappe.get_all(
 			"WhatsApp Message",
 			filters={"bulk_message_reference": self.name},
-			fields=["status", "count(name) as message_count"],
+			fields=["status", {"COUNT": "name", "as": "message_count"}],
 			group_by="status",
 		)
 

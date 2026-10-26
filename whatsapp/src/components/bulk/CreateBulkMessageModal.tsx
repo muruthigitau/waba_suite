@@ -1,8 +1,9 @@
 /**
  * Create-and-submit dialog for a `Bulk WhatsApp Message` campaign.
  *
- * Campaigns are template-only. Common body variables are stored on the campaign
- * so every recipient receives the same values.
+ * Campaigns are template-only. Header, body and footer variable values and the
+ * header attachment are stored on the campaign so every recipient receives the
+ * same content.
  */
 
 import {
@@ -15,13 +16,16 @@ import { AlertTriangle, Loader2, X } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import {
   serializeTemplateVariables,
-  supportsBulkVariables,
+  templateAttachmentKind,
+  templateVariableFields,
+  templateVariableKey,
 } from "../../services/bulkMessaging";
 import type {
   BulkMessage,
   MessageTemplate,
   RecipientList,
 } from "../../types/bulk";
+import { TemplateAttachment } from "./TemplateAttachment";
 import { TemplatePreview } from "./TemplatePreview";
 
 interface CreateBulkMessageModalProps {
@@ -52,6 +56,7 @@ export const CreateBulkMessageModal: React.FC<
   const [variableValues, setVariableValues] = useState<Record<string, string>>(
     {},
   );
+  const [attachment, setAttachment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -86,10 +91,17 @@ export const CreateBulkMessageModal: React.FC<
   const handleTemplateChange = (value: string) => {
     setTemplateName(value);
     setVariableValues({});
+    setAttachment("");
   };
 
-  const variablesFilled = (selectedTemplate?.body_vars || []).every(
-    (variable) => (variableValues[variable] || "").trim() !== "",
+  const templateFields = useMemo(
+    () => templateVariableFields(selectedTemplate),
+    [selectedTemplate],
+  );
+  const attachmentKind = templateAttachmentKind(selectedTemplate);
+
+  const variablesFilled = templateFields.every(
+    (field) => (variableValues[templateVariableKey(field)] || "").trim() !== "",
   );
 
   const canSubmit =
@@ -98,6 +110,7 @@ export const CreateBulkMessageModal: React.FC<
     Boolean(templateName) &&
     Boolean(recipientList) &&
     variablesFilled &&
+    (!attachmentKind || Boolean(attachment)) &&
     !submitting;
 
   const handleSubmit = async () => {
@@ -120,6 +133,7 @@ export const CreateBulkMessageModal: React.FC<
           selectedTemplate,
           variableValues,
         ),
+        attach: attachment || undefined,
       })) as BulkMessage;
     } catch (createError) {
       setError(errorMessage(createError));
@@ -225,19 +239,11 @@ export const CreateBulkMessageModal: React.FC<
                 <option value="">
                   {templatesLoading ? "Loading templates..." : "Select template"}
                 </option>
-                {templates.map((template) => {
-                  const supported = supportsBulkVariables(template);
-                  return (
-                    <option
-                      key={template.name}
-                      value={template.name}
-                      disabled={!supported}
-                    >
-                      {template.template_name}
-                      {supported ? "" : " (header/footer variables unsupported)"}
-                    </option>
-                  );
-                })}
+                {templates.map((template) => (
+                  <option key={template.name} value={template.name}>
+                    {template.template_name}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -246,12 +252,20 @@ export const CreateBulkMessageModal: React.FC<
             <TemplatePreview
               template={selectedTemplate}
               variableValues={variableValues}
-              onVariableChange={(variable, value) =>
+              onVariableChange={(fieldKey, value) =>
                 setVariableValues((current) => ({
                   ...current,
-                  [variable]: value,
+                  [fieldKey]: value,
                 }))
               }
+            />
+          )}
+
+          {selectedTemplate && (
+            <TemplateAttachment
+              kind={attachmentKind}
+              value={attachment}
+              onChange={(fileUrl) => setAttachment(fileUrl || "")}
             />
           )}
 

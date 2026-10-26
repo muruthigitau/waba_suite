@@ -80,35 +80,93 @@ export function parseManualRecipients(raw: string): RecipientRow[] {
     .filter((row) => normalizeMobile(row.mobile_number) !== "");
 }
 
+/** Template section that contains a `{{n}}` placeholder. */
+export type TemplateVariableSection = "header" | "body" | "footer";
+
+/** A single `{{n}}` placeholder in a template section. */
+export interface TemplateVariableField {
+  section: TemplateVariableSection;
+  variable: string;
+}
+
 /**
- * Serialise common body variables for the campaign's `template_variables`.
+ * Build the state key for a template variable.
  *
- * The bulk sender stores common variables as a JSON array of body values in
- * `{{1}}`, `{{2}}`, ... order.
+ * Header and body placeholders can both be `{{1}}`, so the section is part of
+ * the key to keep their values independent.
+ *
+ * @param field Template variable field.
+ * @returns Key in the form `section:variable`.
+ */
+export function templateVariableKey(field: TemplateVariableField): string {
+  return `${field.section}:${field.variable}`;
+}
+
+/**
+ * List every `{{n}}` placeholder in a template, header first.
  *
  * @param template Selected template.
- * @param values Variable values keyed by placeholder index.
+ * @returns Ordered variable fields.
+ */
+export function templateVariableFields(
+  template: MessageTemplate | undefined,
+): TemplateVariableField[] {
+  if (!template) return [];
+  return (
+    [
+      ["header", template.header_vars],
+      ["body", template.body_vars],
+      ["footer", template.footer_vars],
+    ] as const
+  ).flatMap(([section, variables]) =>
+    (variables || []).map((variable) => ({ section, variable })),
+  );
+}
+
+
+/**
+ * Serialise common template variables for the campaign's `template_variables`.
+ *
+ * Values are stored as an object with positional lists for each section:
+ * `{"header": ["..."], "body": ["..."], "footer": ["..."]}`. The bulk sender
+ * falls back to a plain body list for documents saved by older clients.
+ *
+ * @param template Selected template.
+ * @param values Variable values keyed by `section:variable`.
  * @returns JSON string, or an empty string when the template has no variables.
  */
 export function serializeTemplateVariables(
   template: MessageTemplate | undefined,
   values: Record<string, string>,
 ): string {
-  if (!template?.body_vars?.length) return "";
-  return JSON.stringify(
-    template.body_vars.map((variable) => (values[variable] || "").trim()),
-  );
+  const fields = templateVariableFields(template);
+  if (fields.length === 0) return "";
+
+  const payload: Record<TemplateVariableSection, string[]> = {
+    header: [],
+    body: [],
+    footer: [],
+  };
+  for (const field of fields) {
+    payload[field.section].push((values[templateVariableKey(field)] || "").trim());
+  }
+  return JSON.stringify(payload);
 }
 
+/** Media type required by a template header. */
+export type TemplateAttachmentKind = "image" | "document" | null;
+
 /**
- * Bulk campaigns can only fill body variables.
+ * Return the attachment kind required by a template header.
  *
- * Header/footer placeholders are not resolved by the bulk sender, so templates
- * containing them are disabled in the picker.
+ * @param template Selected template.
+ * @returns `"image"`, `"document"`, or `null` for text/empty headers.
  */
-export function supportsBulkVariables(template: MessageTemplate): boolean {
-  return (
-    (template.header_vars?.length || 0) === 0 &&
-    (template.footer_vars?.length || 0) === 0
-  );
+export function templateAttachmentKind(
+  template: MessageTemplate | undefined,
+): TemplateAttachmentKind {
+  const headerType = (template?.header_type || "").trim().toUpperCase();
+  if (headerType === "IMAGE") return "image";
+  if (headerType === "DOCUMENT") return "document";
+  return null;
 }

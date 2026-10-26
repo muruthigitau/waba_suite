@@ -16,6 +16,7 @@ import { useChatPreferences } from "../hooks/useChatPreferences";
 import { useUrlState } from "../hooks/useUrlState";
 import syncEngine from "../services/syncEngine";
 import type { Account, Chat, ChatLabel, Message, UserSettings } from "../types";
+import { getMessagePreview } from "../utils/messagePreview";
 
 export const WhatsAppHome: React.FC = () => {
   const { logout } = useUser();
@@ -212,8 +213,21 @@ export const WhatsAppHome: React.FC = () => {
       let lastMessageTimestamp = room.modified;
 
       if (room.last_message) {
-        lastMessageContent =
+        const lastRawContent =
           room.last_message.message || room.last_message.content || "";
+        const lastContentType = room.last_message.content_type || "text";
+        const isPlainOrTemplate =
+          lastContentType === "text" || lastContentType === "template";
+        // Structured/media messages are stored as payload strings; render a
+        // short label ("📍 Location", "📷 Photo • caption") instead.
+        lastMessageContent = isPlainOrTemplate
+          ? lastRawContent
+          : getMessagePreview({
+              type: lastContentType,
+              content: lastRawContent,
+              attach: room.last_message.attach,
+              maxLength: 64,
+            });
         lastMessageType =
           room.last_message.type || room.last_message.content_type || "text";
         lastMessageStatus = room.last_message.status || "sent";
